@@ -57,11 +57,11 @@ client.on('message_create', async (msg) => {
 
     logger.info(`📨 Pesan dari ${phoneNumber}: ${messageText}`);
 
-    // Check if message contains 'vuyama' keyword (case-insensitive)
-    const hasVuyamaKeyword = messageText.toLowerCase().includes('vuyama');
+    // Check if message starts with '!vuyama' (case-insensitive)
+    const hasVuyamaKeyword = messageText.toLowerCase().startsWith('!vuyama');
     
     if (!hasVuyamaKeyword && !escalatedConversations.has(phoneNumber)) {
-      logger.debug(`Skipping message from ${phoneNumber} - no 'vuyama' keyword`);
+      logger.debug(`Skipping message from ${phoneNumber} - does not start with '!vuyama'`);
       return;
     }
 
@@ -76,8 +76,11 @@ client.on('message_create', async (msg) => {
       return;
     }
 
+    // Strip '!vuyama' from the message before sending to AI
+    const cleanMessage = messageText.slice(8).trim(); // 8 is length of '!vuyama '
+    
     // Generate bot response
-    const response = await messageHandler.generateResponse(phoneNumber, messageText);
+    const response = await messageHandler.generateResponse(phoneNumber, cleanMessage || messageText);
 
     // Check if needs escalation
     if (response.shouldEscalate) {
