@@ -1,0 +1,33 @@
+{
+  "name": "admin-bot-vuyama",
+  "version": "1.0.0",
+  "description": "WhatsApp Customer Service Bot for Vuyama",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "chatbot",
+    "customer-service"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^16.3.1",
+    "knex": "^3.2.10",
+    "pg": "^8.20.0",
+    "pino": "^8.17.2",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

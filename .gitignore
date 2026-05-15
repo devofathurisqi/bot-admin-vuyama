@@ -1,0 +1,14 @@
+node_modules/
+.env
+*.log
+logs/
+database/
+.DS_Store
+.vscode/
+.idea/
+*.swp
+.session
+dist/
+build/
+.wwebjs_auth/
+.wwebjs_cache/
