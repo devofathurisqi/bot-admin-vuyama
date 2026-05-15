@@ -10,5 +10,5 @@ database/
 .session
 dist/
 build/
-.wwebjs_auth/
-.wwebjs_cache/
+.wwebjs_auth
+.wwebjs_cache
