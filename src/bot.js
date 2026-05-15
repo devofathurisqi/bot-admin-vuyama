@@ -154,16 +154,30 @@ const startBot = async () => {
   }
 };
 
+const db = require('./utils/db');
+
 // Graceful shutdown
 process.on('SIGINT', async () => {
   logger.info('Shutting down bot...');
-  await client.destroy();
+  try {
+    await client.destroy();
+    await db.destroy();
+    logger.info('✅ Shutdown clean.');
+  } catch (err) {
+    logger.error('Error during shutdown:', err);
+  }
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   logger.info('Shutting down bot...');
-  await client.destroy();
+  try {
+    await client.destroy();
+    await db.destroy();
+    logger.info('✅ Shutdown clean.');
+  } catch (err) {
+    logger.error('Error during shutdown:', err);
+  }
   process.exit(0);
 });
 
