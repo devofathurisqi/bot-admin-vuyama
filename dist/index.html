@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vuyama Bot Admin Dashboard</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM CDNs -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel Standalone for direct JSX rendering -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Socket.IO Client -->
+  <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Tailwind Theme Customizations -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Outfit', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f5f3ff',
+              100: '#ede9fe',
+              200: '#ddd6fe',
+              300: '#c4b5fd',
+              400: '#a78bfa',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              700: '#6d28d9',
+              800: '#5b21b6',
+              900: '#4c1d95',
+              950: '#2e1065',
+            },
+            darkbg: {
+              DEFAULT: 'var(--bg-default)',
+              card: 'var(--bg-card)',
+              border: 'var(--border-default)',
+              input: 'var(--input-default)'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Premium Custom Scrollbar, Theme Variables and Transitions CSS -->
+  <style>
+    /* CSS Variables for Premium Dynamic Styling */
+    :root {
+      --bg-default: #f8fafc;
+      --bg-card: #ffffff;
+      --border-default: rgba(226, 232, 240, 0.8);
+      --input-default: #ffffff;
+      --scrollbar-thumb: #cbd5e1;
+      --scrollbar-thumb-hover: #94a3b8;
+    }
+    .dark {
+      --bg-default: #0b0f19;
+      --bg-card: #111827;
+      --border-default: #1f2937;
+      --input-default: #1f2937;
+      --scrollbar-thumb: #1f2937;
+      --scrollbar-thumb-hover: #374151;
+    }
+
+    /* Custom Scrollbar Styles */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--scrollbar-thumb);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--scrollbar-thumb-hover);
+    }
+    
+    /* Smooth transition */
+    * {
+      transition-property: background-color, border-color, text-decoration-color, fill, stroke;
+      transition-duration: 200ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    /* Pulsing animations */
+    @keyframes pulse-slow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(0.98); }
+    }
+    .pulse-slow {
+      animation: pulse-slow 3s infinite;
+    }
+    
+    /* Glassmorphism */
+    .glass {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-color: rgba(226, 232, 240, 0.8);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
+    }
+    .dark .glass {
+      background: rgba(17, 24, 39, 0.75);
+      border-color: rgba(31, 41, 55, 0.8);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Elegant Font Colors override for premium contrast */
+    h1, h2, h3, h4, h5, h6 {
+      color: #0f172a;
+    }
+    .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+      color: #f8fafc;
+    }
+
+    /* Soft border corrections for inputs in both modes */
+    input, select, textarea {
+      background-color: var(--input-default) !important;
+      border-color: var(--border-default) !important;
+      color: #0f172a !important;
+    }
+    .dark input, .dark select, .dark textarea {
+      color: #f8fafc !important;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: #8b5cf6 !important;
+      box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1) !important;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-darkbg text-gray-800 dark:text-gray-100 font-sans min-h-screen">
+  
+  <div id="root"></div>
+
+  <!-- React JSX Application Code -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Premium Raw SVGs for beautiful icons without external dependencies
+    const Icons = {
+      Dashboard: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
+      Products: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
+      Customers: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" /></svg>,
+      Orders: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>,
+      Complaints: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+      Blocked: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>,
+      Media: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+      Logs: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+      Settings: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+      Sun: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.364l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>,
+      Moon: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>,
+      Send: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>,
+      Upload: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>,
+      Refresh: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H17" /></svg>,
+      Trash: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+      Check: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>,
+      Search: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+      Pin: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v3.586a1 1 0 00.293.707l2.828 2.828a1 1 0 01-.707 1.707h-3.414a1 1 0 00-.707.293l-2.828 2.828a1 1 0 01-1.707-.707V13a1 1 0 00-.293-.707L4.293 9.464A1 1 0 015 7.757V5z" /></svg>,
+      AlertCircle: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+      ArrowLeft: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>,
+      Plus: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+    };
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('dashboard');
+      const [darkMode, setDarkMode] = useState(true);
+      const [botStatus, setBotStatus] = useState({ status: 'disconnected', qr: null });
+      
+      // Data Stores
+      const [products, setProducts] = useState([]);
+      const [customers, setCustomers] = useState([]);
+      const [orders, setOrders] = useState([]);
+      const [complaints, setComplaints] = useState([]);
+      const [blockedNumbers, setBlockedNumbers] = useState([]);
+      const [media, setMedia] = useState([]);
+      const [logs, setLogs] = useState([]);
+      const [settings, setSettings] = useState({ company: [], reseller: [], services: [], escalationKeywords: '' });
+
+      // Live Chat States
+      const [activeChat, setActiveChat] = useState(null);
+      const [chatMessages, setChatMessages] = useState([]);
+      const [typedMessage, setTypedMessage] = useState('');
+      const [chatSearch, setChatSearch] = useState('');
+      
+      // Filter & Loaders
+      const [productSearch, setProductSearch] = useState('');
+      const [productCategory, setProductCategory] = useState('');
+      const [productModalOpen, setProductModalOpen] = useState(false);
+      const [editingProduct, setEditingProduct] = useState(null);
+      const [productForm, setProductForm] = useState({ id: '', name: '', category: '', sub_category: '', description: '', price_retail: '', price_reseller: '', color: [], size: [], material: '', weight: '', stock: '', image: '', status: 'Tersedia' });
+      const [uploadingExcel, setUploadingExcel] = useState(false);
+      const [uploadingImage, setUploadingImage] = useState(false);
+      
+      // Settings Edit State
+      const [editingSetting, setEditingSetting] = useState(null);
+      const [settingValue, setSettingValue] = useState('');
+
+      const chatEndRef = useRef(null);
+      const fileInputRef = useRef(null);
+      const imgInputRef = useRef(null);
+      const galleryInputRef = useRef(null);
+      const logTerminalRef = useRef(null);
+
+      // Notification Audio
+      const notificationSound = useRef(new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-120.wav'));
+
+      // Toggle Theme
+      const toggleDarkMode = () => {
+        setDarkMode(!darkMode);
+        if (darkMode) {
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+      };
+
+      // Sound notification trigger
+      const playNotification = () => {
+        try {
+          notificationSound.current.play();
+        } catch (e) {}
+      };
+
+      // Fetch dynamic settings editor lists
+      const fetchSettings = async () => {
+        try {
+          const res = await fetch('/api/settings');
+          const d = await res.json();
+          if (d.success) setSettings(d.data);
+        } catch (e) {}
+      };
+
+      // Initial Fetch Loops
+      const fetchBotStatus = async () => {
+        try {
+          const res = await fetch('/api/whatsapp/status');
+          const d = await res.json();
+          setBotStatus(d);
+        } catch (e) {}
+      };
+
+      const fetchProducts = async () => {
+        try {
+          const catQuery = productCategory ? `&category=${productCategory}` : '';
+          const res = await fetch(`/api/products?search=${productSearch}${catQuery}`);
+          const d = await res.json();
+          if (d.success) setProducts(d.data);
+        } catch (e) {}
+      };
+
+      const fetchCustomers = async () => {
+        try {
+          const res = await fetch('/api/customers');
+          const d = await res.json();
+          if (d.success) setCustomers(d.data);
+        } catch (e) {}
+      };
+
+      const fetchOrders = async () => {
+        try {
+          const res = await fetch('/api/orders');
+          const d = await res.json();
+          if (d.success) setOrders(d.data);
+        } catch (e) {}
+      };
+
+      const fetchComplaints = async () => {
+        try {
+          const res = await fetch('/api/complaints');
+          const d = await res.json();
+          if (d.success) setComplaints(d.data);
+        } catch (e) {}
+      };
+
+      const fetchBlockedNumbers = async () => {
+        try {
+          const res = await fetch('/api/blocked-numbers');
+          const d = await res.json();
+          if (d.success) setBlockedNumbers(d.data);
+        } catch (e) {}
+      };
+
+      const fetchMedia = async () => {
+        try {
+          const res = await fetch('/api/media');
+          const d = await res.json();
+          if (d.success) setMedia(d.data);
+        } catch (e) {}
+      };
+
+      const fetchLogs = async () => {
+        try {
+          const res = await fetch('/api/logs');
+          const d = await res.json();
+          if (d.success) setLogs(d.data);
+        } catch (e) {}
+      };
+
+      // Fetch chat messages for active customer
+      const loadChatMessages = async (phoneNumber) => {
+        try {
+          const res = await fetch(`/api/whatsapp/chats/${phoneNumber}`);
+          const d = await res.json();
+          if (d.success) {
+            setChatMessages(d.data);
+            // Refresh customers list to clear unread counts on dashboard
+            fetchCustomers();
+          }
+        } catch (e) {}
+      };
+
+      // On Initial Mount and tab switching
+      useEffect(() => {
+        fetchBotStatus();
+        fetchProducts();
+        fetchCustomers();
+        fetchOrders();
+        fetchComplaints();
+        fetchBlockedNumbers();
+        fetchMedia();
+        fetchLogs();
+        fetchSettings();
+
+        // Connect Socket.IO
+        const socket = io();
+
+        socket.on('bot_status_update', (status) => {
+          setBotStatus(status);
+        });
+
+        // Real-time messages update
+        socket.on('incoming_message', (msg) => {
+          // Add to messages if active chat
+          if (activeChat && msg.phone_number === activeChat) {
+            setChatMessages(prev => [...prev, msg]);
+          }
+          // Refresh list to update CRM UI
+          fetchCustomers();
+        });
+
+        // Real-time order update
+        socket.on('new_order', (order) => {
+          fetchOrders();
+          playNotification();
+        });
+
+        // Real-time complaint update
+        socket.on('new_complaint', (comp) => {
+          fetchComplaints();
+          playNotification();
+        });
+
+        socket.on('customer_updated', () => {
+          fetchCustomers();
+        });
+
+        socket.on('new_log', (log) => {
+          setLogs(prev => [log, ...prev]);
+        });
+
+        return () => {
+          socket.disconnect();
+        };
+      }, [activeChat]);
+
+      // Triggers products fetch when search or category filter updates
+      useEffect(() => {
+        fetchProducts();
+      }, [productSearch, productCategory]);
+
+      // Scroll to bottom of chat window
+      useEffect(() => {
+        if (chatEndRef.current) {
+          chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, [chatMessages]);
+
+      // Auto-scroll logs terminal
+      useEffect(() => {
+        if (logTerminalRef.current) {
+          logTerminalRef.current.scrollTop = logTerminalRef.current.scrollHeight;
+        }
+      }, [logs]);
+
+      // ======================== API ACTIONS ========================
+
+      // Manual live chat reply
+      const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!typedMessage.trim() || !activeChat) return;
+
+        try {
+          const res = await fetch('/api/whatsapp/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phoneNumber: activeChat, message: typedMessage })
+          });
+          const d = await res.json();
+          if (d.success) {
+            setTypedMessage('');
+            loadChatMessages(activeChat);
+          }
+        } catch (e) {}
+      };
+
+      // Excel Synchronization
+      const handleExcelSync = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploadingExcel(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+          const res = await fetch('/api/migration/import', {
+            method: 'POST',
+            body: formData
+          });
+          const d = await res.json();
+          if (d.success) {
+            alert('Sukses! Data Excel berhasil dimigrasikan dan disinkronisasikan ke Database.');
+            fetchProducts();
+            fetchSettings();
+          } else {
+            alert(`Gagal: ${d.error}`);
+          }
+        } catch (err) {
+          alert(`Error: ${err.message}`);
+        } finally {
+          setUploadingExcel(false);
+        }
+      };
+
+      // In-line settings editor
+      const handleSaveSetting = async () => {
+        if (!editingSetting) return;
+        try {
+          const res = await fetch(`/api/settings/company/${editingSetting.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value: settingValue })
+          });
+          const d = await res.json();
+          if (d.success) {
+            alert('Sukses menyimpan informasi perusahaan!');
+            setEditingSetting(null);
+            fetchSettings();
+          }
+        } catch (e) {}
+      };
+
+      // CRUD Product Actions
+      const handleProductFormSubmit = async (e) => {
+        e.preventDefault();
+        const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
+        const method = editingProduct ? 'PUT' : 'POST';
+
+        try {
+          const res = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...productForm,
+              color: typeof productForm.color === 'string' ? productForm.color.split(',').map(c => c.trim()) : productForm.color,
+              size: typeof productForm.size === 'string' ? productForm.size.split(',').map(s => s.trim()) : productForm.size
+            })
+          });
+          const d = await res.json();
+          if (d.success) {
+            setProductModalOpen(false);
+            setEditingProduct(null);
+            fetchProducts();
+            alert('Produk berhasil disimpan!');
+          } else {
+            alert(`Error: ${d.error}`);
+          }
+        } catch (e) {
+          alert('Error menyimpan produk.');
+        }
+      };
+
+      const handleProductImageUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        setUploadingImage(true);
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+          const res = await fetch('/api/products/upload-image', {
+            method: 'POST',
+            body: formData
+          });
+          const d = await res.json();
+          if (d.success) {
+            setProductForm(prev => ({ ...prev, image: d.url }));
+          }
+        } catch (err) {
+          alert('Error mengunggah gambar.');
+        } finally {
+          setUploadingImage(false);
+        }
+      };
+
+      const handleEditProductClick = (p) => {
+        setEditingProduct(p);
+        setProductForm({
+          id: p.id,
+          name: p.name,
+          category: p.category || '',
+          sub_category: p.sub_category || '',
+          description: p.description || '',
+          price_retail: p.price_retail,
+          price_reseller: p.price_reseller,
+          color: p.color.join(', '),
+          size: p.size.join(', '),
+          material: p.material || '',
+          weight: p.weight || '',
+          stock: p.stock,
+          image: p.image || '',
+          status: p.status || 'Tersedia'
+        });
+        setProductModalOpen(true);
+      };
+
+      const handleDeleteProduct = async (id) => {
+        if (!confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
+        try {
+          const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+          const d = await res.json();
+          if (d.success) {
+            fetchProducts();
+            alert('Produk berhasil dihapus.');
+          }
+        } catch (e) {}
+      };
+
+      // Resolve Complaint & Resume Bot replies
+      const handleResolveComplaint = async (id) => {
+        try {
+          const res = await fetch(`/api/complaints/${id}/resolve`, { method: 'PUT' });
+          const d = await res.json();
+          if (d.success) {
+            alert('Komplain selesai. Bot WhatsApp kembali aktif untuk nomor customer ini.');
+            fetchComplaints();
+            fetchCustomers();
+            fetchBlockedNumbers();
+          }
+        } catch (e) {}
+      };
+
+      // Manual Blocks Block/Unblock
+      const handleUnblock = async (phone) => {
+        try {
+          const res = await fetch(`/api/blocked-numbers/${phone}`, { method: 'DELETE' });
+          const d = await res.json();
+          if (d.success) {
+            alert('Nomor berhasil diunblock. Bot auto-reply kembali aktif.');
+            fetchBlockedNumbers();
+            fetchCustomers();
+          }
+        } catch (e) {}
+      };
+
+      const handleBlockManual = async () => {
+        const phone = prompt('Masukkan nomor WhatsApp yang ingin diblock (contoh: 628xxx@c.us):');
+        if (!phone) return;
+        const reason = prompt('Masukkan alasan blocking (opsional):');
+
+        try {
+          const res = await fetch('/api/blocked-numbers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone_number: phone, reason })
+          });
+          const d = await res.json();
+          if (d.success) {
+            alert('Nomor berhasil diblock dari auto-reply.');
+            fetchBlockedNumbers();
+            fetchCustomers();
+          } else {
+            alert(`Gagal: ${d.error}`);
+          }
+        } catch (e) {}
+      };
+
+      // Orders Operations
+      const handleUpdateOrderStatus = async (id, status) => {
+        try {
+          const res = await fetch(`/api/orders/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+          });
+          const d = await res.json();
+          if (d.success) {
+            fetchOrders();
+          }
+        } catch (e) {}
+      };
+
+      const handleUpdateOrderTotal = async (id) => {
+        const total = prompt('Masukkan total harga baru (Rp):');
+        if (total === null || isNaN(total)) return;
+
+        try {
+          const res = await fetch(`/api/orders/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ total })
+          });
+          const d = await res.json();
+          if (d.success) {
+            fetchOrders();
+          }
+        } catch (e) {}
+      };
+
+      // Media Gallery Upload
+      const handleMediaUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const tag = prompt('Masukkan tag media (opsional: product, label, catalog, general):', 'general');
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('tag', tag);
+
+        try {
+          const res = await fetch('/api/media/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const d = await res.json();
+          if (d.success) {
+            alert('File media berhasil diupload ke Galeri!');
+            fetchMedia();
+          }
+        } catch (e) {}
+      };
+
+      const handleDeleteMedia = async (id) => {
+        if (!confirm('Hapus media ini dari galeri?')) return;
+        try {
+          const res = await fetch(`/api/media/${id}`, { method: 'DELETE' });
+          const d = await res.json();
+          if (d.success) {
+            fetchMedia();
+          }
+        } catch (e) {}
+      };
+
+      // CRM Pinned / Status Updates
+      const togglePinCustomer = async (phone, isPinned) => {
+        try {
+          await fetch(`/api/customers/${phone}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_pinned: !isPinned })
+          });
+          fetchCustomers();
+        } catch (e) {}
+      };
+
+      const handleAssignAdmin = async (phone, adminName) => {
+        try {
+          await fetch(`/api/customers/${phone}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ assigned_to: adminName })
+          });
+          fetchCustomers();
+        } catch (e) {}
+      };
+
+      const handleChangeCustomerStatus = async (phone, status) => {
+        try {
+          await fetch(`/api/customers/${phone}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+          });
+          fetchCustomers();
+        } catch (e) {}
+      };
+
+      // Active Chats Filters
+      const filteredCustomers = customers.filter(c => {
+        const matchesSearch = c.phone_number.includes(chatSearch) || (c.name && c.name.toLowerCase().includes(chatSearch.toLowerCase()));
+        return matchesSearch;
+      });
+
+      return (
+        <div className="flex h-screen overflow-hidden">
+          
+          {/* ==================== LEFT SIDEBAR ==================== */}
+          <aside className="w-64 glass border-r border-darkbg-border flex flex-col justify-between shrink-0 hidden md:flex">
+            <div>
+              {/* BRAND HEADER */}
+              <div className="p-6 flex items-center space-x-3 border-b border-darkbg-border">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/20">
+                  V
+                </div>
+                <div>
+                  <h1 className="font-extrabold text-lg bg-clip-text text-transparent bg-gradient-to-r from-brand-400 to-indigo-400">VUYAMA</h1>
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Suite & CRM System</p>
+                </div>
+              </div>
+
+              {/* NAVIGATION MENU */}
+              <nav className="p-4 space-y-1.5 flex-1">
+                {[
+                  { id: 'dashboard', name: 'Dashboard', icon: Icons.Dashboard },
+                  { id: 'products', name: 'Products & Excel', icon: Icons.Products },
+                  { id: 'customers', name: 'Live Chat CRM', icon: Icons.Customers, count: customers.reduce((acc, c) => acc + (c.unread_count || 0), 0) },
+                  { id: 'orders', name: 'Orders Board', icon: Icons.Orders, count: orders.filter(o => o.status === 'PENDING').length },
+                  { id: 'complaints', name: 'Complaints Queue', icon: Icons.Complaints, count: complaints.filter(c => c.status === 'OPEN').length },
+                  { id: 'blocked', name: 'Blocked Bot', icon: Icons.Blocked },
+                  { id: 'media', name: 'Media Gallery', icon: Icons.Media },
+                  { id: 'logs', name: 'Bot Console', icon: Icons.Logs },
+                  { id: 'settings', name: 'Settings Editor', icon: Icons.Settings }
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-medium text-sm transition-all duration-150 ${activeTab === item.id ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/10' : 'text-slate-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-gray-200 hover:bg-brand-50/50 dark:hover:bg-gray-800/40'}`}
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      <item.icon />
+                      <span>{item.name}</span>
+                    </div>
+                    {item.count > 0 && (
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${activeTab === item.id ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
+                        {item.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* SIDEBAR FOOTER */}
+            <div className="p-4 border-t border-darkbg-border flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className={`w-2.5 h-2.5 rounded-full ${botStatus.status === 'connected' ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' : botStatus.status === 'scanning' ? 'bg-amber-500 shadow-lg shadow-amber-500/20' : 'bg-rose-500 shadow-lg shadow-rose-500/20'}`} />
+                <span className="text-xs font-semibold text-slate-500 dark:text-gray-400 capitalize">Bot: {botStatus.status}</span>
+              </div>
+
+              <button onClick={toggleDarkMode} className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                {darkMode ? <Icons.Sun /> : <Icons.Moon />}
+              </button>
+            </div>
+          </aside>
+
+          {/* ==================== MAIN PANEL ==================== */}
+          <main className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-[#0b0f19]">
+            
+            {/* MOBILE HEADER */}
+            <header className="p-4 flex items-center justify-between border-b border-darkbg-border glass md:hidden shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center font-bold text-white">V</div>
+                <h1 className="font-extrabold text-base tracking-tight">VUYAMA CS</h1>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button onClick={toggleDarkMode} className="p-2 rounded-lg bg-gray-800/50 text-gray-400">
+                  {darkMode ? <Icons.Sun /> : <Icons.Moon />}
+                </button>
+              </div>
+            </header>
+
+            {/* SCROLLABLE MAIN BODY */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-8">
+              
+              {/* ==================== TAB: DASHBOARD ==================== */}
+              {activeTab === 'dashboard' && (
+                <div className="space-y-6">
+                  {/* HERO BANNER */}
+                  <div className="p-6 md:p-8 rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-indigo-700 text-white flex flex-col md:flex-row items-center justify-between relative overflow-hidden shadow-xl shadow-brand-500/10">
+                    <div className="space-y-2.5 relative z-10">
+                      <h2 className="text-2xl md:text-3xl font-extrabold font-sans leading-tight">Vuyama CS Control Suite</h2>
+                      <p className="text-brand-100 text-sm max-w-lg">WhatsApp Bot & human admin collaboration dashboard. Read Excel data, view live messages, manage orders, and check complaints from a unified hub.</p>
+                    </div>
+                    
+                    {/* Excel Quick Upload Sync Widget */}
+                    <div className="mt-5 md:mt-0 flex items-center space-x-4 relative z-10">
+                      <button 
+                        onClick={() => fileInputRef.current.click()} 
+                        disabled={uploadingExcel}
+                        className="px-5 py-3 rounded-xl bg-white hover:bg-brand-50 font-bold text-sm text-brand-600 shadow-md flex items-center space-x-2 transition"
+                      >
+                        <Icons.Upload />
+                        <span>{uploadingExcel ? 'Syncing...' : 'Sync Excel File'}</span>
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleExcelSync} 
+                        accept=".xlsx, .xls" 
+                        className="hidden" 
+                      />
+                    </div>
+                    
+                    {/* Decorative abstract elements */}
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl transform translate-x-20 -translate-y-20" />
+                  </div>
+
+                  {/* QUICK STATS CARDS GRID */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Live Chat CRM</span>
+                      <div className="mt-2.5 flex items-baseline justify-between">
+                        <span className="text-3xl font-extrabold">{customers.length}</span>
+                        <span className="text-xs text-brand-400 font-bold">Total Contacts</span>
+                      </div>
+                    </div>
+                    
+                    <div className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Pending Orders</span>
+                      <div className="mt-2.5 flex items-baseline justify-between">
+                        <span className="text-3xl font-extrabold text-amber-500">{orders.filter(o => o.status === 'PENDING').length}</span>
+                        <span className="text-xs text-amber-400 font-bold">Needs Review</span>
+                      </div>
+                    </div>
+                    
+                    <div className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Active Complaints</span>
+                      <div className="mt-2.5 flex items-baseline justify-between">
+                        <span className="text-3xl font-extrabold text-rose-500">{complaints.filter(c => c.status === 'OPEN').length}</span>
+                        <span className="text-xs text-rose-400 font-bold">Requires Action</span>
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Total Products</span>
+                      <div className="mt-2.5 flex items-baseline justify-between">
+                        <span className="text-3xl font-extrabold text-brand-500">{products.length}</span>
+                        <span className="text-xs text-brand-400 font-bold">In DB</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* BOTTOM SECTIONS: WA STATUS & LIVE FEED */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* WHATSAPP CONNECTION STATUS PANEL */}
+                    <div className="lg:col-span-1 p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-darkbg-border pb-3">
+                          <h3 className="font-extrabold text-base">WhatsApp Bot Status</h3>
+                          <div className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${botStatus.status === 'connected' ? 'bg-emerald-500/10 text-emerald-500' : botStatus.status === 'scanning' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                            {botStatus.status}
+                          </div>
+                        </div>
+
+                        {/* DISPLAY QR CODE IF SCANNING */}
+                        {botStatus.status === 'scanning' && botStatus.qr ? (
+                          <div className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-inner border border-gray-100 max-w-xs mx-auto">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(botStatus.qr)}`} alt="Scan QR Code" className="w-48 h-48" />
+                            <p className="mt-4 text-xs font-semibold text-gray-500 text-center leading-relaxed">Pindai kode QR menggunakan WhatsApp di handphone Anda untuk menghubungkan bot CS.</p>
+                          </div>
+                        ) : botStatus.status === 'connected' ? (
+                          <div className="flex flex-col items-center justify-center p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-xl space-y-3.5">
+                            <div className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                            </div>
+                            <h4 className="font-extrabold text-sm text-emerald-500 uppercase tracking-wider">Bot Aktif & Siap CS</h4>
+                            <p className="text-xs font-medium text-gray-400 text-center max-w-xs">Bot dan manusia menggunakan 1 nomor yang sama. Bot membalas otomatis dan admin membalas live chat.</p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center p-6 bg-rose-500/5 border border-rose-500/10 rounded-xl space-y-3.5">
+                            <div className="w-16 h-16 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
+                              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                            </div>
+                            <h4 className="font-extrabold text-sm text-rose-500 uppercase tracking-wider">Bot Terputus</h4>
+                            <p className="text-xs font-medium text-gray-400 text-center max-w-xs">Menunggu inisialisasi server WhatsApp. Jika QR Code muncul, segera pindai.</p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-6 border-t border-darkbg-border pt-4 text-center">
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Powered by whatsapp-web.js</span>
+                      </div>
+                    </div>
+
+                    {/* LIVE AUDIT ACTIVITY LOGS */}
+                    <div className="lg:col-span-2 p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-darkbg-border pb-3">
+                          <h3 className="font-extrabold text-base">Live Activity Streams</h3>
+                          <button onClick={fetchLogs} className="p-1 rounded-lg text-gray-400 hover:text-white transition">
+                            <Icons.Refresh />
+                          </button>
+                        </div>
+
+                        <div className="space-y-3.5 max-h-80 overflow-y-auto pr-1">
+                          {logs.slice(0, 5).map((log, idx) => (
+                            <div key={idx} className="flex items-start space-x-3.5 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-darkbg-border/30">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase shrink-0 ${log.level === 'error' ? 'bg-rose-500/10 text-rose-500' : log.level === 'warn' ? 'bg-amber-500/10 text-amber-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                                {log.level}
+                              </span>
+                              <div className="flex-1 space-y-1">
+                                <p className="text-xs font-medium leading-relaxed">{log.message}</p>
+                                <span className="text-[9px] text-gray-500 font-semibold">{new Date(log.timestamp).toLocaleTimeString('id-ID')}</span>
+                              </div>
+                            </div>
+                          ))}
+                          {logs.length === 0 && (
+                            <p className="text-xs text-gray-500 text-center py-6">Tidak ada aktivitas terdaftar.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== TAB: PRODUCTS ==================== */}
+              {activeTab === 'products' && (
+                <div className="space-y-6">
+                  {/* BAR CONTROL HEADER */}
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-darkbg-border pb-5">
+                    <div className="space-y-1 self-start">
+                      <h2 className="text-xl font-extrabold font-sans">Products Management</h2>
+                      <p className="text-xs text-gray-500 font-medium">Create products, manage retail/reseller pricing, update stocks, or sync from excel.</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button 
+                        onClick={() => {
+                          setEditingProduct(null);
+                          setProductForm({ id: '', name: '', category: '', sub_category: '', description: '', price_retail: '', price_reseller: '', color: '', size: '', material: '', weight: '', stock: '', image: '', status: 'Tersedia' });
+                          setProductModalOpen(true);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition"
+                      >
+                        <Icons.Plus />
+                        <span>Add Product</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* FILTER BAR & SEARCH */}
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-1">
+                      <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-500"><Icons.Search /></span>
+                      <input 
+                        type="text" 
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        placeholder="Search product name, category, material..." 
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-medium text-sm focus:outline-none focus:border-brand-500 transition"
+                      />
+                    </div>
+                    
+                    <select
+                      value={productCategory}
+                      onChange={(e) => setProductCategory(e.target.value)}
+                      className="px-4 py-3 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-sm focus:outline-none transition"
+                    >
+                      <option value="">All Categories</option>
+                      <option value="Mukena">Mukena</option>
+                      <option value="Hijab">Hijab / Kerudung</option>
+                      <option value="Label">Label Custom</option>
+                    </select>
+                  </div>
+
+                  {/* PRODUCTS GRID */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {products.map(p => (
+                      <div key={p.id} className="rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border overflow-hidden flex flex-col justify-between shadow-sm relative group">
+                        
+                        {/* PRODUCT IMAGE OR FALLBACK */}
+                        <div className="h-44 w-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
+                          {p.image ? (
+                            <img src={p.image.startsWith('/') ? p.image : p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 duration-300" />
+                          ) : (
+                            <div className="text-gray-400 font-bold uppercase text-[10px] tracking-widest select-none">No Preview Image</div>
+                          )}
+
+                          {/* Status Badge */}
+                          <span className={`absolute top-3 right-3 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${p.status === 'Tersedia' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                            {p.status}
+                          </span>
+                        </div>
+
+                        {/* PRODUCT DETAILS */}
+                        <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                          <div className="space-y-2">
+                            <span className="text-[10px] text-brand-500 font-extrabold uppercase tracking-wide">{p.category} ({p.sub_category})</span>
+                            <h3 className="font-extrabold text-sm leading-tight line-clamp-2" title={p.name}>{p.name}</h3>
+                            <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">{p.description}</p>
+                          </div>
+
+                          <div className="space-y-3 pt-3 border-t border-darkbg-border">
+                            {/* PRICINGS */}
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-gray-500 font-semibold uppercase text-[8px] tracking-wide">Retail Price</span>
+                                <p className="font-bold text-gray-700 dark:text-gray-200">Rp {p.price_retail.toLocaleString('id-ID')}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 font-semibold uppercase text-[8px] tracking-wide">Reseller Price</span>
+                                <p className="font-bold text-brand-400">Rp {p.price_reseller.toLocaleString('id-ID')}</p>
+                              </div>
+                            </div>
+                            
+                            {/* SPECIFICS */}
+                            <div className="flex items-center justify-between text-[10px] text-gray-500 font-semibold">
+                              <span>Stok: <strong className="text-gray-200 font-extrabold">{p.stock} pcs</strong></span>
+                              <span>{p.weight} gram</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ACTIONS FOOTER BAR */}
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800/40 border-t border-darkbg-border flex items-center justify-end space-x-2 shrink-0">
+                          <button onClick={() => handleEditProductClick(p)} className="p-2 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-white transition">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                          <button onClick={() => handleDeleteProduct(p.id)} className="p-2 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition">
+                            <Icons.Trash />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {products.length === 0 && (
+                      <div className="col-span-full p-12 text-center text-gray-500">Tidak ada produk ditemukan.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== TAB: CUSTOMERS (LIVE CHAT CRM ROOM) ==================== */}
+              {activeTab === 'customers' && (
+                <div className="h-[calc(100vh-140px)] border border-darkbg-border rounded-2xl bg-white dark:bg-darkbg-card overflow-hidden flex shadow-sm">
+                  
+                  {/* CRM CHAT ROOM: LEFT COLUMN LIST */}
+                  <div className="w-80 border-r border-darkbg-border flex flex-col shrink-0 overflow-hidden">
+                    <div className="p-4 border-b border-darkbg-border space-y-3.5 bg-gray-50 dark:bg-gray-800/20">
+                      <h3 className="font-extrabold text-base">WhatsApp Chats</h3>
+                      <div className="relative">
+                        <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500"><Icons.Search /></span>
+                        <input 
+                          type="text" 
+                          placeholder="Quick Search..." 
+                          value={chatSearch}
+                          onChange={(e) => setChatSearch(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border text-xs focus:outline-none focus:border-brand-500 transition"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto divide-y divide-darkbg-border/60">
+                      {filteredCustomers.map(c => (
+                        <div 
+                          key={c.phone_number} 
+                          onClick={() => {
+                            setActiveChat(c.phone_number);
+                            loadChatMessages(c.phone_number);
+                          }}
+                          className={`p-4 flex items-start space-x-3.5 hover:bg-gray-800/10 dark:hover:bg-gray-800/30 cursor-pointer transition duration-150 relative ${activeChat === c.phone_number ? 'bg-gray-100 dark:bg-gray-800/40 border-l-4 border-brand-500' : ''}`}
+                        >
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gray-700 to-gray-800 flex items-center justify-center font-bold text-white shrink-0 shadow">
+                            {c.name ? c.name[0].toUpperCase() : 'W'}
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name || c.phone_number.split('@')[0]}</h4>
+                              <span className="text-[9px] text-gray-500 font-semibold">{new Date(c.last_message_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
+                            </div>
+                            
+                            <p className="text-[10px] text-gray-500 truncate">{c.phone_number.split('@')[0]}</p>
+
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {c.is_pinned && (
+                                <span className="text-brand-400"><Icons.Pin /></span>
+                              )}
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase ${c.status === 'COMPLAINT' || c.status === 'WAITING_HUMAN' ? 'bg-rose-500/10 text-rose-500' : c.status === 'ORDER_CONFIRMED' ? 'bg-emerald-500/10 text-emerald-500' : c.status === 'ORDER_PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-gray-500/10 text-gray-400'}`}>
+                                {c.status}
+                              </span>
+                              {c.assigned_to && (
+                                <span className="px-2 py-0.5 rounded text-[8px] font-bold bg-indigo-500/10 text-indigo-400">
+                                  👤 {c.assigned_to}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {c.unread_count > 0 && (
+                            <span className="absolute top-4 right-4 w-4 h-4 rounded-full bg-brand-500 text-white font-extrabold text-[8px] flex items-center justify-center animate-bounce">
+                              {c.unread_count}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {filteredCustomers.length === 0 && (
+                        <p className="text-xs text-gray-500 text-center py-12">Tidak ada chat.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CRM CHAT ROOM: MIDDLE CHAT SCREEN */}
+                  <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900/10">
+                    {activeChat ? (
+                      <React.Fragment>
+                        {/* CHAT HEADER */}
+                        <div className="px-6 py-4 border-b border-darkbg-border flex items-center justify-between bg-white dark:bg-darkbg-card">
+                          <div>
+                            <h3 className="font-extrabold text-sm">{customers.find(c => c.phone_number === activeChat)?.name || activeChat}</h3>
+                            <p className="text-[10px] text-gray-500 font-semibold">{activeChat}</p>
+                          </div>
+
+                          <div className="flex items-center space-x-2">
+                            <button 
+                              onClick={() => togglePinCustomer(activeChat, customers.find(c => c.phone_number === activeChat)?.is_pinned)}
+                              className={`p-2 rounded-xl border ${customers.find(c => c.phone_number === activeChat)?.is_pinned ? 'border-brand-500 bg-brand-500/5 text-brand-400' : 'border-darkbg-border text-gray-400 hover:text-white'} transition`}
+                              title="Pin/Unpin Chat"
+                            >
+                              <Icons.Pin />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* CHAT HISTORY STREAM */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                          {chatMessages.map(msg => (
+                            <div 
+                              key={msg.id} 
+                              className={`flex ${msg.sender === 'customer' ? 'justify-start' : 'justify-end'}`}
+                            >
+                              <div className={`p-4 rounded-2xl max-w-sm space-y-1.5 shadow-sm leading-relaxed text-xs border ${msg.sender === 'customer' ? 'bg-white dark:bg-darkbg-card border-gray-100 dark:border-darkbg-border text-gray-800 dark:text-gray-200 rounded-tl-none' : 'bg-brand-600 text-white border-brand-700 rounded-tr-none'}`}>
+                                <p className="whitespace-pre-wrap">{msg.message}</p>
+                                <div className="text-[9px] font-semibold opacity-60 text-right">
+                                  {new Date(msg.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <div ref={chatEndRef} />
+                        </div>
+
+                        {/* MESSAGE INPUT BOX */}
+                        <form onSubmit={handleSendMessage} className="p-4 border-t border-darkbg-border bg-white dark:bg-darkbg-card flex items-center space-x-3.5">
+                          <input 
+                            type="text" 
+                            value={typedMessage}
+                            onChange={(e) => setTypedMessage(e.target.value)}
+                            placeholder="Ketik balasan untuk customer..." 
+                            className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border text-xs focus:outline-none focus:border-brand-500 transition"
+                          />
+                          <button 
+                            type="submit" 
+                            className="px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition flex items-center justify-center"
+                          >
+                            <Icons.Send />
+                          </button>
+                        </form>
+                      </React.Fragment>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-gray-500">
+                        <Icons.Customers />
+                        <h4 className="mt-4 font-bold text-sm">Belum Ada Chat Terpilih</h4>
+                        <p className="text-xs text-gray-500 max-w-xs mt-1">Pilih salah satu customer di panel kiri untuk membuka live chat WhatsApp secara real-time.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CRM CHAT ROOM: RIGHT COLUMN CRM SIDEBAR */}
+                  {activeChat && (
+                    <div className="w-72 border-l border-darkbg-border p-5 flex flex-col justify-between shrink-0 overflow-y-auto bg-gray-50 dark:bg-darkbg-card/30">
+                      <div className="space-y-6">
+                        {/* PROFILE */}
+                        <div className="text-center space-y-2 border-b border-darkbg-border pb-5">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center font-bold text-white text-xl shadow mx-auto">
+                            {customers.find(c => c.phone_number === activeChat)?.name ? customers.find(c => c.phone_number === activeChat).name[0].toUpperCase() : 'W'}
+                          </div>
+                          <h3 className="font-extrabold text-sm leading-tight">{customers.find(c => c.phone_number === activeChat)?.name || 'WhatsApp Customer'}</h3>
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-gray-800 text-gray-400 tracking-wider">CRM PROFILE</span>
+                        </div>
+
+                        {/* CRM ACTIONS */}
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Assign Admin</span>
+                            <select 
+                              value={customers.find(c => c.phone_number === activeChat)?.assigned_to || ''}
+                              onChange={(e) => handleAssignAdmin(activeChat, e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border font-bold text-xs focus:outline-none transition"
+                            >
+                              <option value="">Belum Ditugaskan</option>
+                              <option value="Admin Vuyama 1">Admin Vuyama 1</option>
+                              <option value="Admin Vuyama 2">Admin Vuyama 2</option>
+                              <option value="Supervisor CS">Supervisor CS</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Chatbot Auto-Reply Status</span>
+                            <select 
+                              value={customers.find(c => c.phone_number === activeChat)?.status || ''}
+                              onChange={(e) => handleChangeCustomerStatus(activeChat, e.target.value)}
+                              className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border font-bold text-xs focus:outline-none transition"
+                            >
+                              <option value="NORMAL">NORMAL (Bot CS Aktif)</option>
+                              <option value="ORDER_PENDING">ORDER PENDING</option>
+                              <option value="ORDER_CONFIRMED">ORDER CONFIRMED</option>
+                              <option value="WAITING_HUMAN">WAITING HUMAN (Bot CS Mati)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* QUICK BOT AUTO REPLY BLOCK BUTTON */}
+                        <div className="pt-4 border-t border-darkbg-border">
+                          {blockedNumbers.some(b => b.phone_number === activeChat) ? (
+                            <button 
+                              onClick={() => handleUnblock(activeChat)}
+                              className="w-full py-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-400 hover:text-white font-extrabold text-xs transition duration-150"
+                            >
+                              Resume Bot Replies (Unblock)
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => {
+                                const reason = prompt('Masukkan alasan mematikan bot:');
+                                if (reason !== null) {
+                                  fetch('/api/blocked-numbers', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ phone_number: activeChat, reason })
+                                  }).then(() => {
+                                    fetchBlockedNumbers();
+                                    fetchCustomers();
+                                  });
+                                }
+                              }}
+                              className="w-full py-2.5 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-400 hover:text-white font-extrabold text-xs transition duration-150"
+                            >
+                              Pause Bot Replies (Block)
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* ==================== TAB: ORDERS (KNBAN BOARD / STATS) ==================== */}
+              {activeTab === 'orders' && (
+                <div className="space-y-6">
+                  <div className="border-b border-darkbg-border pb-5 space-y-1">
+                    <h2 className="text-xl font-extrabold font-sans">Orders Monitoring</h2>
+                    <p className="text-xs text-gray-500 font-medium">Automatic parsed orders from customer. Set total prices and update orders statuses.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {orders.map(order => (
+                      <div key={order.id} className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm flex flex-col justify-between space-y-4">
+                        
+                        {/* ORDER META */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between border-b border-darkbg-border pb-2.5">
+                            <span className="text-xs font-bold text-brand-400">Order ID: #{order.id}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${order.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 animate-pulse' : order.status === 'CONFIRMED' ? 'bg-indigo-500/10 text-indigo-400' : order.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-gray-500/10 text-gray-400'}`}>
+                              {order.status}
+                            </span>
+                          </div>
+
+                          <h3 className="font-extrabold text-sm">{order.customer_name}</h3>
+                          <span className="text-[10px] text-gray-500 font-semibold">{order.phone}</span>
+                        </div>
+
+                        {/* SPECS AND PURCHASE */}
+                        <div className="space-y-3 p-3.5 bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-darkbg-border/30 rounded-xl">
+                          <div className="space-y-1 border-b border-darkbg-border/40 pb-2">
+                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Produk & Pesanan</span>
+                            <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{order.pesanan_raw}</p>
+                          </div>
+                          
+                          {/* Label custom specs if filled */}
+                          {order.brand_name && (
+                            <div className="space-y-1 pt-1 text-[10px]">
+                              <span className="text-[8px] text-brand-400 font-bold uppercase tracking-wide">Brand & Label Specs</span>
+                              <div className="grid grid-cols-2 gap-1.5 leading-relaxed text-gray-400">
+                                <span>Brand: <strong className="text-gray-200">{order.brand_name}</strong></span>
+                                <span>Size: <strong className="text-gray-200">{order.label_size}</strong></span>
+                                <span>Bentuk: <strong className="text-gray-200">{order.label_shape}</strong></span>
+                                <span>Warna Tinta: <strong className="text-gray-200">{order.ink_color}</strong></span>
+                                <span>Label: <strong className="text-gray-200">{order.label_color}</strong></span>
+                                <span>Font: <strong className="text-gray-200">{order.font}</strong></span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* TOTAL & ACTIONS */}
+                        <div className="space-y-3 pt-3 border-t border-darkbg-border">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500 font-semibold">Total Price:</span>
+                            <div className="flex items-center space-x-2">
+                              <span className="font-extrabold text-sm text-brand-400">Rp {order.total.toLocaleString('id-ID')}</span>
+                              <button onClick={() => handleUpdateOrderTotal(order.id)} className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition">
+                                ✎
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Update Order Status</span>
+                            <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                              <button onClick={() => handleUpdateOrderStatus(order.id, 'CONFIRMED')} className="py-1.5 rounded-lg border border-brand-500/20 bg-brand-500/5 hover:bg-brand-500 font-extrabold transition">Confirm</button>
+                              <button onClick={() => handleUpdateOrderStatus(order.id, 'PAID')} className="py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 font-extrabold transition">Paid</button>
+                              <button onClick={() => handleUpdateOrderStatus(order.id, 'SHIPPED')} className="py-1.5 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500 font-extrabold transition">Shipped</button>
+                              <button onClick={() => handleUpdateOrderStatus(order.id, 'CANCELLED')} className="py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 font-extrabold transition">Cancel</button>
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    ))}
+                    {orders.length === 0 && (
+                      <p className="col-span-full p-12 text-center text-gray-500">Belum ada pesanan terdaftar.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== TAB: COMPLAINTS ==================== */}
+              {activeTab === 'complaints' && (
+                <div className="space-y-6">
+                  <div className="border-b border-darkbg-border pb-5 space-y-1">
+                    <h2 className="text-xl font-extrabold font-sans text-rose-500 flex items-center space-x-2">
+                      <Icons.AlertCircle />
+                      <span>Complaints Resolution Center</span>
+                    </h2>
+                    <p className="text-xs text-gray-500 font-medium">Automatic system blocks chatbot auto replies for complaint accounts. Click "Resolve" to activate auto responses again.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {complaints.map(comp => (
+                      <div key={comp.id} className="p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-rose-500/20 shadow-sm space-y-4 flex flex-col justify-between">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-darkbg-border pb-3">
+                            <div>
+                              <h3 className="font-extrabold text-sm text-gray-200">Phone: {comp.phone_number}</h3>
+                              <span className="text-[10px] text-gray-500 font-semibold">{new Date(comp.created_at).toLocaleString('id-ID')}</span>
+                            </div>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${comp.status === 'OPEN' ? 'bg-rose-500/10 text-rose-500 animate-pulse' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                              {comp.status}
+                            </span>
+                          </div>
+
+                          <div className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/10 text-xs font-semibold text-gray-300 leading-relaxed italic">
+                            "{comp.message}"
+                          </div>
+                        </div>
+
+                        {comp.status === 'OPEN' ? (
+                          <button 
+                            onClick={() => handleResolveComplaint(comp.id)}
+                            className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 font-extrabold text-sm text-white transition duration-150"
+                          >
+                            Resolve Problem (Enable Bot CS)
+                          </button>
+                        ) : (
+                          <span className="w-full py-3 inline-block rounded-xl bg-gray-800 font-bold text-xs text-gray-500 text-center uppercase tracking-wider">COMPLAINT RESOLVED</span>
+                        )}
+                      </div>
+                    ))}
+                    {complaints.length === 0 && (
+                      <p className="col-span-full p-12 text-center text-gray-500">Tidak ada komplain aktif.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== TAB: BLOCKED NUMBERS ==================== */}
+              {activeTab === 'blocked' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-darkbg-border pb-5">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-extrabold font-sans">Blocked WhatsApp Numbers</h2>
+                      <p className="text-xs text-gray-500 font-medium">Numbers in this list will be completely ignored by the chatbot. Admin handle manually.</p>
+                    </div>
+
+                    <button 
+                      onClick={handleBlockManual}
+                      className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-lg shadow-rose-500/15 flex items-center space-x-2 transition"
+                    >
+                      <Icons.Plus />
+                      <span>Block Number</span>
+                    </button>
+                  </div>
+
+                  <div className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 dark:bg-gray-800/40 text-gray-400 font-bold uppercase tracking-wider border-b border-darkbg-border">
+                          <th className="p-4">Phone Number</th>
+                          <th className="p-4">Reason</th>
+                          <th className="p-4">Blocked Date</th>
+                          <th className="p-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-darkbg-border/60">
+                        {blockedNumbers.map(item => (
+                          <tr key={item.phone_number} className="hover:bg-gray-800/10">
+                            <td className="p-4 font-bold">{item.phone_number}</td>
+                            <td className="p-4 text-gray-400 font-medium">{item.reason || 'Manual Admin Block'}</td>
+                            <td className="p-4 text-gray-500 font-semibold">{new Date(item.created_at).toLocaleString('id-ID')}</td>
+                            <td className="p-4 text-right">
+                              <button 
+                                onClick={() => handleUnblock(item.phone_number)}
+                                className="px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-400 hover:text-white font-extrabold transition"
+                              >
+                                Unblock / Resume Bot
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {blockedNumbers.length === 0 && (
+                          <tr>
+                            <td colSpan="4" className="p-8 text-center text-gray-500">Tidak ada nomor diblokir.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== TAB: MEDIA ==================== */}
+              {activeTab === 'media' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-darkbg-border pb-5">
+                    <div className="space-y-1">
+                      <h2 className="text-xl font-extrabold font-sans">Media Management</h2>
+                      <p className="text-xs text-gray-500 font-medium">Upload images, label templates, and catalog PDF. Bot can fetch these files in chat replies.</p>
+                    </div>
+
+                    <button 
+                      onClick={() => galleryInputRef.current.click()}
+                      className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition"
+                    >
+                      <Icons.Upload />
+                      <span>Upload Media File</span>
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={galleryInputRef} 
+                      onChange={handleMediaUpload} 
+                      className="hidden" 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6">
+                    {media.map(item => (
+                      <div key={item.id} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between group">
+                        
+                        {/* File Preview */}
+                        <div className="h-32 bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
+                          {item.mime_type.startsWith('image') ? (
+                            <img src={item.filepath} alt={item.original_name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="text-brand-400 font-extrabold uppercase text-[10px] tracking-widest leading-none">PDF / DOC</div>
+                          )}
+
+                          <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] font-extrabold bg-brand-600/90 text-white uppercase tracking-wide">
+                            {item.tag}
+                          </span>
+                        </div>
+
+                        {/* File Meta */}
+                        <div className="p-3.5 space-y-2">
+                          <h4 className="font-bold text-xs truncate" title={item.original_name}>{item.original_name}</h4>
+                          <span className="text-[9px] text-gray-500 font-semibold">{(item.size / 1024).toFixed(1)} KB</span>
+                        </div>
+
+                        {/* Copy URL & Delete */}
+                        <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between shrink-0">
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(window.location.origin + item.filepath);
+                              alert('Link media berhasil dicopy!');
+                            }}
+                            className="px-2.5 py-1 rounded text-[9px] font-extrabold bg-gray-800 text-gray-400 hover:text-white transition"
+                          >
+                            Copy Link
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteMedia(item.id)}
+                            className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 transition"
+                          >
+                            <Icons.Trash />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {media.length === 0 && (
+                      <p className="col-span-full p-12 text-center text-gray-500">Belum ada file terunggah.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== TAB: LOGS ==================== */}
+              {activeTab === 'logs' && (
+                <div className="space-y-6">
+                  <div className="border-b border-darkbg-border pb-5 space-y-1">
+                    <h2 className="text-xl font-extrabold font-sans">Bot Realtime Console Log</h2>
+                    <p className="text-xs text-gray-500 font-medium">Debugging system consoles and automated chat processes.</p>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-black border border-gray-800 shadow-xl overflow-hidden flex flex-col justify-between font-mono h-[550px]">
+                    <div 
+                      ref={logTerminalRef}
+                      className="flex-1 overflow-y-auto space-y-3.5 pr-2.5 text-xs text-emerald-500"
+                    >
+                      {logs.map((log, idx) => (
+                        <div key={idx} className="flex items-start space-x-2">
+                          <span className="text-gray-600 font-bold shrink-0">[{new Date(log.timestamp).toLocaleTimeString('id-ID')}]</span>
+                          <span className={`px-1 py-px rounded text-[8px] font-extrabold uppercase shrink-0 ${log.level === 'error' ? 'bg-red-950/80 text-red-500 border border-red-900/40' : log.level === 'warn' ? 'bg-amber-950/80 text-amber-500 border border-amber-900/40' : 'bg-emerald-950/80 text-emerald-500 border border-emerald-900/40'}`}>
+                            {log.level}
+                          </span>
+                          <p className="flex-1 whitespace-pre-wrap leading-relaxed text-gray-300">{log.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================== TAB: SETTINGS & IN-LINE DATABASE EDITOR ==================== */}
+              {activeTab === 'settings' && (
+                <div className="space-y-8">
+                  <div className="border-b border-darkbg-border pb-5 space-y-1">
+                    <h2 className="text-xl font-extrabold font-sans">Settings & Database Editor</h2>
+                    <p className="text-xs text-gray-500 font-medium">Edit system parameters, FAQs, services, and reseller policies live in the database.</p>
+                  </div>
+
+                  {/* 1. Company Profile In-line Forms */}
+                  <div className="p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm space-y-6">
+                    <h3 className="font-extrabold text-base border-b border-darkbg-border pb-3">🏢 Profile Perusahaan (Company Sheet)</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {settings.company.map(item => (
+                        <div key={item.id} className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-darkbg-border/30 flex items-center justify-between gap-4">
+                          <div className="space-y-1.5 flex-1">
+                            <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">{item.label}</span>
+                            {editingSetting?.id === item.id ? (
+                              <input 
+                                type="text"
+                                value={settingValue}
+                                onChange={(e) => setSettingValue(e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-brand-500 text-xs focus:outline-none"
+                              />
+                            ) : (
+                              <p className="text-xs font-bold leading-relaxed text-gray-300 truncate max-w-[200px]" title={item.value}>{item.value}</p>
+                            )}
+                          </div>
+
+                          <div className="shrink-0">
+                            {editingSetting?.id === item.id ? (
+                              <div className="flex items-center space-x-1.5">
+                                <button onClick={handleSaveSetting} className="p-2 rounded bg-emerald-600 text-white font-bold text-xs"><Icons.Check /></button>
+                                <button onClick={() => setEditingSetting(null)} className="p-2 rounded bg-gray-700 text-gray-400 text-xs">✕</button>
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => {
+                                  setEditingSetting(item);
+                                  setSettingValue(item.value);
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-750 text-brand-400 font-extrabold text-[10px]"
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Reseller Programs */}
+                  <div className="p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm space-y-6">
+                    <h3 className="font-extrabold text-base border-b border-darkbg-border pb-3">📈 Reseller Program Levels (Reseller_Program Sheet)</h3>
+                    
+                    <div className="rounded-xl border border-darkbg-border overflow-hidden">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-gray-50 dark:bg-gray-850/40 text-gray-400 font-bold uppercase border-b border-darkbg-border">
+                            <th className="p-3.5">Level</th>
+                            <th className="p-3.5">Minimal Order</th>
+                            <th className="p-3.5">Discount Tiers</th>
+                            <th className="p-3.5">Facilities</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-darkbg-border/60">
+                          {settings.reseller.map(tier => (
+                            <tr key={tier.id}>
+                              <td className="p-3.5 font-bold">{tier.level}</td>
+                              <td className="p-3.5 text-gray-300 font-semibold">{tier.min_order}</td>
+                              <td className="p-3.5 text-brand-400 font-bold">{tier.discount}</td>
+                              <td className="p-3.5 text-gray-400 leading-relaxed max-w-xs truncate" title={tier.benefits}>{tier.benefits}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </main>
+
+          {/* ==================== PRODUCT FORM DIALOG MODAL ==================== */}
+          {productModalOpen && (
+            <div className="fixed inset-0 z-50 glass flex items-center justify-center p-4">
+              <div className="w-full max-w-3xl rounded-2xl bg-white dark:bg-darkbg-card border border-darkbg-border overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-darkbg-border flex items-center justify-between bg-gray-50 dark:bg-gray-850/20">
+                  <h3 className="font-extrabold text-sm">{editingProduct ? `Edit Product: ${editingProduct.id}` : 'Create New Product'}</h3>
+                  <button onClick={() => setProductModalOpen(false)} className="p-1 rounded bg-gray-850 text-gray-500 hover:text-white">✕</button>
+                </div>
+
+                {/* Modal Scrollable Fields */}
+                <form onSubmit={handleProductFormSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    
+                    {/* Basic specs */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Product ID (Unique, e.g: MK-001)</span>
+                      <input 
+                        type="text" 
+                        required 
+                        disabled={!!editingProduct}
+                        value={productForm.id}
+                        onChange={(e) => setProductForm({...productForm, id: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Nama Produk</span>
+                      <input 
+                        type="text" 
+                        required 
+                        value={productForm.name}
+                        onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Kategori</span>
+                      <input 
+                        type="text" 
+                        value={productForm.category}
+                        onChange={(e) => setProductForm({...productForm, category: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Sub Kategori</span>
+                      <input 
+                        type="text" 
+                        value={productForm.sub_category}
+                        onChange={(e) => setProductForm({...productForm, sub_category: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Pricings */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Harga Umum (Retail) (Rp)</span>
+                      <input 
+                        type="number" 
+                        value={productForm.price_retail}
+                        onChange={(e) => setProductForm({...productForm, price_retail: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Harga Reseller (Rp)</span>
+                      <input 
+                        type="number" 
+                        value={productForm.price_reseller}
+                        onChange={(e) => setProductForm({...productForm, price_reseller: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Details */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Material / Bahan</span>
+                      <input 
+                        type="text" 
+                        value={productForm.material}
+                        onChange={(e) => setProductForm({...productForm, material: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Pilihan Ukuran (Koma dipisahkan, cth: All Size, XL)</span>
+                      <input 
+                        type="text" 
+                        value={productForm.size}
+                        onChange={(e) => setProductForm({...productForm, size: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Pilihan Warna (Koma dipisahkan, cth: Maroon, Navy)</span>
+                      <input 
+                        type="text" 
+                        value={productForm.color}
+                        onChange={(e) => setProductForm({...productForm, color: e.target.value})}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Berat (Gram)</span>
+                        <input 
+                          type="number" 
+                          value={productForm.weight}
+                          onChange={(e) => setProductForm({...productForm, weight: e.target.value})}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Stok</span>
+                        <input 
+                          type="number" 
+                          value={productForm.stock}
+                          onChange={(e) => setProductForm({...productForm, stock: e.target.value})}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Deskripsi Produk</span>
+                    <textarea 
+                      rows="3"
+                      value={productForm.description}
+                      onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  {/* IMAGE UPLOAD & PREVIEW */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-darkbg-border">
+                    <div className="space-y-2">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Unggah Gambar Produk</span>
+                      <button 
+                        type="button" 
+                        onClick={() => imgInputRef.current.click()}
+                        disabled={uploadingImage}
+                        className="w-full py-3 rounded-xl bg-gray-800 border border-dashed border-darkbg-border text-xs text-gray-400 font-bold hover:text-white transition"
+                      >
+                        {uploadingImage ? 'Mengunggah...' : 'Pilih File Gambar'}
+                      </button>
+                      <input 
+                        type="file" 
+                        ref={imgInputRef} 
+                        onChange={handleProductImageUpload} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+                      
+                      <div className="space-y-1 text-[10px]">
+                        <span className="text-gray-600 font-semibold uppercase">Atau URL Gambar</span>
+                        <input 
+                          type="text" 
+                          value={productForm.image}
+                          onChange={(e) => setProductForm({...productForm, image: e.target.value})}
+                          className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="h-32 rounded-xl bg-gray-800 border border-darkbg-border flex items-center justify-center overflow-hidden">
+                      {productForm.image ? (
+                        <img src={productForm.image} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[10px] text-gray-600 font-bold uppercase tracking-wider">Preview Uploader</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="pt-4 border-t border-darkbg-border flex items-center justify-end space-x-3 shrink-0">
+                    <button type="button" onClick={() => setProductModalOpen(false)} className="px-4 py-2.5 rounded-xl bg-gray-850 hover:bg-gray-800 font-bold text-xs text-gray-400 transition">Cancel</button>
+                    <button type="submit" className="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 font-extrabold text-xs text-white shadow-lg transition">Save Product</button>
+                  </div>
+                </form>
+
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+  </script>
+</body>
+</html>

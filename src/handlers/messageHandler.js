@@ -203,7 +203,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
 
       return {
         intent: 'complaint',
-        response: `Maaf banget atas ketidaknyamanannya ya Kak 🙏 Keluhan Kakak sudah dicatat. Bot kami matikan sementara untuk nomor Kakak, dan admin manusia kami akan segera membalas chat ini secara langsung. Mohon ditunggu sebentar ya kak...`
+        response: `Maaf banget atas ketidaknyamanannya ya Kak 🙏 Keluhan Kakak sudah dicatat oleh tim kami. Sebentar ya kak, kami bantu cek detail keluhan Kakak dan segera kami kabari. Mohon ditunggu sebentar ya Kak... 😊`
       };
     }
 

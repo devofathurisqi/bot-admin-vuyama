@@ -187,6 +187,16 @@ client.on('message_create', async (msg) => {
     // 3. GENERATE BOT RESPONSE
     const response = await messageHandler.generateResponse(phoneNumber, messageText, customer.status);
 
+    try {
+      // Simulate typing status to look exactly like a human admin and reduce spam flagging
+      const chat = await msg.getChat();
+      await chat.sendStateTyping();
+      // Small delay of 1.5 seconds to mimic typing speed
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    } catch (e) {
+      // Fail-safe if sendStateTyping throws
+    }
+
     // 4. SEND BOT RESPONSE
     await msg.reply(response.response);
     logger.info(`Bot merespons ke ${phoneNumber}: "${response.response.substring(0, 40)}..."`);
@@ -240,13 +250,12 @@ const startBot = async () => {
     
     const geminiReady = await gemini.healthCheck();
     if (!geminiReady) {
-      logger.error('Gemini API not responding! Please verify GEMINI_API_KEY.');
-      await logToDb('error', 'Gemini API not responding. Check configuration.');
-      process.exit(1);
+      logger.warn('Gemini API not responding or timed out. AI replies may fall back to default, but proceeding with WhatsApp startup...');
+      await logToDb('warn', 'Gemini AI connection check failed. AI replies may be limited.');
+    } else {
+      logger.info(`Gemini connected! Model: ${gemini.MODEL_NAME}`);
+      await logToDb('info', `Gemini AI connected. Model: ${gemini.MODEL_NAME}`);
     }
-
-    logger.info(`Gemini connected! Model: ${gemini.MODEL_NAME}`);
-    await logToDb('info', `Gemini AI connected. Model: ${gemini.MODEL_NAME}`);
 
     // Ensure data directory exists
     const dataDir = config.dataDir;

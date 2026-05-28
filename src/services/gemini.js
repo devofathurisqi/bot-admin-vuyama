@@ -34,7 +34,14 @@ const callGemini = async (prompt) => {
 const healthCheck = async () => {
   try {
     if (!API_KEY) return false;
-    await model.generateContent("hi");
+    
+    // Add a 5-second timeout wrapper to prevent indefinite hanging on network lag
+    const apiCall = model.generateContent("hi");
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout')), 5000)
+    );
+
+    await Promise.race([apiCall, timeout]);
     return true;
   } catch (error) {
     return false;

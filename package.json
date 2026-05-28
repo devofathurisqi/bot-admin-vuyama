@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
+    "clean-start": "powershell -Command \"Remove-Item -Path .wwebjs_auth, .wwebjs_cache -Recurse -Force -ErrorAction SilentlyContinue\" && npm run dev",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
