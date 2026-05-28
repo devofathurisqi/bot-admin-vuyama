@@ -1,0 +1,77 @@
+===============================================================================
+               PANDUAN OPERASIONAL VPS - VUYAMA CS BOT & CRM SUITE
+===============================================================================
+File ini berisi informasi penting mengenai login server, perintah pemantauan,
+cara update kode, dan penanganan masalah pada server VPS Niagahoster Anda.
+
+-------------------------------------------------------------------------------
+1. INFORMASI AKSES SERVER & DASHBOARD
+-------------------------------------------------------------------------------
+* Tautan Dashboard Web Admin : http://72.62.120.155:5000
+* Perintah Login SSH (VPS)   : ssh root@72.62.120.155
+* Lokasi Folder Proyek di VPS: /root/bot-admin-vuyama
+
+-------------------------------------------------------------------------------
+2. PERINTAH PENTING PM2 (PENGELOLAAN PROSES BOT)
+-------------------------------------------------------------------------------
+Gunakan perintah ini saat berada di dalam terminal VPS Anda untuk mengelola bot:
+
+* Melihat status aktif bot    : pm2 status
+* Melihat log real-time       : pm2 logs vuyama-bot-suite
+* Melihat 100 baris log terakhir: pm2 logs vuyama-bot-suite --lines 100
+* Mematikan bot sementara      : pm2 stop vuyama-bot-suite
+* Menyalakan kembali bot       : pm2 start vuyama-bot-suite
+* Memuat ulang bot (Restart)   : pm2 restart vuyama-bot-suite
+  *(Lakukan restart setelah mengubah file .env atau menarik update dari GitHub)*
+* Menyimpan status proses      : pm2 save
+  *(Wajib dijalankan setelah menambah/mengubah konfigurasi PM2 agar bertahan saat server reboot)*
+
+-------------------------------------------------------------------------------
+3. CARA UPDATE KODE (JIKA ADA PERUBAHAN DARI KOMPUTER LOKAL)
+-------------------------------------------------------------------------------
+Jika Anda melakukan perubahan kode di komputer lokal dan ingin menerapkannya di VPS:
+
+1. Di komputer lokal (PowerShell):
+   git add .
+   git commit -m "update: rincian perubahan Anda"
+   git push origin prod
+
+2. Di terminal VPS (SSH):
+   cd ~/bot-admin-vuyama
+   git pull origin prod
+   pm2 restart vuyama-bot-suite
+
+-------------------------------------------------------------------------------
+4. CARA RESET OTENTIKASI WHATSAPP (AMBIL QR CODE BARU)
+-------------------------------------------------------------------------------
+Jika WhatsApp Bot terputus/stuck dan Anda ingin memindai ulang QR Code dari nol:
+
+1. Di terminal VPS (SSH):
+   cd ~/bot-admin-vuyama
+   pm2 stop vuyama-bot-suite
+   
+   # Hapus sesi auth lama dan cache browser
+   rm -rf .wwebjs_auth .wwebjs_cache
+   
+   # Jalankan kembali bot
+   pm2 start src/index.js --name "vuyama-bot-suite"
+   
+   # Lihat QR Code di terminal untuk di-scan
+   pm2 logs vuyama-bot-suite --lines 50
+   
+   *(Atau Anda bisa langsung membuka http://72.62.120.155:5000 di browser,
+     QR Code akan otomatis muncul di sana untuk di-scan langsung)*
+
+-------------------------------------------------------------------------------
+5. PERTIMBANGAN SKALABILITAS & GOOGLE GEMINI BILLING
+-------------------------------------------------------------------------------
+Jika chatbot sering membalas dengan kalimat fallback "Boleh kak, sebentar ya kami cek...",
+berarti akun Google Gemini gratis Anda sedang terkena limitasi server Google.
+
+Solusi:
+1. Hubungkan metode pembayaran (kartu debit/kredit) di Google AI Studio (https://aistudio.google.com/).
+2. Anda akan otomatis masuk ke tier "Pay-As-You-Go" yang sangat murah dan dijamin super stabil tanpa limitasi "high demand" lagi.
+
+===============================================================================
+                    Dibuat dengan bangga oleh Antigravity AI
+===============================================================================
