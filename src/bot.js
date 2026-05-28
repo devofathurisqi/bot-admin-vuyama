@@ -5,6 +5,9 @@ const config = require('./utils/config');
 const messageHandler = require('./handlers/messageHandler');
 const history = require('./services/history');
 const gemini = require('./services/gemini');
+const db = require('./utils/db');
+const { setBotStatus } = require('./bot_state');
+const { emitEvent } = require('./utils/socket');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,148 +16,256 @@ const client = new Client({
   authStrategy: new LocalAuth({
     clientId: config.whatsappSessionName
   }),
+  authTimeoutMs: 90000,
   puppeteer: {
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   }
 });
 
-// Store for escalated conversations
-const escalatedConversations = new Set();
+// Realtime Logger Helper to store logs in PostgreSQL and broadcast to clients
+const logToDb = async (level, message) => {
+  try {
+    const timestamp = new Date();
+    await db('bot_logs').insert({ level, message, timestamp });
+    emitEvent('new_log', { level, message, timestamp });
+  } catch (err) {
+    logger.error('Error writing bot log to DB:', err);
+  }
+};
 
 // QR Code handler
 client.on('qr', (qr) => {
-  logger.info('⏳ Scan QR code untuk connect WhatsApp:');
+  logger.info('WhatsApp QR code generated. Scan to connect...');
   qrcode.generate(qr, { small: true });
+  setBotStatus('scanning', qr);
 });
 
 // Ready handler
 client.on('ready', () => {
-  logger.info(`✅ Bot siap! Logged in as ${config.botName}`);
-  logger.info('💬 Menunggu pesan...');
+  const msg = `Bot siap! Logged in as ${config.botName}`;
+  logger.info(msg);
+  logToDb('info', msg);
+  setBotStatus('connected');
 });
 
 // Authenticated handler
 client.on('authenticated', () => {
-  logger.info('✓ Authentication berhasil');
+  const msg = 'WhatsApp Authentication berhasil';
+  logger.info(msg);
+  logToDb('info', msg);
+  setBotStatus('authenticated');
 });
 
-// Message received handler
+// Message received & created handler
 client.on('message_create', async (msg) => {
   try {
-    // Skip if bot's own message or status
-    if (msg.fromMe || msg.isStatus) return;
+    // Skip if status message
+    if (msg.isStatus) return;
 
-    const phoneNumber = msg.from;
+    const phoneNumber = msg.fromMe ? msg.to : msg.from;
     const messageText = msg.body;
-    const isGroup = msg.isGroupMsg;
+    const isGroup = msg.isGroupMsg || phoneNumber.includes('@g.us');
 
-    // Skip group messages for now
+    // Skip group messages
     if (isGroup) {
-      logger.debug(`Skipping group message from ${phoneNumber}`);
       return;
     }
 
-    logger.info(`📨 Pesan dari ${phoneNumber}: ${messageText}`);
+    // ==========================================
+    // CASE A: OUTGOING MESSAGE BY HUMAN ADMIN FROM PHONE
+    // ==========================================
+    if (msg.fromMe) {
+      // Ensure customer exists in CRM
+      let customer = await db('customers').where('phone_number', phoneNumber).first();
+      if (!customer) {
+        let name = 'Customer';
+        try {
+          const contact = await client.getContactById(phoneNumber);
+          name = contact.pushname || contact.name || 'Customer';
+        } catch (e) {}
 
-    // Check if message starts with '!vuyama' (case-insensitive)
-    const hasVuyamaKeyword = messageText.toLowerCase().startsWith('!vuyama');
-    
-    if (!hasVuyamaKeyword && !escalatedConversations.has(phoneNumber)) {
-      logger.debug(`Skipping message from ${phoneNumber} - does not start with '!vuyama'`);
+        await db('customers').insert({
+          phone_number: phoneNumber,
+          name,
+          status: 'NORMAL',
+          unread_count: 0,
+          last_message_at: new Date()
+        });
+      } else {
+        await db('customers').where('phone_number', phoneNumber).update({
+          last_message_at: new Date(),
+          updated_at: new Date()
+        });
+      }
+
+      // Add to conversation history as 'agent'
+      await db('conversations').insert({
+        phone_number: phoneNumber,
+        message: messageText,
+        sender: 'agent',
+        message_type: 'text',
+        status: 'sent',
+        timestamp: new Date()
+      });
+
+      // Stream to dashboard client so Live Chat is 100% in sync
+      emitEvent('incoming_message', {
+        phone_number: phoneNumber,
+        message: messageText,
+        sender: 'agent',
+        message_type: 'text',
+        status: 'sent',
+        timestamp: new Date()
+      });
       return;
     }
 
-    // Save incoming message to history
-    await history.addMessage(phoneNumber, messageText, 'customer', 'text');
+    // ==========================================
+    // CASE B: INCOMING MESSAGE FROM CUSTOMER
+    // ==========================================
+    logger.info(`Pesan masuk dari ${phoneNumber}: "${messageText}"`);
 
-    // Check if this is an escalated conversation (manual mode)
-    if (escalatedConversations.has(phoneNumber)) {
-      logger.info(`ℹ️  Escalated mode untuk ${phoneNumber} - pesan diteruskan ke admin`);
-      // In production, this would send to admin dashboard/channel
-      console.log(`\n🔔 [ESCALATED] ${phoneNumber}: ${messageText}\n`);
+    // 1. Auto-register customer in database CRM if not present
+    let customer = await db('customers').where('phone_number', phoneNumber).first();
+    if (!customer) {
+      let name = 'Customer';
+      try {
+        const contact = await msg.getContact();
+        name = contact.pushname || contact.name || 'Customer';
+      } catch (e) {}
+
+      await db('customers').insert({
+        phone_number: phoneNumber,
+        name,
+        status: 'NORMAL',
+        unread_count: 1,
+        last_message_at: new Date()
+      });
+      customer = { phone_number: phoneNumber, name, status: 'NORMAL', unread_count: 1 };
+    } else {
+      // Update last message time and increment unread count
+      await db('customers').where('phone_number', phoneNumber).update({
+        unread_count: customer.unread_count + 1,
+        last_message_at: new Date(),
+        updated_at: new Date()
+      });
+      customer.unread_count += 1;
+    }
+
+    // Save incoming message to database
+    await db('conversations').insert({
+      phone_number: phoneNumber,
+      message: messageText,
+      sender: 'customer',
+      message_type: 'text',
+      status: 'received',
+      timestamp: new Date()
+    });
+
+    // Stream incoming message to dashboard Live Chat in real-time
+    emitEvent('incoming_message', {
+      phone_number: phoneNumber,
+      message: messageText,
+      sender: 'customer',
+      message_type: 'text',
+      status: 'received',
+      timestamp: new Date()
+    });
+
+    // Notify UI of updated customer stats (unread badge, last_message_at)
+    const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+    emitEvent('customer_updated', updatedCustomer);
+
+    // 2. CHECK BLOCK TABLE (If customer is blocked, bot ignores and remains silent)
+    const isBlocked = await db('blocked_numbers').where('phone_number', phoneNumber).first();
+    if (isBlocked) {
+      logger.info(`Bot dinonaktifkan (BLOCKED) untuk ${phoneNumber}. Human admin yang membalas.`);
       return;
     }
 
-    // Strip '!vuyama' from the message before sending to AI
-    const cleanMessage = messageText.slice(8).trim(); // 8 is length of '!vuyama '
-    
-    // Generate bot response
-    const response = await messageHandler.generateResponse(phoneNumber, cleanMessage || messageText);
+    // 3. GENERATE BOT RESPONSE
+    const response = await messageHandler.generateResponse(phoneNumber, messageText, customer.status);
 
-    // Check if needs escalation
-    if (response.shouldEscalate) {
-      logger.info(`🚨 Escalating conversation: ${phoneNumber}`);
-      escalatedConversations.add(phoneNumber);
-
-      // Create escalation record
-      await history.createEscalation(phoneNumber, response.intent, phoneNumber);
-
-      // Log escalation for admin
-      console.log(`\n🚨 === ESCALATION ALERT ===`);
-      console.log(`Phone: ${phoneNumber}`);
-      console.log(`Reason: ${response.intent}`);
-      console.log(`Last message: "${messageText}"`);
-      console.log(`Time: ${new Date().toLocaleString('id-ID')}`);
-      console.log(`${'='.repeat(25)}\n`);
-    }
-
-    // Send bot response
+    // 4. SEND BOT RESPONSE
     await msg.reply(response.response);
-    logger.info(`✅ Response sent to ${phoneNumber}`);
+    logger.info(`Bot merespons ke ${phoneNumber}: "${response.response.substring(0, 40)}..."`);
 
-    // Save bot response to history
-    await history.addMessage(phoneNumber, response.response, 'bot', 'text');
+    // Save bot reply to database
+    await db('conversations').insert({
+      phone_number: phoneNumber,
+      message: response.response,
+      sender: 'bot',
+      message_type: 'text',
+      status: 'sent',
+      timestamp: new Date()
+    });
+
+    // Stream bot's reply to dashboard Live Chat in real-time
+    emitEvent('incoming_message', {
+      phone_number: phoneNumber,
+      message: response.response,
+      sender: 'bot',
+      message_type: 'text',
+      status: 'sent',
+      timestamp: new Date()
+    });
+
   } catch (error) {
-    logger.error('Error processing message:', error);
-    msg.reply('Maaf, ada kendala teknis. Tim kami sedang membantu 🙏');
+    logger.error('Error processing WhatsApp message:', error);
+    await logToDb('error', `Error processing message from ${msg.from}: ${error.message}`);
   }
 });
 
 // Handle connection issues
 client.on('disconnected', (reason) => {
-  logger.warn(`⚠️  Disconnected: ${reason}`);
+  const msg = `WhatsApp Disconnected: ${reason}`;
+  logger.warn(msg);
+  logToDb('warn', msg);
+  setBotStatus('disconnected');
 });
 
 client.on('auth_failure', (msg) => {
-  logger.error(`❌ Authentication failed: ${msg}`);
+  const errMsg = `WhatsApp Authentication failed: ${msg}`;
+  logger.error(errMsg);
+  logToDb('error', errMsg);
+  setBotStatus('disconnected');
 });
 
 // Initialize bot
 const startBot = async () => {
   try {
-    logger.info('🤖 Memulai Vuyama AI Customer Service Bot...');
-    logger.info(`Environment: ${config.env}`);
-
-    // Check Gemini connection
-    logger.info(`🧠 Checking Gemini AI connection...`);
+    logger.info('Memulai Vuyama AI Customer Service Bot...');
+    logger.info(`Checking Gemini AI connection...`);
+    
     const geminiReady = await gemini.healthCheck();
-
     if (!geminiReady) {
-      logger.error('❌ Gemini API not responding!');
-      logger.error('Please check your GEMINI_API_KEY in .env file');
+      logger.error('Gemini API not responding! Please verify GEMINI_API_KEY.');
+      await logToDb('error', 'Gemini API not responding. Check configuration.');
       process.exit(1);
     }
 
-    logger.info(`✅ Gemini connected! Using model: ${gemini.MODEL_NAME}`);
+    logger.info(`Gemini connected! Model: ${gemini.MODEL_NAME}`);
+    await logToDb('info', `Gemini AI connected. Model: ${gemini.MODEL_NAME}`);
 
-    // Ensure data directory
+    // Ensure data directory exists
     const dataDir = config.dataDir;
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
-      logger.info(`📁 Data directory created: ${dataDir}`);
     }
+
+    // Set status to scanning while initializing
+    setBotStatus('disconnected');
 
     // Start WhatsApp client
     await client.initialize();
-    logger.info('WhatsApp client initialized');
+    logger.info('WhatsApp client initialized successfully.');
+    await logToDb('info', 'WhatsApp client initialized.');
   } catch (error) {
     logger.error('Failed to start bot:', error);
     process.exit(1);
   }
 };
-
-const db = require('./utils/db');
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
@@ -162,7 +273,7 @@ process.on('SIGINT', async () => {
   try {
     await client.destroy();
     await db.destroy();
-    logger.info('✅ Shutdown clean.');
+    logger.info('Shutdown clean.');
   } catch (err) {
     logger.error('Error during shutdown:', err);
   }
@@ -174,15 +285,23 @@ process.on('SIGTERM', async () => {
   try {
     await client.destroy();
     await db.destroy();
-    logger.info('✅ Shutdown clean.');
+    logger.info('Shutdown clean.');
   } catch (err) {
     logger.error('Error during shutdown:', err);
   }
   process.exit(0);
 });
 
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  if (reason === 'auth timeout') {
+    logger.warn('WhatsApp Auth Timeout. Continuing check...');
+    return;
+  }
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 module.exports = {
   client,
-  startBot,
-  escalatedConversations
+  startBot
 };

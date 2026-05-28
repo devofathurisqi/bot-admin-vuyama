@@ -1,187 +1,373 @@
 const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
+const db = require('../utils/db');
+const logger = require('../utils/logger');
 
-// Load knowledge files
-let knowledge = {
-  products: [],
-  services: [],
-  faq: [],
-  company: {},
-  reseller_program: []
-};
-
-const loadKnowledge = () => {
+/**
+ * Synchronize Excel sheets to the PostgreSQL database tables.
+ * Employs upsert logic and trims whitespace on headers/values to prevent errors.
+ */
+const syncExcelToDatabase = async () => {
   try {
     const learnDir = path.join(__dirname, '../../learn');
     const excelPath = path.join(learnDir, 'vuyama_data.xlsx');
 
     if (!fs.existsSync(excelPath)) {
-      console.warn('Excel knowledge file not found:', excelPath);
-      return;
+      throw new Error(`Excel knowledge file not found at: ${excelPath}`);
     }
 
+    logger.info('Loading Excel workbook for migration...');
     const workbook = XLSX.readFile(excelPath);
 
-    // Load Company Info
+    // Helper to get case-insensitive and trimmed key values from excel rows
+    const getVal = (obj, partialKey) => {
+      const trimmedPartial = partialKey.trim().toLowerCase();
+      const key = Object.keys(obj).find(k => k.trim().toLowerCase() === trimmedPartial);
+      return key ? obj[key] : null;
+    };
+
+    // 1. Migrate Company Profile
     const companySheet = workbook.Sheets['Company'];
     if (companySheet) {
+      logger.info('Migrating Company Profile...');
       const companyData = XLSX.utils.sheet_to_json(companySheet);
-      const companyObj = {};
-      companyData.forEach(row => {
-        if (row['Informasi Perusahaan'] && row['Keterangan']) {
-          const key = row['Informasi Perusahaan'].toLowerCase().replace(/ /g, '_');
-          companyObj[key] = row['Keterangan'];
+      for (const row of companyData) {
+        const label = getVal(row, 'Informasi Perusahaan');
+        const value = getVal(row, 'Keterangan');
+        if (label && value) {
+          const key = String(label).toLowerCase().trim().replace(/[^a-z0-9]+/g, '_');
+          
+          const existing = await db('company_info').where('key', key).first();
+          if (existing) {
+            await db('company_info').where('key', key).update({
+              label: String(label).trim(),
+              value: String(value).trim(),
+              updated_at: new Date()
+            });
+          } else {
+            await db('company_info').insert({
+              key,
+              label: String(label).trim(),
+              value: String(value).trim()
+            });
+          }
         }
-      });
-      knowledge.company = companyObj;
+      }
+      logger.info('Company Profile migration complete.');
     }
 
-    // Load Products
+    // 2. Migrate Products
     const productsSheet = workbook.Sheets['Products'];
     if (productsSheet) {
+      logger.info('Migrating Products...');
       const productsData = XLSX.utils.sheet_to_json(productsSheet);
-      knowledge.products = productsData.map(p => ({
-        id: p['ID'],
-        name: p['Nama Produk'],
-        category: p['Kategori'],
-        sub_category: p['Sub-Kategori'],
-        description: p['Deskripsi'],
-        price_retail: p['Harga Umum (Retail)'],
-        price_reseller: p['Harga Reseller'],
-        color: p['Pilihan Warna'] ? p['Pilihan Warna'].split(',').map(s => s.trim()) : [],
-        size: p['Ukuran'] ? p['Ukuran'].split(',').map(s => s.trim()) : [],
-        material: p['Material/Bahan'],
-        weight: p['Berat (Gram)'],
-        stock: p['Stok Ready'],
-        image: p['Link Gambar'],
-        status: p['Status']
-      }));
+      for (const p of productsData) {
+        const id = getVal(p, 'ID');
+        const name = getVal(p, 'Nama Produk');
+        if (!id || !name) continue;
+
+        const colors = getVal(p, 'Pilihan Warna') 
+          ? String(getVal(p, 'Pilihan Warna')).split(',').map(s => s.trim()) 
+          : [];
+        const sizes = getVal(p, 'Ukuran') 
+          ? String(getVal(p, 'Ukuran')).split(',').map(s => s.trim()) 
+          : [];
+
+        const productPayload = {
+          name: String(name).trim(),
+          category: getVal(p, 'Kategori') ? String(getVal(p, 'Kategori')).trim() : null,
+          sub_category: getVal(p, 'Sub-Kategori') ? String(getVal(p, 'Sub-Kategori')).trim() : null,
+          description: getVal(p, 'Deskripsi') ? String(getVal(p, 'Deskripsi')).trim() : null,
+          price_retail: parseFloat(getVal(p, 'Harga Umum (Retail)')) || 0,
+          price_reseller: parseFloat(getVal(p, 'Harga Reseller')) || 0,
+          color: JSON.stringify(colors),
+          size: JSON.stringify(sizes),
+          material: getVal(p, 'Material/Bahan') ? String(getVal(p, 'Material/Bahan')).trim() : null,
+          weight: parseInt(getVal(p, 'Berat (Gram)')) || 0,
+          stock: getVal(p, 'Stok Ready') ? parseInt(getVal(p, 'Stok Ready')) : 50, // default 50 if missing
+          image: getVal(p, 'Link Gambar') ? String(getVal(p, 'Link Gambar')).trim() : null,
+          status: getVal(p, 'Status') ? String(getVal(p, 'Status')).trim() : 'Tersedia'
+        };
+
+        const existing = await db('products').where('id', String(id).trim()).first();
+        if (existing) {
+          await db('products').where('id', String(id).trim()).update({
+            ...productPayload,
+            updated_at: new Date()
+          });
+        } else {
+          await db('products').insert({
+            id: String(id).trim(),
+            ...productPayload
+          });
+        }
+      }
+      logger.info('Products migration complete.');
     }
 
-    // Load Services
+    // 3. Migrate Services
     const servicesSheet = workbook.Sheets['Services'];
     if (servicesSheet) {
+      logger.info('Migrating Services...');
       const servicesData = XLSX.utils.sheet_to_json(servicesSheet);
-      knowledge.services = servicesData.map(s => ({
-        id: s['ID'],
-        name: s['Layanan'],
-        description: s['Deskripsi'],
-        benefits: s['Keuntungan'] ? s['Keuntungan'].split(',').map(s => s.trim()) : [],
-        terms: s['Ketentuan']
-      }));
+      for (const s of servicesData) {
+        const id = getVal(s, 'ID');
+        const name = getVal(s, 'Layanan');
+        if (!id || !name) continue;
+
+        const benefits = getVal(s, 'Keuntungan') 
+          ? String(getVal(s, 'Keuntungan')).split(',').map(b => b.trim()) 
+          : [];
+
+        const servicePayload = {
+          name: String(name).trim(),
+          description: getVal(s, 'Deskripsi') ? String(getVal(s, 'Deskripsi')).trim() : null,
+          benefits: JSON.stringify(benefits),
+          terms: getVal(s, 'Ketentuan') ? String(getVal(s, 'Ketentuan')).trim() : null
+        };
+
+        const existing = await db('services').where('id', String(id).trim()).first();
+        if (existing) {
+          await db('services').where('id', String(id).trim()).update({
+            ...servicePayload,
+            updated_at: new Date()
+          });
+        } else {
+          await db('services').insert({
+            id: String(id).trim(),
+            ...servicePayload
+          });
+        }
+      }
+      logger.info('Services migration complete.');
     }
 
-    // Load FAQ
+    // 4. Migrate FAQ
     const faqSheet = workbook.Sheets['FAQ'];
     if (faqSheet) {
+      logger.info('Migrating FAQ (Clean Insert)...');
       const faqData = XLSX.utils.sheet_to_json(faqSheet);
-      knowledge.faq_flat = faqData.map(f => ({
-        category: f['Kategori'],
-        q: f['Pertanyaan'],
-        a: f['Jawaban']
-      }));
+      
+      // FAQ is smaller and dynamic, clean wipe & reload prevents orphans
+      await db('faq').truncate();
+      for (const f of faqData) {
+        const question = getVal(f, 'Pertanyaan');
+        const answer = getVal(f, 'Jawaban');
+        if (!question || !answer) continue;
 
-      // Group by category
-      const categories = [...new Set(faqData.map(f => f['Kategori']))];
-      knowledge.faq = categories.map(cat => ({
-        category: cat,
-        questions: faqData.filter(f => f['Kategori'] === cat).map(f => ({
-          q: f['Pertanyaan'],
-          a: f['Jawaban']
-        }))
-      }));
+        await db('faq').insert({
+          category: getVal(f, 'Kategori') ? String(getVal(f, 'Kategori')).trim() : 'Umum',
+          question: String(question).trim(),
+          answer: String(answer).trim()
+        });
+      }
+      logger.info('FAQ migration complete.');
     }
 
-    // Load Reseller Program
+    // 5. Migrate Reseller Program
     const resellerSheet = workbook.Sheets['Reseller_Program'];
     if (resellerSheet) {
-      knowledge.reseller_program = XLSX.utils.sheet_to_json(resellerSheet);
+      logger.info('Migrating Reseller Program (Clean Insert)...');
+      const resellerData = XLSX.utils.sheet_to_json(resellerSheet);
+      
+      await db('reseller_program').truncate();
+      for (const r of resellerData) {
+        const level = getVal(r, 'Level');
+        if (!level) continue;
+
+        await db('reseller_program').insert({
+          level: String(level).trim(),
+          min_order: getVal(r, 'Minimal Order') ? String(getVal(r, 'Minimal Order')).trim() : null,
+          discount: getVal(r, 'Potongan Harga') ? String(getVal(r, 'Potongan Harga')).trim() : null,
+          benefits: getVal(r, 'Fasilitas') ? String(getVal(r, 'Fasilitas')).trim() : null
+        });
+      }
+      logger.info('Reseller Program migration complete.');
     }
 
-    console.log('Knowledge base loaded from Excel successfully (Pro Template)');
+    logger.info('Excel data migrated successfully to database!');
+    return { success: true, message: 'Excel data successfully synchronized.' };
   } catch (error) {
-    console.error('Error loading knowledge base from Excel:', error);
+    logger.error('Error migrating Excel to database:', error);
+    throw error;
   }
 };
 
-// Search products by name, category, or material
-const searchProducts = (query) => {
-  const q = query.toLowerCase();
-  return knowledge.products.filter(p =>
-    (p.name && p.name.toLowerCase().includes(q)) ||
-    (p.category && p.category.toLowerCase().includes(q)) ||
-    (p.sub_category && p.sub_category.toLowerCase().includes(q)) ||
-    (p.material && p.material.toLowerCase().includes(q)) ||
-    (p.description && p.description.toLowerCase().includes(q))
-  );
+/**
+ * DB Retrieval: Get all company profile info as an object mapping keys to values
+ */
+const getCompanyInfo = async () => {
+  const rows = await db('company_info').select('key', 'value');
+  const companyObj = {};
+  rows.forEach(row => {
+    companyObj[row.key] = row.value;
+  });
+  return companyObj;
 };
 
-// Get product by ID
-const getProduct = (id) => {
-  return knowledge.products.find(p => p.id === id);
+/**
+ * DB Retrieval: Get all products
+ */
+const getAllProducts = async () => {
+  const rows = await db('products').orderBy('id', 'asc');
+  return rows.map(p => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    sub_category: p.sub_category,
+    description: p.description,
+    price_retail: parseFloat(p.price_retail),
+    price_reseller: parseFloat(p.price_reseller),
+    color: typeof p.color === 'string' ? JSON.parse(p.color) : p.color,
+    size: typeof p.size === 'string' ? JSON.parse(p.size) : p.size,
+    material: p.material,
+    weight: p.weight,
+    stock: p.stock,
+    image: p.image,
+    status: p.status
+  }));
 };
 
-// Get all products
-const getAllProducts = () => {
-  return knowledge.products;
+/**
+ * DB Retrieval: Get product by ID
+ */
+const getProduct = async (id) => {
+  const p = await db('products').where('id', id).first();
+  if (!p) return null;
+  return {
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    sub_category: p.sub_category,
+    description: p.description,
+    price_retail: parseFloat(p.price_retail),
+    price_reseller: parseFloat(p.price_reseller),
+    color: typeof p.color === 'string' ? JSON.parse(p.color) : p.color,
+    size: typeof p.size === 'string' ? JSON.parse(p.size) : p.size,
+    material: p.material,
+    weight: p.weight,
+    stock: p.stock,
+    image: p.image,
+    status: p.status
+  };
 };
 
-// Get products by category
-const getProductsByCategory = (category) => {
-  return knowledge.products.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
+/**
+ * DB Retrieval: Search products by query string
+ */
+const searchProducts = async (query) => {
+  const q = `%${query.toLowerCase()}%`;
+  const rows = await db('products')
+    .whereILike('name', q)
+    .orWhereILike('category', q)
+    .orWhereILike('sub_category', q)
+    .orWhereILike('material', q)
+    .orWhereILike('description', q)
+    .orderBy('id', 'asc');
+  
+  return rows.map(p => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    sub_category: p.sub_category,
+    description: p.description,
+    price_retail: parseFloat(p.price_retail),
+    price_reseller: parseFloat(p.price_reseller),
+    color: typeof p.color === 'string' ? JSON.parse(p.color) : p.color,
+    size: typeof p.size === 'string' ? JSON.parse(p.size) : p.size,
+    material: p.material,
+    weight: p.weight,
+    stock: p.stock,
+    image: p.image,
+    status: p.status
+  }));
 };
 
-// Get FAQ by category
-const getFAQByCategory = (category) => {
-  if (!category) return knowledge.faq_flat || [];
-  const cat = knowledge.faq.find(f => f.category && f.category.toLowerCase() === category.toLowerCase());
-  return cat ? cat.questions : [];
+/**
+ * DB Retrieval: Get products by category
+ */
+const getProductsByCategory = async (category) => {
+  const rows = await db('products').whereILike('category', category).orderBy('id', 'asc');
+  return rows.map(p => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    sub_category: p.sub_category,
+    description: p.description,
+    price_retail: parseFloat(p.price_retail),
+    price_reseller: parseFloat(p.price_reseller),
+    color: typeof p.color === 'string' ? JSON.parse(p.color) : p.color,
+    size: typeof p.size === 'string' ? JSON.parse(p.size) : p.size,
+    material: p.material,
+    weight: p.weight,
+    stock: p.stock,
+    image: p.image,
+    status: p.status
+  }));
 };
 
-// Search FAQ
-const searchFAQ = (query) => {
-  const q = query.toLowerCase();
-  if (!knowledge.faq_flat) return [];
-  return knowledge.faq_flat.filter(f => 
-    (f.q && f.q.toLowerCase().includes(q)) || 
-    (f.a && f.a.toLowerCase().includes(q))
-  );
+/**
+ * DB Retrieval: Get all services
+ */
+const getServices = async () => {
+  const rows = await db('services').orderBy('id', 'asc');
+  return rows.map(s => ({
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    benefits: typeof s.benefits === 'string' ? JSON.parse(s.benefits) : s.benefits,
+    terms: s.terms
+  }));
 };
 
-// Get all FAQ categories
-const getFAQCategories = () => {
-  return knowledge.faq.map(f => f.category);
+/**
+ * DB Retrieval: Get all reseller program tier data
+ */
+const getResellerProgram = async () => {
+  return db('reseller_program').orderBy('id', 'asc');
 };
 
-// Get company info
-const getCompanyInfo = () => {
-  return knowledge.company;
+/**
+ * DB Retrieval: Get FAQs by category (if category is empty, returns all)
+ */
+const getFAQByCategory = async (category) => {
+  let query = db('faq');
+  if (category) {
+    query = query.whereILike('category', category);
+  }
+  return query.orderBy('id', 'asc');
 };
 
-// Get services
-const getServices = () => {
-  return knowledge.services;
+/**
+ * DB Retrieval: Search FAQ questions and answers
+ */
+const searchFAQ = async (query) => {
+  const q = `%${query.toLowerCase()}%`;
+  return db('faq')
+    .whereILike('question', q)
+    .orWhereILike('answer', q)
+    .orderBy('id', 'asc');
 };
 
-// Get reseller program info
-const getResellerProgram = () => {
-  return knowledge.reseller_program;
+/**
+ * DB Retrieval: List distinct FAQ categories
+ */
+const getFAQCategories = async () => {
+  const rows = await db('faq').distinct('category').orderBy('category', 'asc');
+  return rows.map(r => r.category);
 };
-
-// Initialize on load
-loadKnowledge();
 
 module.exports = {
-  loadKnowledge,
-  searchProducts,
-  getProduct,
-  getAllProducts,
-  getProductsByCategory,
-  searchFAQ,
-  getFAQByCategory,
-  getFAQCategories,
+  syncExcelToDatabase,
   getCompanyInfo,
+  getAllProducts,
+  getProduct,
+  searchProducts,
+  getProductsByCategory,
   getServices,
-  getResellerProgram
+  getResellerProgram,
+  getFAQByCategory,
+  searchFAQ,
+  getFAQCategories
 };

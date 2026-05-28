@@ -1,103 +1,312 @@
 const knowledge = require('../services/knowledge');
 const history = require('../services/history');
 const gemini = require('../services/gemini');
-const config = require('../utils/config');
+const db = require('../utils/db');
+const { emitEvent } = require('../utils/socket');
 const logger = require('../utils/logger');
 
-// System prompt untuk AI
-const SYSTEM_PROMPT = `Kamu adalah admin customer service resmi Vuyama, perusahaan penjual mukena dan kerudung untuk reseller.
-
-INSTRUKSI PENTING:
-1. Bicara natural, ramah, dan santai seperti admin manusia profesional
-2. Gunakan emoji untuk friendly tone (😊 👍 🎉 🙏 dll)
-3. Sesuaikan gaya bicara dengan customer:
-   - Jika customer formal → jawab formal
-   - Jika customer santai → jawab santai
-   - Jika customer bercanda → boleh friendly
-4. Jawab langsung inti pertanyaan, jangan bertele-tele
-5. Jika tanya produk, sebutkan nama, harga, warna, dan deskripsi
-6. Jika mau order, minta detail: produk, jumlah, warna, ukuran
-7. Jika komplain, utamakan empati dan solusi
-8. Jangan pernah bilang "Saya adalah AI" - posisi diri sebagai admin manusia
-9. Jika tidak yakin jawaban, tanya lebih detail atau katakan akan dicek tim
-
-KNOWLEDGE BASE VUYAMA:
-${JSON.stringify({
-  company: knowledge.getCompanyInfo(),
-  products: knowledge.getAllProducts(),
-  services: knowledge.getServices(),
-  faq: knowledge.getFAQByCategory(''),
-  reseller_program: knowledge.getResellerProgram()
-}, null, 2)}
-
-Gunakan informasi di atas untuk jawab pertanyaan customer dengan akurat.`;
-
-// Check if needs escalation
-const needsEscalation = (message) => {
-  const msg = message.toLowerCase();
-  return config.escalationKeywords.some(keyword => msg.includes(keyword));
+// Database logging helper
+const logToDb = async (level, message) => {
+  try {
+    const timestamp = new Date();
+    await db('bot_logs').insert({ level, message, timestamp });
+    emitEvent('new_log', { level, message, timestamp });
+  } catch (err) {
+    logger.error('Error writing bot log to DB:', err);
+  }
 };
 
-// Build context dari chat history
-const buildContextString = async (phoneNumber) => {
-  const chatHistory = await history.getHistory(phoneNumber, config.contextMessagesLimit);
+/**
+ * Build dynamic system prompt containing the latest database context
+ */
+const buildDynamicSystemPrompt = async () => {
+  try {
+    const companyInfo = await knowledge.getCompanyInfo();
+    const products = await knowledge.getAllProducts();
+    const services = await knowledge.getServices();
+    const faq = await knowledge.getFAQByCategory('');
+    const reseller = await knowledge.getResellerProgram();
 
-  if (chatHistory.length === 0) {
-    return '';
+    return `Kamu adalah admin customer service resmi Vuyama, perusahaan produsen/penjual mukena, kerudung, dan label brand hijab berkualitas.
+
+ATURAN UTAMA & GAYA BAHASA (WAJIB DIPATUHI):
+1. JAWABAN HARUS SUPER SINGKAT, PADAT, DAN LANGSUNG KE INTI (Maksimal 1-2 kalimat pendek). Jangan pernah menulis paragraf panjang bertele-tele!
+2. Bicara sangat ramah, santai, dan manusiawi (Gunakan kata seperti "Kak", "Ready kak", "Bisa kok", "Ada kak").
+3. Gunakan emoji secukupnya agar bersahabat (😊, 👍, kak 🙏, dll).
+4. Jangan pernah menyebut diri Anda "AI", "bot", atau "model bahasa". Anda adalah "Admin Vuyama" (manusia).
+5. Hindari membuat format daftar (list) panjang kecuali ditanyakan langsung.
+6. Jika ditanya harga/detail produk, sebutkan nama produk, harga retail/reseller secara ringkas dan bersahabat.
+
+KNOWLEDGE BASE VUYAMA (TERBARU DARI DATABASE):
+${JSON.stringify({
+      company: companyInfo,
+      products: products.map(p => ({ id: p.id, name: p.name, category: p.category, price_retail: p.price_retail, price_reseller: p.price_reseller, stock: p.stock, status: p.status })),
+      services: services,
+      faq: faq.map(f => ({ q: f.question, a: f.answer })),
+      reseller_program: reseller
+    }, null, 2)}
+
+Gunakan database di atas untuk memberikan jawaban yang ramah, ringkas, dan akurat.`;
+  } catch (err) {
+    logger.error('Error building dynamic prompt:', err);
+    return `Kamu adalah admin customer service resmi Vuyama. Bicara ramah, santai, dan singkat (1-2 kalimat).`;
   }
+};
 
-  let contextStr = '\nChat history:\n';
+/**
+ * Check if the message indicates a customer complaint
+ */
+const isComplaintMessage = (msgText) => {
+  const COMPLAINT_KEYWORDS = [
+    'kecewa', 'marah', 'refund', 'penipuan', 'barang belum datang', 
+    'respon lama', 'komplain', 'jelek', 'rugi', 'lambat', 
+    'kembalikan uang', 'salah kirim', 'cacat', 'rusak', 'pecah'
+  ];
+  const normalized = msgText.toLowerCase();
+  return COMPLAINT_KEYWORDS.some(k => normalized.includes(k));
+};
+
+/**
+ * Check if the message indicates the customer wants to order
+ */
+const isOrderIntentMessage = (msgText) => {
+  const ORDER_INTENT_KEYWORDS = [
+    'mau beli', 'cara order', 'order kak', 'mau pesan', 
+    'cara pesan', 'order dong', 'pesan mukena', 'beli kerudung', 
+    'format order', 'mau beli label'
+  ];
+  const normalized = msgText.toLowerCase();
+  return ORDER_INTENT_KEYWORDS.some(k => normalized.includes(k));
+};
+
+/**
+ * Check if the message contains the required fields for the order format
+ */
+const isFilledOrderFormat = (msgText) => {
+  const normalized = msgText.toLowerCase();
+  return ['nama :', 'alamat lengkap :', 'no hp :', 'pesanan :'].every(field => normalized.includes(field));
+};
+
+/**
+ * Gemini-powered unstructured order format text extractor with fallback Regex parser
+ */
+const parseOrderFormatWithGemini = async (text) => {
+  const prompt = `Extract Vuyama order details from this WhatsApp message and return it strictly as a single JSON object.
+Do NOT output markdown code fences (like \`\`\`json) or any other explanation. Just the raw JSON string.
+
+Schema keys:
+- customer_name: (from Nama)
+- address: (from Alamat Lengkap)
+- phone: (from No HP)
+- pesanan_raw: (from Pesanan)
+- brand_name: (from Nama Brand)
+- label_size: (from Ukuran Label)
+- label_shape: (from Bentuk)
+- ink_color: (from Warna Tinta)
+- label_color: (from Warna Label)
+- font: (from Font)
+
+If a field is empty, missing, or omitted in the text, set its value to null.
+
+WhatsApp Message Text:
+"""
+${text}
+"""`;
+
+  try {
+    const rawRes = await gemini.callGemini(prompt);
+    let cleaned = rawRes.trim();
+    if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/^```json/, '');
+    if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```/, '');
+    if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
+    cleaned = cleaned.trim();
+    
+    return JSON.parse(cleaned);
+  } catch (err) {
+    logger.error('Gemini order parsing failed, using regex fallback:', err);
+    
+    const getMatch = (regex) => {
+      const match = text.match(regex);
+      return match ? match[1].trim() : null;
+    };
+
+    return {
+      customer_name: getMatch(/Nama\s*:\s*(.*)/i),
+      address: getMatch(/Alamat Lengkap\s*:\s*(.*)/i),
+      phone: getMatch(/No HP\s*:\s*(.*)/i),
+      pesanan_raw: getMatch(/Pesanan\s*:\s*(.*)/i),
+      brand_name: getMatch(/Nama Brand\s*:\s*(.*)/i),
+      label_size: getMatch(/Ukuran Label\s*:\s*(.*)/i),
+      label_shape: getMatch(/Bentuk\s*:\s*(.*)/i),
+      ink_color: getMatch(/Warna Tinta\s*:\s*(.*)/i),
+      label_color: getMatch(/Warna Label\s*:\s*(.*)/i),
+      font: getMatch(/Font\s*:\s*(.*)/i)
+    };
+  }
+};
+
+/**
+ * Context string builder from customer message history
+ */
+const buildContextString = async (phoneNumber) => {
+  const chatHistory = await history.getHistory(phoneNumber, 8); // limit 8 messages
+  if (chatHistory.length === 0) return '';
+
+  let contextStr = '\nRiwayat chat terakhir:\n';
   chatHistory.forEach(msg => {
     const sender = msg.sender === 'customer' ? 'Customer' : 'Admin';
     contextStr += `${sender}: ${msg.message}\n`;
   });
-
   return contextStr;
 };
 
-// Generate bot response using AI
-const generateResponse = async (phoneNumber, userMessage) => {
+/**
+ * Main function to generate bot response
+ */
+const generateResponse = async (phoneNumber, userMessage, customerState) => {
   try {
-    // Check for escalation first
-    if (needsEscalation(userMessage)) {
+    // 1. COMPLAINT DETECTION FLOW
+    if (isComplaintMessage(userMessage)) {
+      await logToDb('warn', `Deteksi otomatis Komplain dari ${phoneNumber}: "${userMessage.substring(0, 40)}..."`);
+      
+      // Auto-block the bot from replying to this customer in the future
+      const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
+      if (!existingBlock) {
+        await db('blocked_numbers').insert({
+          phone_number: phoneNumber,
+          reason: 'Terdeteksi Komplain Otomatis'
+        });
+      }
+
+      // Update customer status to COMPLAINT and WAITING_HUMAN
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'WAITING_HUMAN',
+        updated_at: new Date()
+      });
+
+      // Insert record to complaints
+      await db('complaints').insert({
+        phone_number: phoneNumber,
+        message: userMessage,
+        status: 'OPEN'
+      });
+
+      // Alert dashboard clients
+      emitEvent('new_complaint', {
+        phone_number: phoneNumber,
+        message: userMessage
+      });
+      
+      // Notify customer update to UI
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+
       return {
-        intent: 'escalation',
-        response: `Baik kak 🙏 Saya sambungkan ke tim kami untuk membantu lebih lanjut. Mohon tunggu sebentar...`,
-        shouldEscalate: true
+        intent: 'complaint',
+        response: `Maaf banget atas ketidaknyamanannya ya Kak 🙏 Keluhan Kakak sudah dicatat. Bot kami matikan sementara untuk nomor Kakak, dan admin manusia kami akan segera membalas chat ini secara langsung. Mohon ditunggu sebentar ya kak...`
       };
     }
 
-    // Build prompt dengan context
-    const contextStr = await buildContextString(phoneNumber);
-    const prompt = `${SYSTEM_PROMPT}${contextStr}\n\nCustomer: ${userMessage}\n\nAdmin (jangan mulai dengan 'Admin:'):`;
+    // 2. ORDER CONFIRMATION FLOW
+    
+    // Scenario A: Customer wants to order (gives order format)
+    if (isOrderIntentMessage(userMessage)) {
+      await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
+      
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'ORDER_PENDING',
+        updated_at: new Date()
+      });
 
-    // Call Gemini AI
-    logger.info(`Calling Gemini AI for: ${userMessage}`);
+      // Notify UI
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+
+      return {
+        intent: 'order_intent',
+        response: `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
+      };
+    }
+
+    // Scenario B: Customer fills the format (they must have status ORDER_PENDING or have the fields)
+    if (isFilledOrderFormat(userMessage)) {
+      await logToDb('info', `Customer ${phoneNumber} mengirimkan format order. Menjalankan AI parser...`);
+      
+      const parsed = await parseOrderFormatWithGemini(userMessage);
+
+      // Save order to PostgreSQL
+      const [orderIdObj] = await db('orders').insert({
+        phone_number: phoneNumber,
+        customer_name: parsed.customer_name || 'Customer Vuyama',
+        address: parsed.address,
+        phone: parsed.phone,
+        pesanan_raw: parsed.pesanan_raw,
+        brand_name: parsed.brand_name,
+        label_size: parsed.label_size,
+        label_shape: parsed.label_shape,
+        ink_color: parsed.ink_color,
+        label_color: parsed.label_color,
+        font: parsed.font,
+        status: 'PENDING',
+        total: 0
+      }).returning('id');
+
+      const orderId = orderIdObj ? orderIdObj.id : null;
+
+      // Update customer status to ORDER_CONFIRMED
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'ORDER_CONFIRMED',
+        updated_at: new Date()
+      });
+
+      // Notify dashboard real-time
+      emitEvent('new_order', {
+        id: orderId,
+        phone_number: phoneNumber,
+        customer_name: parsed.customer_name || 'Customer Vuyama',
+        pesanan_raw: parsed.pesanan_raw,
+        status: 'PENDING'
+      });
+
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+
+      return {
+        intent: 'order_filled',
+        response: `Terima kasih Kak! 😊 Format ordernya sudah kami terima dan berhasil dicatat dengan status PENDING. Admin kami akan segera mengecek pesanan Kakak untuk menghitung ongkirnya. Mohon tunggu sebentar ya... 🙏`
+      };
+    }
+
+    // 3. NORMAL AI CHAT FLOW (USING DYNAMIC KNOWLEDGE AND DYNAMIC SYSTEM PROMPT)
+    const contextStr = await buildContextString(phoneNumber);
+    const systemPrompt = await buildDynamicSystemPrompt();
+    const prompt = `${systemPrompt}${contextStr}\n\nCustomer: ${userMessage}\n\nAdmin (jangan mulai dengan 'Admin:'):`;
+
+    logger.info(`Calling Gemini AI for customer ${phoneNumber}`);
     const response = await gemini.callGemini(prompt);
 
-    // Clean response (remove any prefix)
     let cleanedResponse = response.trim();
     if (cleanedResponse.startsWith('Admin:')) {
       cleanedResponse = cleanedResponse.substring(6).trim();
     }
 
     return {
-      intent: 'ai',
-      response: cleanedResponse || 'Maaf, coba lagi sebentar 🙏'
+      intent: 'ai_reply',
+      response: cleanedResponse || 'Boleh kak, ada yang bisa dibantu? 😊'
     };
   } catch (error) {
     logger.error('Error generating response:', error);
-
-    // Fallback response jika Ollama error
     return {
       intent: 'error',
-      response: 'Maaf kak, ada kendala teknis. Tim kami sedang membantu. Coba lagi dalam beberapa detik ya 🙏'
+      response: 'Boleh kak, sebentar ya kami cek dulu... 🙏'
     };
   }
 };
 
 module.exports = {
   generateResponse,
-  needsEscalation,
-  SYSTEM_PROMPT
+  buildDynamicSystemPrompt,
+  isComplaintMessage,
+  isOrderIntentMessage,
+  isFilledOrderFormat
 };
