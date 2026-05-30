@@ -71,7 +71,3 @@ berarti akun Google Gemini gratis Anda sedang terkena limitasi server Google.
 Solusi:
 1. Hubungkan metode pembayaran (kartu debit/kredit) di Google AI Studio (https://aistudio.google.com/).
 2. Anda akan otomatis masuk ke tier "Pay-As-You-Go" yang sangat murah dan dijamin super stabil tanpa limitasi "high demand" lagi.
-
-===============================================================================
-                    Dibuat dengan bangga oleh Antigravity AI
-===============================================================================

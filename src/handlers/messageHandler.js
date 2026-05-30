@@ -19,13 +19,139 @@ const logToDb = async (level, message) => {
 /**
  * Build dynamic system prompt containing the latest database context
  */
-const buildDynamicSystemPrompt = async () => {
+/**
+ * Detect simple greetings/common words and return static human-like responses
+ * without calling Gemini API to save 100% of tokens and respond instantly.
+ */
+const getStaticGreetingReply = (userMessage) => {
+  if (!userMessage) return null;
+  const normalized = userMessage.trim().toLowerCase().replace(/[?,.!\s]+/g, ' ');
+  
+  // 1. Assalamualaikum patterns
+  if (/^(assalamualaikum|assalamu'alaikum|askum|mikum|ass|asalamu'alaikum)/i.test(normalized)) {
+    return "Waalaikumsalam Kak! Ada yang bisa kami bantu? 😊";
+  }
+  
+  // 2. Halo/Hai patterns
+  if (/^(halo|hai|hello|hey|hei|p|halo admin|hallo|spada)/i.test(normalized) && normalized.length <= 12) {
+    return "Halo juga Kak! Ada yang bisa kami bantu? 😊";
+  }
+  
+  // 3. Greeting by time patterns
+  if (/^(selamat (pagi|siang|sore|malam))/i.test(normalized)) {
+    const match = normalized.match(/selamat (pagi|siang|sore|malam)/i);
+    const timeOfDay = match ? match[1] : 'hari';
+    return `Selamat ${timeOfDay} juga Kak! Ada yang bisa kami bantu? 😊`;
+  }
+  
+  // 4. Test/Tes patterns
+  if (/^(tes|test|testing|ping)/i.test(normalized) && normalized.length <= 6) {
+    return "Iya Kak, masuk kok. Ada yang bisa kami bantu? 😊";
+  }
+  
+  // 5. Thank you patterns
+  if (/^(terima kasih|makasih|tengkyu|thanks|suwun|thx|nuhun)/i.test(normalized) && normalized.length <= 15) {
+    return "Sama-sama Kak! 😊 Senang bisa membantu. Jika ada hal lain yang perlu ditanyakan, hubungi kami saja ya...";
+  }
+  
+  return null;
+};
+
+/**
+ * Build dynamic system prompt containing the latest database context using Retrieval-Augmented Generation (RAG)
+ * to only fetch relevant products, FAQs, and reseller details to save up to 95% of tokens.
+ */
+const buildDynamicSystemPrompt = async (userMessage = "") => {
   try {
     const companyInfo = await knowledge.getCompanyInfo();
-    const products = await knowledge.getAllProducts();
-    const services = await knowledge.getServices();
-    const faq = await knowledge.getFAQByCategory('');
-    const reseller = await knowledge.getResellerProgram();
+    const lowerMsg = userMessage.toLowerCase();
+    
+    // Dynamic RAG retrieval parameters
+    let products = [];
+    let faq = [];
+    let services = [];
+    let reseller = [];
+
+    // 1. RAG Products Retrieval
+    const isMukenaQuery = ['mukena', 'rukuh', 'shalat', 'solat'].some(k => lowerMsg.includes(k));
+    const isHijabQuery = ['hijab', 'jilbab', 'kerudung', 'khimar', 'pashmina', 'bawal'].some(k => lowerMsg.includes(k));
+    const isLabelQuery = ['label', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'besi', 'kertas', 'hangtag', 'hang tag'].some(k => lowerMsg.includes(k));
+
+    if (isMukenaQuery || isHijabQuery || isLabelQuery) {
+      let category = '';
+      if (isMukenaQuery) category = 'Mukena';
+      else if (isHijabQuery) category = 'Hijab';
+      else if (isLabelQuery) category = 'Label';
+
+      products = await db('products')
+        .whereILike('category', `%${category}%`)
+        .andWhere('status', 'Tersedia')
+        .orderBy('id', 'asc')
+        .limit(5); // Limit to max 5 items for token savings
+    } else {
+      // Split user message into keywords to search specific product attributes
+      const keywords = lowerMsg.split(/\s+/).filter(w => w.length > 2);
+      if (keywords.length > 0) {
+        let query = db('products').where('status', 'Tersedia');
+        query = query.where((q) => {
+          keywords.forEach((word) => {
+            q.orWhereILike('name', `%${word}%`)
+             .orWhereILike('description', `%${word}%`)
+             .orWhereILike('material', `%${word}%`)
+             .orWhereILike('id', `%${word}%`);
+          });
+        });
+        products = await query.orderBy('id', 'asc').limit(5);
+      }
+    }
+
+    // Default: if no product search keywords matched, load only 1 sample product context to save tokens
+    if (products.length === 0) {
+      products = await db('products').where('status', 'Tersedia').orderBy('id', 'asc').limit(1);
+    }
+
+    // 2. RAG FAQ & Reseller & Services Retrieval
+    const hasResellerKeywords = ['reseller', 'agen', 'grosir', 'diskon', 'potongan', 'tingkat', 'level', 'syarat', 'join'].some(k => lowerMsg.includes(k));
+    const hasServiceKeywords = ['dropship', 'dropshiper', 'dropshiping', 'jasa', 'layanan', 'buat brand', 'merek sendiri', 'cetak', 'desain'].some(k => lowerMsg.includes(k));
+    const hasShippingKeywords = ['kirim', 'ongkir', 'pos', 'jne', 'j&t', 'sicepat', 'ekspedisi', 'kargo', 'cargo'].some(k => lowerMsg.includes(k));
+
+    if (hasResellerKeywords) {
+      reseller = await db('reseller_program').orderBy('id', 'asc');
+      faq = await db('faq')
+        .whereILike('category', '%reseller%')
+        .orWhereILike('question', '%reseller%')
+        .limit(3);
+    }
+
+    if (hasServiceKeywords) {
+      services = await db('services').orderBy('id', 'asc');
+      faq = [
+        ...faq,
+        ...(await db('faq').whereILike('category', '%layanan%').orWhereILike('question', '%dropship%').limit(3))
+      ];
+    }
+
+    if (hasShippingKeywords) {
+      faq = [
+        ...faq,
+        ...(await db('faq').whereILike('question', '%kirim%').orWhereILike('answer', '%ongkir%').limit(3))
+      ];
+    }
+
+    // Default: if no specific FAQ requested, load only 1 general FAQ to save tokens
+    if (faq.length === 0) {
+      faq = await db('faq').whereILike('category', '%umum%').limit(1);
+    }
+
+    // Map properties to minimize JSON context size
+    const mappedProducts = products.map(p => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      price_retail: p.price_retail,
+      price_reseller: p.price_reseller,
+      stock: p.stock
+    }));
 
     return `Kamu adalah admin customer service resmi Vuyama, perusahaan produsen/penjual mukena, kerudung, dan label brand hijab berkualitas.
 
@@ -37,16 +163,16 @@ ATURAN UTAMA & GAYA BAHASA (WAJIB DIPATUHI):
 5. Hindari membuat format daftar (list) panjang kecuali ditanyakan langsung.
 6. Jika ditanya harga/detail produk, sebutkan nama produk, harga retail/reseller secara ringkas dan bersahabat.
 
-KNOWLEDGE BASE VUYAMA (TERBARU DARI DATABASE):
+KNOWLEDGE BASE VUYAMA (TERRETRIEVE SECARA DINAMIS DARI DATABASE):
 ${JSON.stringify({
       company: companyInfo,
-      products: products.map(p => ({ id: p.id, name: p.name, category: p.category, price_retail: p.price_retail, price_reseller: p.price_reseller, stock: p.stock, status: p.status })),
-      services: services,
+      products: mappedProducts,
+      services: services.map(s => ({ name: s.name, description: s.description })),
       faq: faq.map(f => ({ q: f.question, a: f.answer })),
       reseller_program: reseller
     }, null, 2)}
 
-Gunakan database di atas untuk memberikan jawaban yang ramah, ringkas, dan akurat.`;
+Gunakan database kontekstual di atas untuk memberikan jawaban yang ramah, ringkas, dan akurat.`;
   } catch (err) {
     logger.error('Error building dynamic prompt:', err);
     return `Kamu adalah admin customer service resmi Vuyama. Bicara ramah, santai, dan singkat (1-2 kalimat).`;
@@ -165,6 +291,16 @@ const buildContextString = async (phoneNumber) => {
  */
 const generateResponse = async (phoneNumber, userMessage, customerState) => {
   try {
+    // 0. STATIC GREETING BYPASS (Zero-Call)
+    const staticReply = getStaticGreetingReply(userMessage);
+    if (staticReply) {
+      await logToDb('info', `Deteksi otomatis Sapaan dari ${phoneNumber} (Bypass Gemini).`);
+      return {
+        intent: 'greeting',
+        response: staticReply
+      };
+    }
+
     // 1. COMPLAINT DETECTION FLOW
     if (isComplaintMessage(userMessage)) {
       await logToDb('warn', `Deteksi otomatis Komplain dari ${phoneNumber}: "${userMessage.substring(0, 40)}..."`);
@@ -279,7 +415,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
 
     // 3. NORMAL AI CHAT FLOW (USING DYNAMIC KNOWLEDGE AND DYNAMIC SYSTEM PROMPT)
     const contextStr = await buildContextString(phoneNumber);
-    const systemPrompt = await buildDynamicSystemPrompt();
+    const systemPrompt = await buildDynamicSystemPrompt(userMessage);
     const prompt = `${systemPrompt}${contextStr}\n\nCustomer: ${userMessage}\n\nAdmin (jangan mulai dengan 'Admin:'):`;
 
     logger.info(`Calling Gemini AI for customer ${phoneNumber}`);
