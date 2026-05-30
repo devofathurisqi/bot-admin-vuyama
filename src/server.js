@@ -289,9 +289,19 @@ app.post('/api/whatsapp/send', async (req, res) => {
     const { phoneNumber, message } = req.body;
     
     // Send message using the global Baileys / WWebJS client
-    const { client } = require('./bot');
+    const { client, pendingOutgoingMessages } = require('./bot');
     
-    await client.sendMessage(phoneNumber, message);
+    const key = `${phoneNumber}:${message}`;
+    if (pendingOutgoingMessages) {
+      pendingOutgoingMessages.add(key);
+    }
+    try {
+      await client.sendMessage(phoneNumber, message);
+    } finally {
+      if (pendingOutgoingMessages) {
+        setTimeout(() => pendingOutgoingMessages.delete(key), 5000);
+      }
+    }
     
     // Save to conversation history
     const timestamp = new Date();

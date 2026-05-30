@@ -11,6 +11,9 @@ const { emitEvent } = require('./utils/socket');
 const fs = require('fs');
 const path = require('path');
 
+// Set to track programmatically sent messages to prevent duplicates in CRM live chat
+const pendingOutgoingMessages = new Set();
+
 // Initialize WhatsApp client
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -76,6 +79,12 @@ client.on('message_create', async (msg) => {
     // CASE A: OUTGOING MESSAGE BY HUMAN ADMIN FROM PHONE
     // ==========================================
     if (msg.fromMe) {
+      // Avoid duplicate logging if this message was sent programmatically (by bot or dashboard)
+      const key = `${phoneNumber}:${messageText}`;
+      if (pendingOutgoingMessages.has(key)) {
+        pendingOutgoingMessages.delete(key);
+        return;
+      }
       // Ensure customer exists in CRM
       let customer = await db('customers').where('phone_number', phoneNumber).first();
       if (!customer) {
@@ -198,7 +207,13 @@ client.on('message_create', async (msg) => {
     }
 
     // 4. SEND BOT RESPONSE
-    await msg.reply(response.response);
+    const key = `${phoneNumber}:${response.response}`;
+    pendingOutgoingMessages.add(key);
+    try {
+      await msg.reply(response.response);
+    } finally {
+      setTimeout(() => pendingOutgoingMessages.delete(key), 5000);
+    }
     logger.info(`Bot merespons ke ${phoneNumber}: "${response.response.substring(0, 40)}..."`);
 
     // Save bot reply to database
@@ -312,5 +327,6 @@ process.on('unhandledRejection', (reason, promise) => {
 
 module.exports = {
   client,
-  startBot
+  startBot,
+  pendingOutgoingMessages
 };
