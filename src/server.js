@@ -284,6 +284,29 @@ app.get('/api/whatsapp/chats/:phoneNumber', async (req, res) => {
   }
 });
 
+app.delete('/api/whatsapp/chats/:phoneNumber', async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    
+    // Delete conversations from database
+    await db('conversations').where('phone_number', phoneNumber).del();
+    
+    // Audit logging
+    await db('audit_logs').insert({
+      action: 'DELETE_CHAT_HISTORY',
+      details: `Cleared chat history for customer: ${phoneNumber}`
+    });
+
+    // Notify all dashboard clients
+    emitEvent('chat_history_cleared', { phone_number: phoneNumber });
+
+    res.json({ success: true, message: 'Chat history cleared.' });
+  } catch (error) {
+    logger.error('Error clearing chat history:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/whatsapp/send', async (req, res) => {
   try {
     const { phoneNumber, message } = req.body;

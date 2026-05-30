@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -181,7 +181,7 @@
 
     function App() {
       const [activeTab, setActiveTab] = useState('dashboard');
-      const [darkMode, setDarkMode] = useState(true);
+      const [darkMode, setDarkMode] = useState(false);
       const [botStatus, setBotStatus] = useState({ status: 'disconnected', qr: null });
       
       // Data Stores
@@ -327,6 +327,22 @@
         } catch (e) {}
       };
 
+      const handleClearChatHistory = async (phoneNumber) => {
+        if (!confirm('Apakah Anda yakin ingin menghapus seluruh riwayat chat customer ini dari CRM? Tindakan ini tidak bisa dibatalkan.')) return;
+        try {
+          const res = await fetch(`/api/whatsapp/chats/${phoneNumber}`, {
+            method: 'DELETE'
+          });
+          const d = await res.json();
+          if (d.success) {
+            setChatMessages([]);
+            alert('Riwayat chat berhasil dihapus.');
+          }
+        } catch (e) {
+          alert('Gagal menghapus riwayat chat.');
+        }
+      };
+
       // On Initial Mount and tab switching
       useEffect(() => {
         fetchBotStatus();
@@ -353,6 +369,13 @@
             setChatMessages(prev => [...prev, msg]);
           }
           // Refresh list to update CRM UI
+          fetchCustomers();
+        });
+
+        socket.on('chat_history_cleared', (data) => {
+          if (activeChat && data.phone_number === activeChat) {
+            setChatMessages([]);
+          }
           fetchCustomers();
         });
 
@@ -714,8 +737,8 @@
         <div className="flex h-screen overflow-hidden">
           
           {/* ==================== LEFT SIDEBAR ==================== */}
-          <aside className="w-64 glass border-r border-darkbg-border flex flex-col justify-between shrink-0 hidden md:flex">
-            <div>
+          <aside className="w-64 glass border-r border-darkbg-border flex flex-col justify-between shrink-0 hidden md:flex h-full">
+            <div className="flex flex-col flex-1 min-h-0">
               {/* BRAND HEADER */}
               <div className="p-6 flex items-center space-x-3 border-b border-darkbg-border">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/20">
@@ -728,7 +751,7 @@
               </div>
 
               {/* NAVIGATION MENU */}
-              <nav className="p-4 space-y-1.5 flex-1">
+              <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
                 {[
                   { id: 'dashboard', name: 'Dashboard', icon: Icons.Dashboard },
                   { id: 'products', name: 'Products & Excel', icon: Icons.Products },
@@ -790,7 +813,7 @@
             </header>
 
             {/* SCROLLABLE MAIN BODY */}
-            <div className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className={`flex-1 p-4 md:p-8 ${activeTab === 'customers' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
               
               {/* ==================== TAB: DASHBOARD ==================== */}
               {activeTab === 'dashboard' && (
@@ -1053,7 +1076,7 @@
 
               {/* ==================== TAB: CUSTOMERS (LIVE CHAT CRM ROOM) ==================== */}
               {activeTab === 'customers' && (
-                <div className="h-[calc(100vh-140px)] border border-darkbg-border rounded-2xl bg-white dark:bg-darkbg-card overflow-hidden flex shadow-sm">
+                <div className="flex-1 min-h-0 border border-darkbg-border rounded-2xl bg-white dark:bg-darkbg-card overflow-hidden flex shadow-sm">
                   
                   {/* CRM CHAT ROOM: LEFT COLUMN LIST */}
                   <div className="w-80 border-r border-darkbg-border flex flex-col shrink-0 overflow-hidden">
@@ -1139,6 +1162,13 @@
                               title="Pin/Unpin Chat"
                             >
                               <Icons.Pin />
+                            </button>
+                            <button 
+                              onClick={() => handleClearChatHistory(activeChat)}
+                              className="p-2 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-400 hover:text-white transition"
+                              title="Hapus Riwayat Obrolan"
+                            >
+                              <Icons.Trash />
                             </button>
                           </div>
                         </div>
