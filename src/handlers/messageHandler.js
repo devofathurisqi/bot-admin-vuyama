@@ -58,6 +58,78 @@ const getStaticGreetingReply = (userMessage) => {
 };
 
 /**
+ * Clean and match user message against Database FAQs using Jaccard string similarity
+ * acting as a local micro-machine learning matcher.
+ */
+const findMatchingLocalFAQ = (userMessage, faqs) => {
+  if (!userMessage || !faqs || faqs.length === 0) return null;
+  
+  const normalize = (str) => {
+    return str
+      .toLowerCase()
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  const getWords = (str) => {
+    const stopwords = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok']);
+    return new Set(
+      normalize(str)
+        .split(' ')
+        .filter(word => word.length > 1 && !stopwords.has(word))
+    );
+  };
+
+  const calculateJaccard = (setA, setB) => {
+    const intersection = new Set([...setA].filter(x => setB.has(x)));
+    const union = new Set([...setA, ...setB]);
+    if (union.size === 0) return 0;
+    return intersection.size / union.size;
+  };
+
+  const userWords = getWords(userMessage);
+  const normalizedUser = normalize(userMessage);
+
+  let bestMatch = null;
+  let highestScore = 0;
+
+  for (const faq of faqs) {
+    const faqWords = getWords(faq.question);
+    let score = calculateJaccard(userWords, faqWords);
+    
+    // Substring phrase matching bonus
+    const faqNormQuestion = normalize(faq.question);
+    if (normalizedUser.includes(faqNormQuestion) || faqNormQuestion.includes(normalizedUser)) {
+      score += 0.35;
+    }
+
+    // Direct key phrase words match boost
+    const keyPhrases = faq.question.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const matchedCount = keyPhrases.filter(kp => normalizedUser.includes(kp)).length;
+    if (matchedCount > 0) {
+      score += (matchedCount / keyPhrases.length) * 0.25;
+    }
+
+    if (score > highestScore) {
+      highestScore = score;
+      bestMatch = faq;
+    }
+  }
+
+  // A highly optimized similarity threshold (0.45) for reliable matches
+  if (highestScore >= 0.45 && bestMatch) {
+    return {
+      answer: bestMatch.answer,
+      score: highestScore,
+      question: bestMatch.question
+    };
+  }
+
+  return null;
+};
+
+/**
  * Build dynamic system prompt containing the latest database context using Retrieval-Augmented Generation (RAG)
  * to only fetch relevant products, FAQs, and reseller details to save up to 95% of tokens.
  */
@@ -153,16 +225,21 @@ const buildDynamicSystemPrompt = async (userMessage = "") => {
       stock: p.stock
     }));
 
-    return `Kamu adalah seorang admin Customer Service wanita (bernama Admin Vuyama) yang sangat ramah, humble, ceria, dan membantu. Kamu menjual mukena, kerudung/hijab, dan label brand hijab berkualitas.
+    return `Kamu adalah seorang admin Customer Service resmi Vuyama (bernama Admin Vuyama) yang sangat profesional, ramah, dan berpengalaman luas di bidang produksi mukena, hijab, dan label brand hijab. 
 
-ATURAN UTAMA & GAYA KOMUNIKASI (WAJIB DIPATUHI AGAR TIDAK TERLIHAT SEPERTI BOT):
-1. JAWABAN HARUS SANGAT SINGKAT, CASUAL, DAN MANUSIAWI (Maksimal 1-2 kalimat pendek). Hindari penjelasan panjang lebar seperti karangan!
-2. Gunakan gaya bahasa santai seperti admin online shop Instagram/Shopee di Indonesia. Gunakan singkatan santai yang natural (contoh: "bgt" untuk banget, "yg" untuk yang, "klo" untuk kalau, "ongkir" untuk ongkos kirim, "ready" untuk tersedia, "bs" untuk bisa, "dulu" untuk dlu).
-3. Panggil customer dengan sebutan "Kak" atau "Kakak" secara ramah. Contoh: "Ready kak, bahannya adem bgt lho 😊", "Bisa kok kak, kirim kemana ya?", "Sebentar ya kak aku cek dulu..."
-4. JANGAN PERNAH memberikan jawaban dalam bentuk daftar berbutir (bullet list) terstruktur yang kaku khas AI! Tulis harga/pilihan secara mengalir dan santai.
-5. JANGAN PERNAH menyertakan kalimat penutup bot otomatis yang kaku seperti "Ada hal lain yang bisa saya bantu?" di setiap pesan. Biarkan percakapan mengalir alami.
-6. JANGAN PERNAH menyebut diri sendiri sebagai "AI", "bot", "assistant", atau "model bahasa". Kamu adalah admin manusia asli Vuyama.
-7. Jika ditanya info yang tidak ada di database, jawab secara santai layaknya admin manusia yang sedang mencari data, misalnya: "Duh maaf bgt kak, stoknya lagi kosong nih" atau "Sebentar ya kak, aku tanyakan ke bagian gudang dulu biar pasti yaa 🙏".
+GAYA BAHASA & KEPRIBADIAN (WAJIB DIPATUHI AGAR SEPERTI CS MANUSIA YANG SANGAT BERPENGALAMAN):
+1. Bicara sangat natural, luwes, dan bersahabat (Gunakan sebutan "Kakak" atau "Kak" secara hangat). Gunakan tata bahasa manusia asli yang berwawasan luas.
+2. JANGAN kaku dan JANGAN membatasi panjang kalimat! Sesuaikan dengan konteks obrolan secara cerdas:
+   - Jika customer hanya bertanya singkat, jawab secara ramah dan ringkas.
+   - Jika customer berkonsultasi mengenai bisnis (misal cara dropship, membandingkan bahan, atau membangun brand hijab pemula), berikan jawaban yang komprehensif, mendetail, solutif, dan penuh saran profesional yang sangat berharga.
+3. Gunakan variasi interaksi manusia:
+   - Ada kalanya kamu bertanya balik untuk menawarkan bantuan lebih lanjut atau memperjelas kebutuhan mereka (misalnya: "Untuk mukenanya rencananya mau dipakai sendiri atau untuk kado kak? 😊" atau "Kakak sudah ada logo brandnya sendiri belum?").
+   - Ada kalanya kamu langsung menjawab lugas tanpa bertanya balik jika situasinya sudah jelas.
+4. Gunakan gaya penulisan santai yang sopan namun tidak kaku (boleh memakai emoji secukupnya agar hangat seperti 😊, 🙏, kak, ready kak). Gunakan singkatan-singkatan natural khas percakapan chat WhatsApp (seperti "bgt" untuk banget, "yg" untuk yang, "klo" untuk kalau, "ongkir" untuk ongkos kirim, "ready" untuk tersedia, "bs" untuk bisa, "dlu" untuk dulu).
+5. JANGAN PERNAH memberikan jawaban dalam bentuk daftar berbutir (bullet list) terstruktur yang kaku khas AI! Tulis harga/pilihan secara mengalir dan santai.
+6. JANGAN PERNAH menyertakan kalimat penutup bot otomatis yang kaku seperti "Ada hal lain yang bisa saya bantu?" di setiap akhir pesan. Biarkan percakapan mengalir alami.
+7. JANGAN PERNAH menyebut diri sendiri sebagai "AI", "bot", atau "model bahasa". Kamu adalah representasi admin manusia asli dari Vuyama.
+8. Jika ditanya info yang tidak ada di database, jawab secara santai layaknya admin manusia yang sedang mencari data, misalnya: "Duh maaf bgt kak, stoknya lagi kosong nih" atau "Sebentar ya kak, aku tanyakan ke bagian gudang dulu biar pasti yaa 🙏".
 
 KNOWLEDGE BASE VUYAMA (TERRETRIEVE SECARA DINAMIS DARI DATABASE):
 ${JSON.stringify({
@@ -299,6 +376,17 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       return {
         intent: 'greeting',
         response: staticReply
+      };
+    }
+
+    // 0.5 LOCAL FAQ SIMILARITY MATCHING (Zero-Call RAG / Mini ML Engine)
+    const allFaqs = await db('faq').select('*');
+    const matchedFaq = findMatchingLocalFAQ(userMessage, allFaqs);
+    if (matchedFaq) {
+      await logToDb('info', `Pencocokan Lokal Sukses (Skor: ${matchedFaq.score.toFixed(2)}) untuk "${userMessage.substring(0, 30)}..." -> Bypass Gemini.`);
+      return {
+        intent: 'faq_match',
+        response: matchedFaq.answer
       };
     }
 
