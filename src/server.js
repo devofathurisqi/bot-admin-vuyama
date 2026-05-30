@@ -418,6 +418,21 @@ app.put('/api/orders/:id', async (req, res) => {
 
     // Notify
     const updatedOrder = await db('orders').where('id', id).first();
+    
+    // Unblock customer when order is confirmed, cancelled, or other final statuses
+    if (status && ['CONFIRMED', 'CANCELLED', 'COMPLETED', 'DELIVERED', 'PAID', 'SHIPPED'].includes(status)) {
+      if (updatedOrder && updatedOrder.phone_number) {
+        await db('blocked_numbers').where('phone_number', updatedOrder.phone_number).del();
+        await db('customers').where('phone_number', updatedOrder.phone_number).update({
+          status: 'NORMAL',
+          updated_at: new Date()
+        });
+        const updatedCustomer = await db('customers').where('phone_number', updatedOrder.phone_number).first();
+        emitEvent('customer_updated', updatedCustomer);
+        emitEvent('number_unblocked', { phone_number: updatedOrder.phone_number });
+      }
+    }
+
     emitEvent('order_updated', updatedOrder);
 
     res.json({ success: true, data: updatedOrder });
@@ -457,6 +472,19 @@ app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
       total: totalVal,
       updated_at: new Date()
     });
+
+    // Unblock the customer and update status to NORMAL since order is confirmed
+    if (order.phone_number) {
+      await db('blocked_numbers').where('phone_number', order.phone_number).del();
+      await db('customers').where('phone_number', order.phone_number).update({
+        status: 'NORMAL',
+        updated_at: new Date()
+      });
+      
+      const updatedCustomer = await db('customers').where('phone_number', order.phone_number).first();
+      emitEvent('customer_updated', updatedCustomer);
+      emitEvent('number_unblocked', { phone_number: order.phone_number });
+    }
 
     // Write audit log
     await db('audit_logs').insert({

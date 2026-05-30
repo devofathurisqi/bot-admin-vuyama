@@ -190,6 +190,71 @@ client.on('message_create', async (msg) => {
     const isBlocked = await db('blocked_numbers').where('phone_number', phoneNumber).first();
     if (isBlocked) {
       logger.info(`Bot dinonaktifkan (BLOCKED) untuk ${phoneNumber}. Human admin yang membalas.`);
+      
+      // OPTIMIZATION: If a blocked user sends the filled order format, still parse and update the order board, but keep bot silent!
+      if (messageHandler.isFilledOrderFormat(messageText)) {
+        logger.info(`Customer terblokir ${phoneNumber} mengirimkan format order terisi. Mem-parsing untuk order board...`);
+        try {
+          const parsed = await messageHandler.parseOrderFormatWithGemini(messageText);
+          const existingPendingOrder = await db('orders')
+            .where('phone_number', phoneNumber)
+            .andWhere('status', 'PENDING')
+            .orderBy('id', 'desc')
+            .first();
+
+          let orderId;
+          if (existingPendingOrder) {
+            orderId = existingPendingOrder.id;
+            await db('orders').where('id', orderId).update({
+              customer_name: parsed.customer_name || existingPendingOrder.customer_name || 'Customer Vuyama',
+              address: parsed.address,
+              phone: parsed.phone,
+              pesanan_raw: parsed.pesanan_raw,
+              brand_name: parsed.brand_name,
+              label_size: parsed.label_size,
+              label_shape: parsed.label_shape,
+              ink_color: parsed.ink_color,
+              label_color: parsed.label_color,
+              font: parsed.font,
+              updated_at: new Date()
+            });
+            logger.info(`Mengupdate Order #${orderId} milik customer terblokir.`);
+          } else {
+            const [orderIdObj] = await db('orders').insert({
+              phone_number: phoneNumber,
+              customer_name: parsed.customer_name || 'Customer Vuyama',
+              address: parsed.address,
+              phone: parsed.phone,
+              pesanan_raw: parsed.pesanan_raw,
+              brand_name: parsed.brand_name,
+              label_size: parsed.label_size,
+              label_shape: parsed.label_shape,
+              ink_color: parsed.ink_color,
+              label_color: parsed.label_color,
+              font: parsed.font,
+              status: 'PENDING',
+              total: 0
+            }).returning('id');
+            orderId = orderIdObj ? orderIdObj.id : null;
+            logger.info(`Membuat Order #${orderId} baru untuk customer terblokir.`);
+          }
+
+          // Update customer CRM status
+          await db('customers').where('phone_number', phoneNumber).update({
+            status: 'ORDER_CONFIRMED',
+            updated_at: new Date()
+          });
+
+          // Stream real-time update to dashboard
+          const updatedOrder = await db('orders').where('id', orderId).first();
+          emitEvent('order_updated', updatedOrder);
+
+          const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+          emitEvent('customer_updated', updatedCustomer);
+        } catch (err) {
+          logger.error('Gagal mem-parsing format order untuk customer terblokir:', err);
+        }
+      }
       return;
     }
 

@@ -440,24 +440,52 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       
       const parsed = await parseOrderFormatWithGemini(userMessage);
 
-      // Save order to PostgreSQL
-      const [orderIdObj] = await db('orders').insert({
-        phone_number: phoneNumber,
-        customer_name: parsed.customer_name || 'Customer Vuyama',
-        address: parsed.address,
-        phone: parsed.phone,
-        pesanan_raw: parsed.pesanan_raw,
-        brand_name: parsed.brand_name,
-        label_size: parsed.label_size,
-        label_shape: parsed.label_shape,
-        ink_color: parsed.ink_color,
-        label_color: parsed.label_color,
-        font: parsed.font,
-        status: 'PENDING',
-        total: 0
-      }).returning('id');
+      // Check if there is an existing PENDING order for this customer
+      const existingPendingOrder = await db('orders')
+        .where('phone_number', phoneNumber)
+        .andWhere('status', 'PENDING')
+        .orderBy('id', 'desc')
+        .first();
 
-      const orderId = orderIdObj ? orderIdObj.id : null;
+      let orderId;
+      if (existingPendingOrder) {
+        orderId = existingPendingOrder.id;
+        await db('orders').where('id', orderId).update({
+          customer_name: parsed.customer_name || existingPendingOrder.customer_name || 'Customer Vuyama',
+          address: parsed.address,
+          phone: parsed.phone,
+          pesanan_raw: parsed.pesanan_raw,
+          brand_name: parsed.brand_name,
+          label_size: parsed.label_size,
+          label_shape: parsed.label_shape,
+          ink_color: parsed.ink_color,
+          label_color: parsed.label_color,
+          font: parsed.font,
+          updated_at: new Date()
+        });
+        
+        await logToDb('info', `Mengupdate Order #${orderId} yang ada dengan format yang telah terisi.`);
+      } else {
+        // Fallback: Save order to PostgreSQL if no pending order exists
+        const [orderIdObj] = await db('orders').insert({
+          phone_number: phoneNumber,
+          customer_name: parsed.customer_name || 'Customer Vuyama',
+          address: parsed.address,
+          phone: parsed.phone,
+          pesanan_raw: parsed.pesanan_raw,
+          brand_name: parsed.brand_name,
+          label_size: parsed.label_size,
+          label_shape: parsed.label_shape,
+          ink_color: parsed.ink_color,
+          label_color: parsed.label_color,
+          font: parsed.font,
+          status: 'PENDING',
+          total: 0
+        }).returning('id');
+        orderId = orderIdObj ? orderIdObj.id : null;
+        
+        await logToDb('info', `Membuat Order #${orderId} baru karena tidak ditemukan order PENDING sebelumnya.`);
+      }
 
       // Update customer status to ORDER_CONFIRMED
       await db('customers').where('phone_number', phoneNumber).update({
@@ -474,14 +502,9 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
         });
       }
 
-      // Notify dashboard real-time
-      emitEvent('new_order', {
-        id: orderId,
-        phone_number: phoneNumber,
-        customer_name: parsed.customer_name || 'Customer Vuyama',
-        pesanan_raw: parsed.pesanan_raw,
-        status: 'PENDING'
-      });
+      // Notify dashboard real-time of order update
+      const updatedOrder = await db('orders').where('id', orderId).first();
+      emitEvent('order_updated', updatedOrder);
 
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
@@ -496,9 +519,41 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
     if (isOrderIntentMessage(userMessage)) {
       await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
       
+      // Fetch customer name
+      const customer = await db('customers').where('phone_number', phoneNumber).first();
+      const customerName = customer ? customer.name : 'Customer Vuyama';
+
+      // Insert new order as PENDING immediately
+      const [orderIdObj] = await db('orders').insert({
+        phone_number: phoneNumber,
+        customer_name: customerName,
+        pesanan_raw: 'Format Order Terkirim (Menunggu Pengisian)',
+        status: 'PENDING',
+        total: 0
+      }).returning('id');
+      const orderId = orderIdObj ? orderIdObj.id : null;
+
+      // Auto-block the bot from replying immediately
+      const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
+      if (!existingBlock) {
+        await db('blocked_numbers').insert({
+          phone_number: phoneNumber,
+          reason: 'Mengisi Format Order (Bot Terjeda)'
+        });
+      }
+
       await db('customers').where('phone_number', phoneNumber).update({
         status: 'ORDER_PENDING',
         updated_at: new Date()
+      });
+
+      // Emit new order to frontend immediately
+      emitEvent('new_order', {
+        id: orderId,
+        phone_number: phoneNumber,
+        customer_name: customerName,
+        pesanan_raw: 'Format Order Terkirim (Menunggu Pengisian)',
+        status: 'PENDING'
       });
 
       // Notify UI
@@ -542,5 +597,6 @@ module.exports = {
   buildDynamicSystemPrompt,
   isComplaintMessage,
   isOrderIntentMessage,
-  isFilledOrderFormat
+  isFilledOrderFormat,
+  parseOrderFormatWithGemini
 };
