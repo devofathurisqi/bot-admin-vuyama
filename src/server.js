@@ -426,6 +426,56 @@ app.put('/api/orders/:id', async (req, res) => {
   }
 });
 
+app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { productId, quantity, total } = req.body;
+
+    const order = await db('orders').where('id', id).first();
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+
+    // 1. Deduct product stock in database
+    if (productId && quantity) {
+      const product = await db('products').where('id', productId).first();
+      if (product) {
+        const newStock = Math.max(0, product.stock - parseInt(quantity));
+        await db('products').where('id', productId).update({ stock: newStock });
+        
+        await db('audit_logs').insert({
+          action: 'DEDUCT_STOCK',
+          details: `Deducted stock for product ${productId}: -${quantity} pcs (Order #${id})`
+        });
+      }
+    }
+
+    // 2. Update order status to CONFIRMED and total price
+    const totalVal = parseFloat(total) || 0;
+    await db('orders').where('id', id).update({
+      status: 'CONFIRMED',
+      total: totalVal,
+      updated_at: new Date()
+    });
+
+    // Write audit log
+    await db('audit_logs').insert({
+      action: 'CONFIRM_ORDER',
+      details: `Confirmed order #${id} (Product: ${productId || 'unknown'}, Qty: ${quantity || 0}, Total: Rp ${totalVal})`
+    });
+
+    // Broadcast real-time notifications
+    const updatedOrder = await db('orders').where('id', id).first();
+    emitEvent('order_updated', updatedOrder);
+    emitEvent('products_updated');
+
+    res.json({ success: true, data: updatedOrder });
+  } catch (error) {
+    logger.error('Error confirming order purchase:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 6. Complaints API
 app.get('/api/complaints', async (req, res) => {
   try {

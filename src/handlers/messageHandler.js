@@ -434,26 +434,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
 
     // 2. ORDER CONFIRMATION FLOW
     
-    // Scenario A: Customer wants to order (gives order format)
-    if (isOrderIntentMessage(userMessage)) {
-      await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
-      
-      await db('customers').where('phone_number', phoneNumber).update({
-        status: 'ORDER_PENDING',
-        updated_at: new Date()
-      });
-
-      // Notify UI
-      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
-      emitEvent('customer_updated', updatedCustomer);
-
-      return {
-        intent: 'order_intent',
-        response: `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
-      };
-    }
-
-    // Scenario B: Customer fills the format (they must have status ORDER_PENDING or have the fields)
+    // Scenario B: Customer fills the format (checked first to avoid phrase conflicts)
     if (isFilledOrderFormat(userMessage)) {
       await logToDb('info', `Customer ${phoneNumber} mengirimkan format order. Menjalankan AI parser...`);
       
@@ -484,6 +465,15 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
         updated_at: new Date()
       });
 
+      // Auto-block the bot from replying in the future so human admin can handle details
+      const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
+      if (!existingBlock) {
+        await db('blocked_numbers').insert({
+          phone_number: phoneNumber,
+          reason: 'Mengisi Format Order Otomatis'
+        });
+      }
+
       // Notify dashboard real-time
       emitEvent('new_order', {
         id: orderId,
@@ -499,6 +489,25 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       return {
         intent: 'order_filled',
         response: `Terima kasih Kak! 😊 Format ordernya sudah kami terima dan berhasil dicatat dengan status PENDING. Admin kami akan segera mengecek pesanan Kakak untuk menghitung ongkirnya. Mohon tunggu sebentar ya... 🙏`
+      };
+    }
+
+    // Scenario A: Customer wants to order (gives order format)
+    if (isOrderIntentMessage(userMessage)) {
+      await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
+      
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'ORDER_PENDING',
+        updated_at: new Date()
+      });
+
+      // Notify UI
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+
+      return {
+        intent: 'order_intent',
+        response: `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
       };
     }
 
