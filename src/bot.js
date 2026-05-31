@@ -43,10 +43,14 @@ const logToDb = async (level, message) => {
  */
 const asyncGenerateAndSendPdfComparison = async (client, phoneNumber, messageText, comparisonText) => {
   try {
-    logger.info(`Starting background PDF comparison generation for ${phoneNumber}...`);
+    const logMsg = `[PDF CS Vuyama] Memulai proses penyusunan lembar perbandingan PDF untuk nomor ${phoneNumber}...`;
+    logger.info(logMsg);
+    await logToDb('info', logMsg);
     
     if (!client.pupBrowser) {
-      logger.warn('Puppeteer browser instance not found in WhatsApp client. Skipping PDF generation.');
+      const errNoPup = `[PDF CS Vuyama] Gagal: Browser Puppeteer tidak aktif pada client.`;
+      logger.warn(errNoPup);
+      await logToDb('warn', errNoPup);
       return;
     }
 
@@ -83,29 +87,50 @@ const asyncGenerateAndSendPdfComparison = async (client, phoneNumber, messageTex
 
     // 1. If already generated and cached on disk, send it immediately!
     if (fs.existsSync(outputPath)) {
-      logger.info(`PDF already exists in cache: ${filename}. Sending immediately.`);
+      const cacheMsg = `[PDF CS Vuyama] Dokumen perbandingan "${filename}" ditemukan di cache. Mengirimkan langsung...`;
+      logger.info(cacheMsg);
+      await logToDb('info', cacheMsg);
+
       const media = MessageMedia.fromFilePath(outputPath);
       await client.sendMessage(phoneNumber, media);
-      logger.info(`Successfully sent cached PDF to ${phoneNumber}`);
+      
+      const sentCacheMsg = `[PDF CS Vuyama] Dokumen PDF cache "${filename}" berhasil dikirim ke ${phoneNumber}`;
+      logger.info(sentCacheMsg);
+      await logToDb('info', sentCacheMsg);
       return;
     }
 
-    // 2. Ask Gemini to generate a clean, modern HTML comparison sheet
-    const prompt = `You are a professional layout designer for Vuyama (premium hijab and label brand).
-Vuyama is famous for its elegant, minimalist aesthetic: just a clean "V" logo on a solid white background.
+    const geminiMsg = `[PDF CS Vuyama] Menghubungi Gemini AI untuk menyusun layout tabel perbandingan HTML...`;
+    logger.info(geminiMsg);
+    await logToDb('info', geminiMsg);
 
-Create an extremely clean, beautiful, A4-styled HTML layout comparing:
+    // 2. Ask Gemini to generate a clean, modern HTML comparison sheet
+    const prompt = `You are a master document writer and premium graphic designer for Vuyama (premium brand of hijab and brand labels). 
+Vuyama is famous for its hyper-minimalist, pristine, and elegant aesthetic: a simple centered logo "V" on a solid white background, neat lines, and high-end typography.
+
+Convert this product comparison data into an outstanding, professional A4 HTML comparison sheet:
 """
 ${comparisonText}
 """
 
-Design Guidelines (Strict):
-1. Background MUST be solid white (#ffffff). Font must be highly readable dark charcoal (#1a202c).
-2. At the top of the A4 page, place a large elegant dark capital letter "V" logo, centered, with subtitle "V U Y A M A".
-3. Under the logo, create a clean comparison table explaining the differences. The table should have elegant light-gray borders (#cbd5e1), beautiful cell padding, and clean structured headings.
-4. Below the table, include a clean 2-sentence summary or styling tips.
-5. The entire layout should fit perfectly on a single A4 page with generous margins.
-6. Return ONLY the complete HTML code starting with <!DOCTYPE html>. Do NOT wrap it in markdown code blocks like \`\`\`html.`;
+HTML & CSS Styling Rules (Strict):
+- Entire document background must be solid white (#ffffff).
+- Font family: Use high-end typography. Import "Inter" (sans-serif) and "Playfair Display" (serif) from Google Fonts. Use Playfair Display for headers and Inter for table content.
+- Margins & Spacing: The page must have precise padding (e.g. 40px) and generous margins to fit perfectly on a single A4 page with clean white space.
+- Header:
+  * A beautifully designed centered capital letter "V" (very large, elegant serif font, size 64px, color #0f172a).
+  * A thin letter-spaced sub-header below the logo: "V U Y A M A   O F F I C I A L   C S" (size 12px, letter-spacing 6px, color #64748b).
+  * A delicate thin divider line below the header (#e2e8f0).
+- Comparison Table:
+  * Width must be 100% with border-collapse.
+  * Table headers (th): Background must be an ultra-soft slate (#f8fafc), text color #0f172a, bold uppercase, clean letter-spacing, cell padding 14px 18px.
+  * Table borders: Very clean, thin borders (#e2e8f0).
+  * Table body cells (td): Clean readable font, padding 14px 18px, alternating row colors (white and #f8fafc) for maximum legibility.
+  * Ensure the text is perfectly aligned (headers centered or left-aligned matching the columns).
+- Summary / Footer:
+  * Below the table, include a modern, clean highlight card with a left-accent border: "border-left: 3px solid #0f172a; padding: 12px 20px; background-color: #f8fafc; margin-top: 30px; font-style: italic; color: #475569;" containing a clean 1-2 sentence final recommendation or styling tip.
+  * A subtle, centered footer at the bottom of the page: "Vuyama Official - Premium Hijab & Brand Label Production" (size 10px, color #94a3b8).
+- Do NOT output any markdown fences like \`\`\`html. Return the raw HTML code starting with <!DOCTYPE html>.`;
 
     const htmlCode = await gemini.callGemini(prompt);
     
@@ -114,6 +139,10 @@ Design Guidelines (Strict):
     if (cleanHtml.startsWith('```')) cleanHtml = cleanHtml.replace(/^```/, '');
     if (cleanHtml.endsWith('```')) cleanHtml = cleanHtml.replace(/```$/, '');
     cleanHtml = cleanHtml.trim();
+
+    const puppeteerMsg = `[PDF CS Vuyama] Gemini berhasil menyusun struktur. Membuka Puppeteer untuk merender halaman dan mencetak PDF A4...`;
+    logger.info(puppeteerMsg);
+    await logToDb('info', puppeteerMsg);
 
     // 3. Render PDF via Puppeteer
     const page = await client.pupBrowser.newPage();
@@ -127,19 +156,26 @@ Design Guidelines (Strict):
         margin: { top: '20mm', bottom: '20mm', left: '20mm', right: '20mm' }
       });
       
-      logger.info(`Successfully generated and cached comparison PDF at ${outputPath}`);
+      const generatedMsg = `[PDF CS Vuyama] Sukses mencetak dan menyimpan PDF ke disk: ${filename}`;
+      logger.info(generatedMsg);
+      await logToDb('info', generatedMsg);
 
       // 4. Send PDF to the customer via WhatsApp
       if (fs.existsSync(outputPath)) {
         const media = MessageMedia.fromFilePath(outputPath);
         await client.sendMessage(phoneNumber, media);
-        logger.info(`Successfully sent dynamic PDF comparison to ${phoneNumber}`);
+        
+        const successMsg = `[PDF CS Vuyama] Dokumen PDF perbandingan "${filename}" berhasil terkirim ke ${phoneNumber}!`;
+        logger.info(successMsg);
+        await logToDb('info', successMsg);
       }
     } finally {
       await page.close();
     }
   } catch (error) {
-    logger.error('Failed to generate or send PDF comparison:', error);
+    const errMsg = `[PDF CS Vuyama] Gagal memproses perbandingan untuk ${phoneNumber}: ${error.message}`;
+    logger.error(errMsg, error);
+    await logToDb('error', errMsg);
   }
 };
 
