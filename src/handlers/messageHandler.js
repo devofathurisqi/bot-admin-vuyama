@@ -190,11 +190,32 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
 
       if (categoryMatch) {
         const categoryName = categoryMatch.charAt(0).toUpperCase() + categoryMatch.slice(1);
-        products = await db('products')
-          .whereILike('category', `%${categoryName}%`)
-          .andWhere('status', 'Tersedia')
-          .orderBy('id', 'asc')
-          .limit(8);
+        const otherTokens = tokens.filter(t => t !== categoryMatch);
+        
+        // Step A: Search for products in this category that match the other tokens (e.g. "akrilik" inside "label")
+        let query = db('products').whereILike('category', `%${categoryName}%`).andWhere('status', 'Tersedia');
+        if (otherTokens.length > 0) {
+          query = query.where((q) => {
+            otherTokens.forEach((token) => {
+              q.orWhereILike('name', `%${token}%`)
+               .orWhereILike('sub_category', `%${token}%`)
+               .orWhereILike('material', `%${token}%`)
+               .orWhereILike('description', `%${token}%`);
+            });
+          });
+        }
+        products = await query.orderBy('id', 'asc').limit(8);
+        
+        // Step B: If we found fewer than 8 matching products, fill the rest with general category products
+        if (products.length < 8) {
+          const generalProducts = await db('products')
+            .whereILike('category', `%${categoryName}%`)
+            .andWhere('status', 'Tersedia')
+            .whereNotIn('id', products.map(p => p.id))
+            .orderBy('id', 'asc')
+            .limit(8 - products.length);
+          products = [...products, ...generalProducts];
+        }
       } else {
         // Perform broad fuzzy keyword search across product fields
         let query = db('products').where('status', 'Tersedia');
