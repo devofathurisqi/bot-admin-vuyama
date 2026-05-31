@@ -7,6 +7,35 @@ const db = require('../utils/db');
 const { emitEvent } = require('../utils/socket');
 const logger = require('../utils/logger');
 
+// Auto-copy generated comparison infographics if present
+(() => {
+  const brainDir = 'C:\\Users\\devof\\.gemini\\antigravity-ide\\brain\\a5044708-c0b1-403e-86fa-100c158caa1d';
+  const destDir = path.join(__dirname, '../../data/media/others');
+  
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
+  const mappings = {
+    'paris_comparison_1780228404954.png': 'paris_comparison.png',
+    'label_comparison_1780228424359.png': 'label_comparison.png',
+    'pashmina_comparison_1780228441760.png': 'pashmina_comparison.png'
+  };
+
+  for (const [srcName, destName] of Object.entries(mappings)) {
+    const srcPath = path.join(brainDir, srcName);
+    const destPath = path.join(destDir, destName);
+    if (fs.existsSync(srcPath)) {
+      try {
+        fs.copyFileSync(srcPath, destPath);
+        logger.info(`Successfully copied/verified comparison infographic: ${destName}`);
+      } catch (err) {
+        logger.error(`Failed to copy comparison infographic ${srcName}:`, err);
+      }
+    }
+  }
+})();
+
 
 // Database logging helper
 const logToDb = async (level, message) => {
@@ -55,6 +84,40 @@ const getStaticGreetingReply = (userMessage) => {
   // 5. Thank you patterns
   if (/^(terima kasih|makasih|tengkyu|thanks|suwun|thx|nuhun)/i.test(normalized) && normalized.length <= 15) {
     return "Sama-sama Kak! 😊 Senang bisa membantu. Jika ada hal lain yang perlu ditanyakan, hubungi kami saja ya...";
+  }
+
+  return null;
+};
+
+/**
+ * Detect comparison questions and return brief explanation with infographic image bypass
+ */
+const getComparisonReply = (userMessage) => {
+  if (!userMessage) return null;
+  const normalized = userMessage.trim().toLowerCase().replace(/[?,.!\s]+/g, ' ');
+
+  // 1. Paris Japan vs Paris Jadul
+  if (
+    /paris\s*(japan|jadul|legend|klasik|basic)/i.test(normalized) &&
+    /(beda|banding|vs|lawan|lebih bagus|bagusan|perbedaan|selisih)/i.test(normalized)
+  ) {
+    return `Perbedaan Paris Japan vs Paris Jadul ya kak... 😊\n\n1. **Paris Japan**\n- Bahannya poliester premium kak, seratnya lebih rapat dan halus.\n- Teksturnya sangat lembut, jatuh, dan tegak di dahi (nggak kaku).\n\n2. **Paris Jadul**\n- Bahannya poliester standar, serat kainnya agak renggang.\n- Teksturnya sedikit kaku khas retro/vintage, tapi tetap adem saat dipakai.\n\nBiar makin jelas dan mudah dipahami, silakan cek gambar infografis perbandingannya di bawah ini ya kak... 👇\n\n[SEND_IMAGE: /media/others/paris_comparison.png]`;
+  }
+
+  // 2. Label Material (Akrilik vs Plat Besi vs Woven vs Satin)
+  if (
+    /(akrilik|acrylic|plat besi|besi|logam|woven|satin|pita satin|bahan label|jenis label)/i.test(normalized) &&
+    /(beda|banding|vs|lawan|lebih bagus|bagusan|perbedaan|pilih)/i.test(normalized)
+  ) {
+    return `Ini ringkasan perbedaan 4 jenis bahan label brand best seller kami kak... 😊\n\n1. **Label Akrilik**\n- Tampilan mewah & glossy mengkilap seperti kaca. Sangat modern!\n\n2. **Label Plat Besi/Logam**\n- Sangat kokoh & premium, memberi kesan eksklusif dan mahal pada hijab.\n\n3. **Label Woven**\n- Rajutan benang dengan detail tinggi, awet, klasik, dan sangat rapi.\n\n4. **Label Satin**\n- Bahan pita satin silky yang lembut di kulit, lentur, dan ekonomis.\n\nDetail lengkap perbandingannya bisa langsung kakak lihat pada gambar di bawah ini ya kak... 👇\n\n[SEND_IMAGE: /media/others/label_comparison.png]`;
+  }
+
+  // 3. Pashmina Bamboo vs Pashmina Airtech
+  if (
+    /(bamboo|airtech)/i.test(normalized) &&
+    /(beda|banding|vs|lawan|lebih bagus|bagusan|perbedaan|pilih)/i.test(normalized)
+  ) {
+    return `Perbedaan Pashmina Bamboo Spandex vs Pashmina Airtech Ultrasoft kak... 😊\n\n1. **Pashmina Bamboo Spandex**\n- Terbuat dari serat bambu alami yang super lembut.\n- Dilengkapi cooling effect (efek dingin/adem) dan jatuh banget saat dipakai.\n\n2. **Pashmina Airtech Ultrasoft**\n- Sangat ringan dengan teknologi micro-ventilation (sirkulasi udara mikro).\n- Cepat menyerap keringat, quick-dry, cocok untuk aktivitas luar ruangan.\n\nUntuk perbandingan visual yang lengkap, bisa langsung kakak cek di gambar berikut ya kak... 👇\n\n[SEND_IMAGE: /media/others/pashmina_comparison.png]`;
   }
 
   return null;
@@ -489,6 +552,17 @@ INFORMASI KHUSUS PILIHAN WARNA STOK KAIN / COLOR SWATCH (PENTING):
    - Informasikan kepada customer bahwa gambar pilihan warna yang kamu kirimkan selalu di-update secara berkala oleh Admin Vuyama, dan gambar tersebut sudah diberi tanda silang (coret) secara manual oleh admin untuk warna yang sedang kosong. Dengan begitu, customer bisa langsung melihat pilihan lengkap serta tanda silang visual di gambar tersebut!
    - Kamu WAJIB menyertakan tag gambar \`[SEND_IMAGE: <path_gambar>]\` di bagian paling akhir balasan kamu (misalnya: \`[SEND_IMAGE: /media/color_stock/Gana Instan Color Stock.jpeg]\`). JANGAN sampai lupa melampirkan tag ini!
 
+INFORMASI KHUSUS PERTANYAAN PERBANDINGAN BAHAN/PRODUK (MUTLAK PENTING):
+Jika pelanggan menanyakan perbandingan (misalnya membandingkan jenis hijab, bahan kain, atau bahan label brand):
+1. Berikan penjelasan yang singkat, padat, ramah, dan sangat mudah dimengerti (maksimal 2-3 kalimat per poin).
+2. Gunakan format double enter yang rapi dan indah (seperti contoh di Aturan Kerapian Nomor 10).
+3. Kamu WAJIB melampirkan gambar infografis perbandingan yang sesuai dengan menambahkan tag \`[SEND_IMAGE: <path_gambar>]\` di bagian paling akhir balasan kamu.
+4. Daftar Gambar Infografis Perbandingan Resmi yang tersedia di disk:
+   - Perbandingan Paris Japan vs Paris Jadul/Basic/Legend: \`[SEND_IMAGE: /media/others/paris_comparison.png]\`
+   - Perbandingan Bahan Label Brand (Akrilik vs Plat Besi vs Woven vs Satin): \`[SEND_IMAGE: /media/others/label_comparison.png]\`
+   - Perbandingan Pashmina Bamboo Spandex vs Pashmina Airtech Ultrasoft: \`[SEND_IMAGE: /media/others/pashmina_comparison.png]\`
+JANGAN PERNAH LUPA menyertakan tag gambar ini agar pelayanan terasa sangat visual, informatif, dan premium!
+
 KNOWLEDGE BASE VUYAMA (TERRETRIEVE SECARA DINAMIS DARI DATABASE & FILE CADANGAN RESMI):
 ${JSON.stringify({
       company: context.company,
@@ -627,6 +701,16 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       return {
         intent: 'greeting',
         response: staticReply
+      };
+    }
+
+    // 0.25 COMPARISON BYPASS (Zero-Call)
+    const comparisonReply = getComparisonReply(userMessage);
+    if (comparisonReply) {
+      await logToDb('info', `Deteksi otomatis Pertanyaan Perbandingan dari ${phoneNumber} (Bypass Gemini).`);
+      return {
+        intent: 'comparison_match',
+        response: comparisonReply
       };
     }
 
