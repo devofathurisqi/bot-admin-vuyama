@@ -141,13 +141,34 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
   const cleanMessage = userMessage.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").trim();
   const tokens = cleanMessage.split(/\s+/).filter(w => w.length > 1 && !STOPWORDS.has(w));
   
-  // Table routing similarity score keyword models
+  // Comprehensive Table routing similarity score keyword models
   const routingKeywords = {
-    products: ['mukena', 'hijab', 'label', 'rukuh', 'kerudung', 'jilbab', 'khimar', 'pashmina', 'bawal', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'besi', 'kertas', 'hangtag', 'hang tag', 'ready', 'stok', 'harga', 'bahan', 'material', 'ukuran', 'size', 'produk', 'product', 'barang', 'jualan', 'koleksi', 'katalog', 'catalog', 'list', 'daftar', 'pilihan', 'lihat', 'sell', 'jual'],
-    services: ['jasa', 'layanan', 'custom', 'cetak', 'desain', 'design', 'buat brand', 'merek sendiri', 'dropship', 'dropshiper', 'dropshiping'],
-    reseller: ['reseller', 'agen', 'grosir', 'diskon', 'potongan', 'tingkat', 'level', 'syarat', 'join', 'gabung', 'kemitraan', 'minimal beli', 'beli berapa'],
-    shipping: ['kirim', 'ongkir', 'pos', 'jne', 'j&t', 'sicepat', 'ekspedisi', 'kargo', 'cargo', 'tarif', 'ongkos'],
-    company: ['vuyama', 'toko', 'lokasi', 'alamat', 'owner', 'kontak', 'hubungi', 'nomor', 'cs', 'admin', 'profile', 'profil']
+    products: [
+      // Mukena & Hijab terms
+      'mukena', 'mukenah', 'rukuh', 'telekung', 'hijab', 'kerudung', 'jilbab', 'khimar', 'pashmina', 'pasmina', 'bawal', 'segiempat', 'segi empat', 'instant', 'instan', 'bergo', 'ciput', 'manset',
+      // Label terms
+      'label', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'acrylic', 'besi', 'kertas', 'hangtag', 'hang tag', 'woven', 'satin', 'kulit', 'leter', 'embos', 'emboss',
+      // Specs & shopping terms
+      'ready', 'stok', 'stock', 'harga', 'price', 'retail', 'ecer', 'eceran', 'bahan', 'material', 'ukuran', 'size', 'warna', 'dimensi', 'berat', 'gram', 'kg',
+      // General product/catalog terms
+      'produk', 'product', 'barang', 'jualan', 'koleksi', 'katalog', 'catalog', 'pricelist', 'daftar harga', 'price list', 'list', 'daftar', 'pilihan', 'lihat', 'sell', 'jual', 'beli', 'pesan', 'order', 'foto', 'gambar', 'penampakan', 'model', 'jenis', 'macam', 'tipe'
+    ],
+    services: [
+      // Services, custom brand, dropship
+      'jasa', 'layanan', 'service', 'custom', 'cetak', 'desain', 'design', 'buat brand', 'bikin brand', 'merek sendiri', 'dropship', 'dropshiper', 'dropshipper', 'dropshiping', 'dropshipping', 'kirim resi', 'resi otomatis', 'cod', 'bayar di tempat', 'kirim atas nama', 'maklon'
+    ],
+    reseller: [
+      // Reseller & Partner program terms
+      'reseller', 'reseler', 'resseler', 'mitra', 'agen', 'grosir', 'partai', 'borongan', 'diskon', 'potongan', 'tingkat', 'level', 'syarat', 'join', 'gabung', 'daftar', 'kemitraan', 'minimal beli', 'beli berapa', 'murah', 'lebih murah'
+    ],
+    shipping: [
+      // Shipping & Logistics terms
+      'kirim', 'pengiriman', 'dikirim', 'ongkir', 'ongkos kirim', 'tarif', 'biaya kirim', 'kurir', 'ekspedisi', 'kargo', 'cargo', 'pos', 'jne', 'j&t', 'jnt', 'sicepat', 'wahana', 'tiki', 'lion', 'sentral', 'anteraja'
+    ],
+    company: [
+      // Company info & location terms
+      'vuyama', 'vuyema', 'toko', 'workshop', 'pabrik', 'lokasi', 'alamat', 'maps', 'gmaps', 'google maps', 'posisi', 'dimana', 'di mana', 'daerah', 'kota', 'jam buka', 'buka jam', 'jadwal', 'hari apa', 'owner', 'pendiri', 'kontak', 'hubungi', 'nomor', 'telepon', 'wa', 'whatsapp', 'cs', 'admin', 'profile', 'profil', 'tentang'
+    ]
   };
 
   const scores = {
