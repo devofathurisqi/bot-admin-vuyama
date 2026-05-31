@@ -61,53 +61,6 @@ const getStaticGreetingReply = (userMessage) => {
 };
 
 /**
- * Programmatic WhatsApp text formatter and clean-up engine
- * Ensures 100% clean spacing, emoji padding, list separation, and decompresses squished AI words.
- */
-const formatWhatsAppText = (text) => {
-  if (!text) return '';
-
-  let cleaned = text;
-
-  // 1. Decompress lowercase letter or number followed by punctuation (.?!), followed directly by uppercase letter
-  // e.g. "rapat.Tekstur" -> "rapat.\nTekstur", "siap?Boleh" -> "siap?\nBoleh"
-  cleaned = cleaned.replace(/([a-z0-9])([\.\?!])([A-Z])/g, '$1$2\n$3');
-
-  // 2. Decompress lowercase letter directly followed by uppercase letter (e.g. "JadulBahan:" -> "Jadul\nBahan:")
-  cleaned = cleaned.replace(/([a-z])([A-Z])/g, '$1\n$2');
-
-  // 3. Insert double newline before list items that start directly after a colon (e.g. "beda banget: 1. Paris" -> "beda banget: \n\n1. Paris")
-  cleaned = cleaned.replace(/:\s*(\d+\.\s+)/g, ': \n\n$1');
-
-  // 4. Insert double newline before list items that are attached to the end of a sentence (e.g. "Jadul.2. Paris" -> "Jadul.\n\n2. Paris")
-  cleaned = cleaned.replace(/([a-zA-Z0-9])\.(\d+\.)/g, '$1.\n\n$2');
-
-  // 5. Add space after colon `:` when followed directly by letters, emojis, or list numbering without a space
-  // e.g. "banget:1. Paris" -> "banget: 1. Paris"
-  cleaned = cleaned.replace(/:([a-zA-Z😊🙏✕✓●])/g, ': $1');
-  cleaned = cleaned.replace(/:(\d+\.)/g, ': $1');
-
-  // 6. Ensure spacing around emojis if they are squished next to alphanumeric characters
-  // e.g. "kak😊" -> "kak 😊", "😊Silakan" -> "😊 Silakan"
-  cleaned = cleaned.replace(/([a-zA-Z0-9])([😊🙏✕✓●👍🎉🔥🛍🚀❤️✨⭐👇ℹ️💡])/g, '$1 $2');
-  cleaned = cleaned.replace(/([😊🙏✕✓●👍🎉🔥🛍🚀❤️✨⭐👇ℹ️💡])([a-zA-Z0-9])/g, '$1 $2');
-
-  // 7. Ensure space after list numbering dot (e.g. "1.Paris" -> "1. Paris")
-  cleaned = cleaned.replace(/(\d+\.)([a-zA-Z])/g, '$1 $2');
-
-  // 8. Ensure list items have clean double linebreaks in WhatsApp
-  cleaned = cleaned.replace(/([^\n])\n(\d+\.\s+)/g, '$1\n\n$2');
-  
-  // 9. Ensure bullet items (starting with emoji or dashes) are cleanly separated
-  cleaned = cleaned.replace(/([^\n])\n([-\*•]\s+)/g, '$1\n\n$2');
-
-  // 10. Clean up any unintended 3+ consecutive newlines down to exactly 2 newlines
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-
-  return cleaned.trim();
-};
-
-/**
  * Clean and match user message against Database FAQs using Jaccard string similarity
  * acting as a local micro-machine learning matcher.
  */
@@ -487,18 +440,20 @@ GAYA BAHASA & KEPRIBADIAN (WAJIB DIPATUHI AGAR SEPERTI CS MANUSIA YANG SANGAT BE
 7. JANGAN PERNAH menyebut diri sendiri sebagai "AI", "bot", atau "model bahasa". Kamu adalah representasi admin manusia asli dari Vuyama.
 8. Jika ada pertanyaan mengenai data yang tidak kamu ketahui atau tidak tercantum di database kita (seperti ketersediaan barang tertentu, rincian detail khusus yang tidak ada, dsb.), kamu wajib menjawab dengan tenang dan sopan menggunakan kalimat: "Duh maaf banget kak, untuk pertanyaan/data tersebut akan kami cek dulu ya kak... 🙏" atau "Untuk data tersebut akan kami cek dulu ya kak... 😊". DILARANG KERAS mengarang/berimprovisasi.
 9. **MEMAHAMI BAHASA & DIALEK APAPUN (CONTEXT-AWARE)**: Pelanggan dapat bertanya menggunakan bahasa atau dialek apa saja (Bahasa Indonesia gaul/slang, Jawa, Sunda, Inggris, dll.). Kamu wajib mengerti maksud dan konteks mereka secara cerdas. Jika mereka meminta pilihan warna, stok kain harian, atau spill warna produk tertentu (seperti "spill warna", "minta foto warna", "ready warna apa", "ada warna apa saja", "what colors do you have", dll.) dalam bahasa/gaya penulisan apa pun, kamu harus langsung mengenali konteks produk yang dimaksud, menjelaskan status stok warnanya secara ramah, dan wajib melampirkan tag \`[SEND_IMAGE: <path_gambar>]\` yang sesuai di bagian akhir pesan.
-10. **KERAPIAN SPASI, PARAGRAF, & DAFTAR POIN CHAT (MUTLAK Wajib Dipatuhi - PENTING):**
-    - Chat yang Anda hasilkan harus 100% rapi agar sangat enak dibaca dan dipahami di WhatsApp!
-    - **SPASI KATA & TANDA BACA:** JANGAN PERNAH menulis kata-kata yang saling berdempetan tanpa spasi. Selalu berikan spasi satu ketukan yang jelas setelah tanda titik (.), koma (,), titik dua (:), titik koma (;), dan tanda tanya (?). Contoh kesalahan: "beda banget:1. Paris" (SALAH BESAR!) -> harusnya "beda banget: \n\n1. Paris" atau "beda banget: 1. Paris" (BENAR!).
-    - **PARAGRAF & JEDA BARIS BARU (DOUBLE ENTER):** Setiap kali Anda membuat poin daftar (seperti 1., 2. atau menggunakan emoji bulat/bintang), Anda **WAJIB memberikan jeda dua baris baru (double enter / \`\\n\\n\`)** sebelum dan sesudah menuliskan poin tersebut agar tidak menumpuk rapat menjadi satu paragraf raksasa padat merayap yang pusing dibaca!
-    - **CONTOH FORMAT RAPI YANG DISUKAI CUSTOMER:**
+10. **KERAPIAN SPASI & FORMAT CHAT DI LAPTOP & HP (MUTLAK Wajib Dipatuhi - PENTING):**
+    - Chat yang Anda hasilkan harus 100% rapi dan tertata dengan sangat indah saat dibaca baik di layar Laptop/Komputer maupun layar Handphone (HP) pelanggan!
+    - **SPASI KATA & TANDA BACA:** JANGAN PERNAH menulis kata-kata yang saling berdempetan tanpa spasi. Selalu berikan spasi satu ketukan yang jelas setelah tanda titik (.), koma (,), titik dua (:), titik koma (;), dan tanda tanya (?). Contoh kesalahan: "beda banget:1. Paris" (SALAH!) ➔ harusnya "beda banget: \n\n1. Paris" atau "beda banget: 1. Paris" (BENAR!).
+    - **PARAGRAF & JEDA BARIS BARU (DOUBLE ENTER) UNTUK DAFTAR POIN:** Setiap kali Anda membuat poin atau daftar penjelasan (seperti membahas 1. Paris Japan, 2. Paris Jadul, dsb.), Anda **WAJIB memberikan jeda dua baris baru (double enter / \`\\n\\n\`)** di antara poin-poin tersebut. JANGAN PERNAH menumpuk penjelasan list menjadi satu paragraf rapat yang tersambung terus-menerus tanpa enter. Tuliskan nama poin di baris tersendiri, lalu penjelasannya di baris baru di bawahnya agar tidak berantakan di layar HP pelanggan yang lebih kecil!
+    - **CONTOH STRUKTUR CHAT YANG SANGAT RAPI DI LAPTOP MAUPUN HP:**
       "Ini bedanya Paris Japan sama Paris Jadul ya kak... 😊
       
       1. **Paris Japan**
-      Bahannya poliester premium kak, seratnya lebih halus dan rapat. Teksturnya juga lembut banget dan flowy...
+      - Bahannya poliester premium kak, seratnya lebih halus dan rapat.
+      - Teksturnya lembut, jatuh, dan nggak kaku.
       
       2. **Paris Jadul**
-      Kalau yang ini bahannya poliester biasa, seratnya agak kasar dan doft..."
+      - Bahannya poliester biasa, seratnya agak kasar dan doft.
+      - Teksturnya agak kaku dan berpasir..."
 
 INFORMASI KHUSUS PENGIRIMAN GAMBAR PRODUK (PENTING):
 Setiap produk dalam database di bawah memiliki properti array \`images\` berisi path gambar.
@@ -875,10 +830,9 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       cleanedResponse = cleanedResponse.substring(6).trim();
     }
 
-    const formatted = formatWhatsAppText(cleanedResponse);
     return {
       intent: 'ai_reply',
-      response: formatted || 'Boleh kak, ada yang bisa dibantu? 😊'
+      response: cleanedResponse || 'Boleh kak, ada yang bisa dibantu? 😊'
     };
   } catch (error) {
     logger.error('Error generating response:', error);
@@ -895,6 +849,5 @@ module.exports = {
   isComplaintMessage,
   isOrderIntentMessage,
   isFilledOrderFormat,
-  parseOrderFormatWithGemini,
-  formatWhatsAppText
+  parseOrderFormatWithGemini
 };
