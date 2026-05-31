@@ -419,8 +419,8 @@ app.put('/api/orders/:id', async (req, res) => {
     // Notify
     const updatedOrder = await db('orders').where('id', id).first();
     
-    // Unblock customer when order is confirmed, cancelled, or other final statuses
-    if (status && ['CONFIRMED', 'CANCELLED', 'COMPLETED', 'DELIVERED', 'PAID', 'SHIPPED'].includes(status)) {
+    // Unblock customer ONLY when order is COMPLETED or CANCELLED
+    if (status && ['COMPLETED', 'CANCELLED'].includes(status)) {
       if (updatedOrder && updatedOrder.phone_number) {
         await db('blocked_numbers').where('phone_number', updatedOrder.phone_number).del();
         await db('customers').where('phone_number', updatedOrder.phone_number).update({
@@ -451,6 +451,18 @@ app.delete('/api/orders/:id', async (req, res) => {
 
     await db('orders').where('id', id).del();
 
+    // Unblock the customer and update status to NORMAL when order is deleted
+    if (order && order.phone_number) {
+      await db('blocked_numbers').where('phone_number', order.phone_number).del();
+      await db('customers').where('phone_number', order.phone_number).update({
+        status: 'NORMAL',
+        updated_at: new Date()
+      });
+      const updatedCustomer = await db('customers').where('phone_number', order.phone_number).first();
+      emitEvent('customer_updated', updatedCustomer);
+      emitEvent('number_unblocked', { phone_number: order.phone_number });
+    }
+
     // Log audit
     await db('audit_logs').insert({
       action: 'DELETE_ORDER',
@@ -468,7 +480,7 @@ app.delete('/api/orders/:id', async (req, res) => {
 app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
   try {
     const { id } = req.params;
-    const { productId, quantity, total } = req.body;
+    const { productId, quantity, total, remark } = req.body;
 
     const order = await db('orders').where('id', id).first();
     if (!order) {
@@ -489,15 +501,21 @@ app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
       }
     }
 
-    // 2. Update order status to CONFIRMED and total price
+    // 2. Update order status to COMPLETED and total price
     const totalVal = parseFloat(total) || 0;
+    let updatedPesananRaw = order.pesanan_raw || '';
+    if (remark) {
+      updatedPesananRaw += `\n[Remark Admin]: ${remark}`;
+    }
+
     await db('orders').where('id', id).update({
-      status: 'CONFIRMED',
+      status: 'COMPLETED',
       total: totalVal,
+      pesanan_raw: updatedPesananRaw,
       updated_at: new Date()
     });
 
-    // Unblock the customer and update status to NORMAL since order is confirmed
+    // Unblock the customer and update status to NORMAL since order is completed
     if (order.phone_number) {
       await db('blocked_numbers').where('phone_number', order.phone_number).del();
       await db('customers').where('phone_number', order.phone_number).update({
@@ -512,8 +530,8 @@ app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
 
     // Write audit log
     await db('audit_logs').insert({
-      action: 'CONFIRM_ORDER',
-      details: `Confirmed order #${id} (Product: ${productId || 'unknown'}, Qty: ${quantity || 0}, Total: Rp ${totalVal})`
+      action: 'COMPLETE_ORDER',
+      details: `Completed order #${id} (Product: ${productId || 'unknown'}, Qty: ${quantity || 0}, Total: Rp ${totalVal}, Remark: ${remark || ''})`
     });
 
     // Broadcast real-time notifications
