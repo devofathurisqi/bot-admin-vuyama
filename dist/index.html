@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,18 +8,20 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- React & ReactDOM CDNs -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
+
   <!-- Babel Standalone for direct JSX rendering -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
+
   <!-- Socket.IO Client -->
   <script src="/socket.io/socket.io.js"></script>
 
@@ -56,7 +59,7 @@
       }
     }
   </script>
-  
+
   <!-- Premium Custom Scrollbar, Theme Variables and Transitions CSS -->
   <style>
     /* CSS Variables for Premium Dynamic Styling */
@@ -68,6 +71,7 @@
       --scrollbar-thumb: #cbd5e1;
       --scrollbar-thumb-hover: #94a3b8;
     }
+
     .dark {
       --bg-default: #0b0f19;
       --bg-card: #111827;
@@ -82,34 +86,43 @@
       width: 6px;
       height: 6px;
     }
+
     ::-webkit-scrollbar-track {
       background: transparent;
     }
+
     ::-webkit-scrollbar-thumb {
       background: var(--scrollbar-thumb);
       border-radius: 4px;
     }
+
     ::-webkit-scrollbar-thumb:hover {
       background: var(--scrollbar-thumb-hover);
     }
-    
+
     /* Smooth transition */
     * {
       transition-property: background-color, border-color, text-decoration-color, fill, stroke;
       transition-duration: 200ms;
       transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     }
-    
-    
+
+
     /* Mobile Slide-in Animation */
     @keyframes slideIn {
-      from { transform: translateX(-100%); }
-      to { transform: translateX(0); }
+      from {
+        transform: translateX(-100%);
+      }
+
+      to {
+        transform: translateX(0);
+      }
     }
+
     .animate-slide-in {
       animation: slideIn 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
-    
+
     /* Glassmorphism */
     .glass {
       background: rgba(255, 255, 255, 0.85);
@@ -118,6 +131,7 @@
       border-color: rgba(226, 232, 240, 0.8);
       box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
     }
+
     .dark .glass {
       background: rgba(17, 24, 39, 0.75);
       border-color: rgba(31, 41, 55, 0.8);
@@ -125,39 +139,67 @@
     }
 
     /* Elegant Font Colors override for premium contrast */
-    h1, h2, h3, h4, h5, h6 {
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
       color: #0f172a;
     }
-    .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+
+    .dark h1,
+    .dark h2,
+    .dark h3,
+    .dark h4,
+    .dark h5,
+    .dark h6 {
       color: #f8fafc;
     }
 
     /* Soft border corrections for inputs in both modes */
-    input, select, textarea {
+    input,
+    select,
+    textarea {
       background-color: var(--input-default) !important;
       border-color: var(--border-default) !important;
       color: #0f172a !important;
     }
-    .dark input, .dark select, .dark textarea {
+
+    .dark input,
+    .dark select,
+    .dark textarea {
       color: #f8fafc !important;
     }
-    input:focus, select:focus, textarea:focus {
+
+    input:focus,
+    select:focus,
+    textarea:focus {
       border-color: #8b5cf6 !important;
       box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1) !important;
     }
 
     /* Premium Toast Slide-Up Animation */
     @keyframes slideUp {
-      from { transform: translateY(100%) scale(0.95); opacity: 0; }
-      to { transform: translateY(0) scale(1); opacity: 1; }
+      from {
+        transform: translateY(100%) scale(0.95);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
     }
+
     .animate-toast-in {
       animation: slideUp 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
   </style>
 </head>
+
 <body class="bg-gray-50 dark:bg-darkbg text-gray-800 dark:text-gray-100 font-sans min-h-screen">
-  
+
   <div id="root"></div>
 
   <!-- React JSX Application Code -->
@@ -195,7 +237,7 @@
       const [darkMode, setDarkMode] = useState(false);
       const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
       const [botStatus, setBotStatus] = useState({ status: 'disconnected', qr: null });
-      
+
       // Toast State & Helper
       const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
       const showToast = (message, type = 'success') => {
@@ -209,7 +251,7 @@
           return () => clearTimeout(timer);
         }
       }, [toast.show]);
-      
+
       // Data Stores
       const [products, setProducts] = useState([]);
       const [customers, setCustomers] = useState([]);
@@ -225,7 +267,7 @@
       const [chatMessages, setChatMessages] = useState([]);
       const [typedMessage, setTypedMessage] = useState('');
       const [chatSearch, setChatSearch] = useState('');
-      
+
       // Filter & Loaders
       const [productSearch, setProductSearch] = useState('');
       const [productCategory, setProductCategory] = useState('');
@@ -234,12 +276,12 @@
       const [productForm, setProductForm] = useState({ id: '', name: '', category: '', sub_category: '', description: '', price_retail: '', price_reseller: '', color: [], size: [], material: '', weight: '', stock: '', image: '', status: 'Tersedia' });
       const [uploadingExcel, setUploadingExcel] = useState(false);
       const [uploadingImage, setUploadingImage] = useState(false);
-      
+
       // Stock confirmation modal states
       const [confirmModalOpen, setConfirmModalOpen] = useState(false);
       const [selectedConfirmOrder, setSelectedConfirmOrder] = useState(null);
       const [confirmForm, setConfirmForm] = useState({ productId: '', quantity: 1, total: 0 });
-      
+
       // Settings Edit State
       const [editingSetting, setEditingSetting] = useState(null);
       const [settingValue, setSettingValue] = useState('');
@@ -267,7 +309,7 @@
       const playNotification = () => {
         try {
           notificationSound.current.play();
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Fetch dynamic settings editor lists
@@ -276,7 +318,7 @@
           const res = await fetch('/api/settings');
           const d = await res.json();
           if (d.success) setSettings(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Initial Fetch Loops
@@ -285,7 +327,7 @@
           const res = await fetch('/api/whatsapp/status');
           const d = await res.json();
           setBotStatus(d);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const fetchProducts = async () => {
@@ -294,7 +336,7 @@
           const res = await fetch(`/api/products?search=${productSearch}${catQuery}`);
           const d = await res.json();
           if (d.success) setProducts(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const fetchCustomers = async () => {
@@ -302,7 +344,7 @@
           const res = await fetch('/api/customers');
           const d = await res.json();
           if (d.success) setCustomers(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const fetchOrders = async () => {
@@ -310,7 +352,7 @@
           const res = await fetch('/api/orders');
           const d = await res.json();
           if (d.success) setOrders(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const fetchComplaints = async () => {
@@ -318,7 +360,7 @@
           const res = await fetch('/api/complaints');
           const d = await res.json();
           if (d.success) setComplaints(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const fetchBlockedNumbers = async () => {
@@ -326,7 +368,7 @@
           const res = await fetch('/api/blocked-numbers');
           const d = await res.json();
           if (d.success) setBlockedNumbers(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const fetchMedia = async () => {
@@ -334,7 +376,7 @@
           const res = await fetch('/api/media');
           const d = await res.json();
           if (d.success) setMedia(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const fetchLogs = async () => {
@@ -342,7 +384,7 @@
           const res = await fetch('/api/logs');
           const d = await res.json();
           if (d.success) setLogs(d.data);
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Fetch chat messages for active customer
@@ -355,7 +397,7 @@
             // Refresh customers list to clear unread counts on dashboard
             fetchCustomers();
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const handleClearChatHistory = async (phoneNumber) => {
@@ -472,7 +514,7 @@
             setTypedMessage('');
             loadChatMessages(activeChat);
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Excel Synchronization
@@ -519,7 +561,7 @@
             setEditingSetting(null);
             fetchSettings();
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // CRUD Product Actions
@@ -606,7 +648,7 @@
             fetchProducts();
             showToast('Produk berhasil dihapus!');
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Resolve Complaint & Resume Bot replies
@@ -620,7 +662,7 @@
             fetchCustomers();
             fetchBlockedNumbers();
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Manual Blocks Block/Unblock
@@ -633,7 +675,7 @@
             fetchBlockedNumbers();
             fetchCustomers();
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const handleBlockManual = async () => {
@@ -655,7 +697,7 @@
           } else {
             showToast(`Gagal: ${d.error}`, 'error');
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Orders Operations
@@ -671,7 +713,7 @@
             fetchOrders();
             showToast(`Status pesanan diubah menjadi ${status}!`);
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const handleDeleteOrder = async (id) => {
@@ -717,13 +759,13 @@
             fetchOrders();
             showToast('Total harga pesanan berhasil diperbarui!');
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const handleConfirmPurchaseSubmit = async (e) => {
         e.preventDefault();
         if (!selectedConfirmOrder) return;
-        
+
         try {
           const res = await fetch(`/api/orders/${selectedConfirmOrder.id}/confirm-purchase`, {
             method: 'POST',
@@ -749,7 +791,7 @@
       const handleMediaUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         const tag = prompt('Masukkan tag media (opsional: product, label, catalog, general):', 'general');
         const formData = new FormData();
         formData.append('file', file);
@@ -765,7 +807,7 @@
             alert('File media berhasil diupload ke Galeri!');
             fetchMedia();
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const handleDeleteMedia = async (id) => {
@@ -776,7 +818,7 @@
           if (d.success) {
             fetchMedia();
           }
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // CRM Pinned / Status Updates
@@ -788,7 +830,7 @@
             body: JSON.stringify({ is_pinned: !isPinned })
           });
           fetchCustomers();
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const handleAssignAdmin = async (phone, adminName) => {
@@ -799,7 +841,7 @@
             body: JSON.stringify({ assigned_to: adminName })
           });
           fetchCustomers();
-        } catch (e) {}
+        } catch (e) { }
       };
 
       const handleChangeCustomerStatus = async (phone, status) => {
@@ -810,7 +852,7 @@
             body: JSON.stringify({ status })
           });
           fetchCustomers();
-        } catch (e) {}
+        } catch (e) { }
       };
 
       // Active Chats Filters
@@ -821,16 +863,16 @@
 
       return (
         <div className="flex h-screen overflow-hidden">
-          
+
           {/* ==================== MOBILE MENU DRAWER OVERLAY ==================== */}
           {mobileMenuOpen && (
             <div className="fixed inset-0 z-50 flex md:hidden">
               {/* Backdrop */}
-              <div 
+              <div
                 onClick={() => setMobileMenuOpen(false)}
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" 
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
               />
-              
+
               {/* Drawer Content */}
               <aside className="relative w-64 max-w-xs bg-white dark:bg-darkbg-card border-r border-darkbg-border flex flex-col justify-between h-full shadow-2xl animate-slide-in z-10">
                 <div className="flex flex-col flex-1 min-h-0">
@@ -840,14 +882,14 @@
                       <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center font-bold text-white shadow-lg shadow-brand-500/20">V</div>
                       <h2 className="font-extrabold text-base bg-clip-text text-transparent bg-gradient-to-r from-brand-400 to-indigo-400">VUYAMA</h2>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setMobileMenuOpen(false)}
                       className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-white"
                     >
                       ✕
                     </button>
                   </div>
-                  
+
                   {/* Navigation Menu */}
                   <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
                     {[
@@ -882,7 +924,7 @@
                     ))}
                   </nav>
                 </div>
-                
+
                 {/* Footer */}
                 <div className="p-4 border-t border-darkbg-border flex items-center justify-between bg-gray-50 dark:bg-gray-800/20">
                   <div className="flex items-center space-x-2.5">
@@ -958,11 +1000,11 @@
 
           {/* ==================== MAIN PANEL ==================== */}
           <main className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-[#0b0f19]">
-            
+
             {/* MOBILE HEADER */}
             <header className="p-4 flex items-center justify-between border-b border-darkbg-border glass md:hidden shrink-0 bg-white dark:bg-darkbg-card">
               <div className="flex items-center space-x-3.5">
-                <button 
+                <button
                   onClick={() => setMobileMenuOpen(true)}
                   className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 focus:outline-none"
                   title="Buka Menu"
@@ -986,7 +1028,7 @@
 
             {/* SCROLLABLE MAIN BODY */}
             <div className={`flex-1 p-4 md:p-8 ${activeTab === 'customers' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}>
-              
+
               {/* ==================== TAB: DASHBOARD ==================== */}
               {activeTab === 'dashboard' && (
                 <div className="space-y-6">
@@ -996,26 +1038,26 @@
                       <h2 className="text-2xl md:text-3xl font-extrabold font-sans leading-tight">Vuyama CS Control Suite</h2>
                       <p className="text-brand-100 text-sm max-w-lg">WhatsApp Bot & human admin collaboration dashboard. Read Excel data, view live messages, manage orders, and check complaints from a unified hub.</p>
                     </div>
-                    
+
                     {/* Excel Quick Upload Sync Widget */}
                     <div className="mt-5 md:mt-0 flex items-center space-x-4 relative z-10">
-                      <button 
-                        onClick={() => fileInputRef.current.click()} 
+                      <button
+                        onClick={() => fileInputRef.current.click()}
                         disabled={uploadingExcel}
                         className="px-5 py-3 rounded-xl bg-white hover:bg-brand-50 font-bold text-sm text-brand-600 shadow-md flex items-center space-x-2 transition"
                       >
                         <Icons.Upload />
                         <span>{uploadingExcel ? 'Syncing...' : 'Sync Excel File'}</span>
                       </button>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleExcelSync} 
-                        accept=".xlsx, .xls" 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleExcelSync}
+                        accept=".xlsx, .xls"
+                        className="hidden"
                       />
                     </div>
-                    
+
                     {/* Decorative abstract elements */}
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl transform translate-x-20 -translate-y-20" />
                   </div>
@@ -1029,7 +1071,7 @@
                         <span className="text-xs text-brand-400 font-bold">Total Contacts</span>
                       </div>
                     </div>
-                    
+
                     <div className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Pending Orders</span>
                       <div className="mt-2.5 flex items-baseline justify-between">
@@ -1037,7 +1079,7 @@
                         <span className="text-xs text-amber-400 font-bold">Needs Review</span>
                       </div>
                     </div>
-                    
+
                     <div className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Active Complaints</span>
                       <div className="mt-2.5 flex items-baseline justify-between">
@@ -1140,7 +1182,7 @@
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
-                      <button 
+                      <button
                         onClick={() => {
                           setEditingProduct(null);
                           setProductForm({ id: '', name: '', category: '', sub_category: '', description: '', price_retail: '', price_reseller: '', color: '', size: '', material: '', weight: '', stock: '', image: '', status: 'Tersedia' });
@@ -1158,15 +1200,15 @@
                   <div className="flex flex-col md:flex-row gap-4">
                     <div className="relative flex-1">
                       <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-500"><Icons.Search /></span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
-                        placeholder="Search product name, category, material..." 
+                        placeholder="Search product name, category, material..."
                         className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-medium text-sm focus:outline-none focus:border-brand-500 transition"
                       />
                     </div>
-                    
+
                     <select
                       value={productCategory}
                       onChange={(e) => setProductCategory(e.target.value)}
@@ -1183,7 +1225,7 @@
                   <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
                     {products.map(p => (
                       <div key={p.id} className="rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border overflow-hidden flex flex-col justify-between shadow-sm relative group">
-                        
+
                         {/* PRODUCT IMAGE OR FALLBACK */}
                         <div className="h-44 w-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
                           {p.image ? (
@@ -1218,7 +1260,7 @@
                                 <p className="font-bold text-brand-400">Rp {p.price_reseller.toLocaleString('id-ID')}</p>
                               </div>
                             </div>
-                            
+
                             {/* SPECIFICS */}
                             <div className="flex items-center justify-between text-[10px] text-gray-500 font-semibold">
                               <span>Stok: <strong className="text-gray-200 font-extrabold">{p.stock} pcs</strong></span>
@@ -1238,7 +1280,7 @@
                         </div>
                       </div>
                     ))}
-                    
+
                     {products.length === 0 && (
                       <div className="col-span-full p-12 text-center text-gray-500">Tidak ada produk ditemukan.</div>
                     )}
@@ -1249,16 +1291,16 @@
               {/* ==================== TAB: CUSTOMERS (LIVE CHAT CRM ROOM) ==================== */}
               {activeTab === 'customers' && (
                 <div className="flex-1 min-h-0 border border-darkbg-border rounded-2xl bg-white dark:bg-darkbg-card overflow-hidden flex shadow-sm">
-                  
+
                   {/* CRM CHAT ROOM: LEFT COLUMN LIST */}
                   <div className="w-80 border-r border-darkbg-border flex flex-col shrink-0 overflow-hidden">
                     <div className="p-4 border-b border-darkbg-border space-y-3.5 bg-gray-50 dark:bg-gray-800/20">
                       <h3 className="font-extrabold text-base">WhatsApp Chats</h3>
                       <div className="relative">
                         <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500"><Icons.Search /></span>
-                        <input 
-                          type="text" 
-                          placeholder="Quick Search..." 
+                        <input
+                          type="text"
+                          placeholder="Quick Search..."
                           value={chatSearch}
                           onChange={(e) => setChatSearch(e.target.value)}
                           className="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border text-xs focus:outline-none focus:border-brand-500 transition"
@@ -1268,8 +1310,8 @@
 
                     <div className="flex-1 overflow-y-auto divide-y divide-darkbg-border/60">
                       {filteredCustomers.map(c => (
-                        <div 
-                          key={c.phone_number} 
+                        <div
+                          key={c.phone_number}
                           onClick={() => {
                             setActiveChat(c.phone_number);
                             loadChatMessages(c.phone_number);
@@ -1283,9 +1325,9 @@
                           <div className="flex-1 min-w-0 space-y-1.5">
                             <div className="flex items-center justify-between">
                               <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name || c.phone_number.split('@')[0]}</h4>
-                              <span className="text-[9px] text-gray-500 font-semibold">{new Date(c.last_message_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}</span>
+                              <span className="text-[9px] text-gray-500 font-semibold">{new Date(c.last_message_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                             </div>
-                            
+
                             <p className="text-[10px] text-gray-500 truncate">{c.phone_number.split('@')[0]}</p>
 
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -1328,14 +1370,14 @@
                           </div>
 
                           <div className="flex items-center space-x-2">
-                            <button 
+                            <button
                               onClick={() => togglePinCustomer(activeChat, customers.find(c => c.phone_number === activeChat)?.is_pinned)}
                               className={`p-2 rounded-xl border ${customers.find(c => c.phone_number === activeChat)?.is_pinned ? 'border-brand-500 bg-brand-500/5 text-brand-400' : 'border-darkbg-border text-gray-400 hover:text-white'} transition`}
                               title="Pin/Unpin Chat"
                             >
                               <Icons.Pin />
                             </button>
-                            <button 
+                            <button
                               onClick={() => handleClearChatHistory(activeChat)}
                               className="p-2 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-400 hover:text-white transition"
                               title="Hapus Riwayat Obrolan"
@@ -1348,8 +1390,8 @@
                         {/* CHAT HISTORY STREAM */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4">
                           {chatMessages.map(msg => (
-                            <div 
-                              key={msg.id} 
+                            <div
+                              key={msg.id}
                               className={`flex ${msg.sender === 'customer' ? 'justify-start' : 'justify-end'}`}
                             >
                               <div className={`p-4 rounded-2xl max-w-sm space-y-1.5 shadow-sm leading-relaxed text-xs border ${msg.sender === 'customer' ? 'bg-white dark:bg-darkbg-card border-gray-100 dark:border-darkbg-border text-gray-800 dark:text-gray-200 rounded-tl-none' : 'bg-brand-600 text-white border-brand-700 rounded-tr-none'}`}>
@@ -1365,15 +1407,15 @@
 
                         {/* MESSAGE INPUT BOX */}
                         <form onSubmit={handleSendMessage} className="p-4 border-t border-darkbg-border bg-white dark:bg-darkbg-card flex items-center space-x-3.5">
-                          <input 
-                            type="text" 
+                          <input
+                            type="text"
                             value={typedMessage}
                             onChange={(e) => setTypedMessage(e.target.value)}
-                            placeholder="Ketik balasan untuk customer..." 
+                            placeholder="Ketik balasan untuk customer..."
                             className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border text-xs focus:outline-none focus:border-brand-500 transition"
                           />
-                          <button 
-                            type="submit" 
+                          <button
+                            type="submit"
                             className="px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition flex items-center justify-center"
                           >
                             <Icons.Send />
@@ -1406,7 +1448,7 @@
                         <div className="space-y-4">
                           <div className="space-y-1.5">
                             <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Assign Admin</span>
-                            <select 
+                            <select
                               value={customers.find(c => c.phone_number === activeChat)?.assigned_to || ''}
                               onChange={(e) => handleAssignAdmin(activeChat, e.target.value)}
                               className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border font-bold text-xs focus:outline-none transition"
@@ -1420,7 +1462,7 @@
 
                           <div className="space-y-1.5">
                             <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Chatbot Auto-Reply Status</span>
-                            <select 
+                            <select
                               value={customers.find(c => c.phone_number === activeChat)?.status || ''}
                               onChange={(e) => handleChangeCustomerStatus(activeChat, e.target.value)}
                               className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border font-bold text-xs focus:outline-none transition"
@@ -1436,14 +1478,14 @@
                         {/* QUICK BOT AUTO REPLY BLOCK BUTTON */}
                         <div className="pt-4 border-t border-darkbg-border">
                           {blockedNumbers.some(b => b.phone_number === activeChat) ? (
-                            <button 
+                            <button
                               onClick={() => handleUnblock(activeChat)}
                               className="w-full py-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-400 hover:text-white font-extrabold text-xs transition duration-150"
                             >
                               Resume Bot Replies (Unblock)
                             </button>
                           ) : (
-                            <button 
+                            <button
                               onClick={() => {
                                 const reason = prompt('Masukkan alasan mematikan bot:');
                                 if (reason !== null) {
@@ -1483,7 +1525,7 @@
                         <h2 className="text-xl font-extrabold font-sans">Orders Monitoring</h2>
                         <p className="text-xs text-gray-500 font-medium">Automatic parsed orders from customer. Set total prices and update orders statuses.</p>
                       </div>
-                      
+
                       {/* STATS OVERVIEW FOR SUBTABS */}
                       <div className="flex items-center space-x-2 text-[10px] font-extrabold text-gray-400">
                         <span>Total: <strong>{orders.length}</strong></span>
@@ -1512,11 +1554,10 @@
                           key={tab.id}
                           type="button"
                           onClick={() => setOrderSubTab(tab.id)}
-                          className={`flex items-center space-x-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition duration-150 ${
-                            orderSubTab === tab.id
+                          className={`flex items-center space-x-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition duration-150 ${orderSubTab === tab.id
                               ? 'bg-white dark:bg-gray-800 text-brand-400 shadow-md font-extrabold border border-darkbg-border/40'
                               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-200/50 dark:hover:bg-gray-800/20'
-                          }`}
+                            }`}
                         >
                           <span>{tab.label}</span>
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${tab.color || 'bg-gray-200 dark:bg-gray-850 text-gray-500 dark:text-gray-400'}`}>
@@ -1530,7 +1571,7 @@
                     <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
                       {filteredOrders.map(order => (
                         <div key={order.id} className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition">
-                          
+
                           {/* ORDER META */}
                           <div className="space-y-2">
                             <div className="flex items-center justify-between border-b border-darkbg-border pb-2.5">
@@ -1550,7 +1591,7 @@
                               <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Produk & Pesanan</span>
                               <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{order.pesanan_raw}</p>
                             </div>
-                            
+
                             {/* Label custom specs if filled */}
                             {order.brand_name && (
                               <div className="space-y-1 pt-1 text-[10px]">
@@ -1581,7 +1622,7 @@
 
                             {order.status === 'PENDING' && (
                               <div className="pb-1.5">
-                                <button 
+                                <button
                                   onClick={() => {
                                     setSelectedConfirmOrder(order);
                                     setConfirmForm({ productId: products[0]?.id || '', quantity: 1, total: order.total || 0 });
@@ -1604,7 +1645,7 @@
                               </div>
                             </div>
                             <div className="pt-2.5 border-t border-dashed border-gray-100 dark:border-darkbg-border/60">
-                              <button 
+                              <button
                                 onClick={() => handleDeleteOrder(order.id)}
                                 className="w-full py-2 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-400 font-extrabold text-[10px] transition"
                               >
@@ -1655,7 +1696,7 @@
 
                         <div className="space-y-2.5 pt-3 border-t border-darkbg-border flex flex-col sm:flex-row gap-2.5">
                           {comp.status === 'OPEN' ? (
-                            <button 
+                            <button
                               onClick={() => handleResolveComplaint(comp.id)}
                               className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 font-extrabold text-xs text-white transition duration-150"
                             >
@@ -1690,7 +1731,7 @@
                       <p className="text-xs text-gray-500 font-medium">Numbers in this list will be completely ignored by the chatbot. Admin handle manually.</p>
                     </div>
 
-                    <button 
+                    <button
                       onClick={handleBlockManual}
                       className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm shadow-lg shadow-rose-500/15 flex items-center space-x-2 transition"
                     >
@@ -1716,7 +1757,7 @@
                             <td className="p-4 text-gray-400 font-medium">{item.reason || 'Manual Admin Block'}</td>
                             <td className="p-4 text-gray-500 font-semibold">{new Date(item.created_at).toLocaleString('id-ID')}</td>
                             <td className="p-4 text-right">
-                              <button 
+                              <button
                                 onClick={() => handleUnblock(item.phone_number)}
                                 className="px-3 py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-400 hover:text-white font-extrabold transition"
                               >
@@ -1745,25 +1786,25 @@
                       <p className="text-xs text-gray-500 font-medium">Upload images, label templates, and catalog PDF. Bot can fetch these files in chat replies.</p>
                     </div>
 
-                    <button 
+                    <button
                       onClick={() => galleryInputRef.current.click()}
                       className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition"
                     >
                       <Icons.Upload />
                       <span>Upload Media File</span>
                     </button>
-                    <input 
-                      type="file" 
-                      ref={galleryInputRef} 
-                      onChange={handleMediaUpload} 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      ref={galleryInputRef}
+                      onChange={handleMediaUpload}
+                      className="hidden"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6">
                     {media.map(item => (
                       <div key={item.id} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between group">
-                        
+
                         {/* File Preview */}
                         <div className="h-32 bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
                           {item.mime_type.startsWith('image') ? (
@@ -1785,7 +1826,7 @@
 
                         {/* Copy URL & Delete */}
                         <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between shrink-0">
-                          <button 
+                          <button
                             onClick={() => {
                               navigator.clipboard.writeText(window.location.origin + item.filepath);
                               alert('Link media berhasil dicopy!');
@@ -1794,7 +1835,7 @@
                           >
                             Copy Link
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteMedia(item.id)}
                             className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 transition"
                           >
@@ -1819,7 +1860,7 @@
                   </div>
 
                   <div className="p-5 rounded-2xl bg-black border border-gray-800 shadow-xl overflow-hidden flex flex-col justify-between font-mono h-[550px]">
-                    <div 
+                    <div
                       ref={logTerminalRef}
                       className="flex-1 overflow-y-auto space-y-3.5 pr-2.5 text-xs text-emerald-500"
                     >
@@ -1848,14 +1889,14 @@
                   {/* 1. Company Profile In-line Forms */}
                   <div className="p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm space-y-6">
                     <h3 className="font-extrabold text-base border-b border-darkbg-border pb-3">🏢 Profile Perusahaan (Company Sheet)</h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {settings.company.map(item => (
                         <div key={item.id} className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-darkbg-border/30 flex items-center justify-between gap-4">
                           <div className="space-y-1.5 flex-1">
                             <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">{item.label}</span>
                             {editingSetting?.id === item.id ? (
-                              <input 
+                              <input
                                 type="text"
                                 value={settingValue}
                                 onChange={(e) => setSettingValue(e.target.value)}
@@ -1873,7 +1914,7 @@
                                 <button onClick={() => setEditingSetting(null)} className="p-2 rounded bg-gray-700 text-gray-400 text-xs">✕</button>
                               </div>
                             ) : (
-                              <button 
+                              <button
                                 onClick={() => {
                                   setEditingSetting(item);
                                   setSettingValue(item.value);
@@ -1892,7 +1933,7 @@
                   {/* 2. Reseller Programs */}
                   <div className="p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm space-y-6">
                     <h3 className="font-extrabold text-base border-b border-darkbg-border pb-3">📈 Reseller Program Levels (Reseller_Program Sheet)</h3>
-                    
+
                     <div className="rounded-xl border border-darkbg-border overflow-hidden">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead>
@@ -1926,7 +1967,7 @@
           {productModalOpen && (
             <div className="fixed inset-0 z-50 glass flex items-center justify-center p-4">
               <div className="w-full max-w-3xl rounded-2xl bg-white dark:bg-darkbg-card border border-darkbg-border overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-                
+
                 {/* Modal Header */}
                 <div className="px-6 py-4 border-b border-darkbg-border flex items-center justify-between bg-gray-50 dark:bg-gray-850/20">
                   <h3 className="font-extrabold text-sm">{editingProduct ? `Edit Product: ${editingProduct.id}` : 'Create New Product'}</h3>
@@ -1936,47 +1977,47 @@
                 {/* Modal Scrollable Fields */}
                 <form onSubmit={handleProductFormSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    
+
                     {/* Basic specs */}
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Product ID (Unique, e.g: MK-001)</span>
-                      <input 
-                        type="text" 
-                        required 
+                      <input
+                        type="text"
+                        required
                         disabled={!!editingProduct}
                         value={productForm.id}
-                        onChange={(e) => setProductForm({...productForm, id: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, id: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Nama Produk</span>
-                      <input 
-                        type="text" 
-                        required 
+                      <input
+                        type="text"
+                        required
                         value={productForm.name}
-                        onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Kategori</span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={productForm.category}
-                        onChange={(e) => setProductForm({...productForm, category: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Sub Kategori</span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={productForm.sub_category}
-                        onChange={(e) => setProductForm({...productForm, sub_category: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, sub_category: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
@@ -1984,20 +2025,20 @@
                     {/* Pricings */}
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Harga Umum (Retail) (Rp)</span>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={productForm.price_retail}
-                        onChange={(e) => setProductForm({...productForm, price_retail: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, price_retail: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Harga Reseller (Rp)</span>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={productForm.price_reseller}
-                        onChange={(e) => setProductForm({...productForm, price_reseller: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, price_reseller: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
@@ -2005,30 +2046,30 @@
                     {/* Details */}
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Material / Bahan</span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={productForm.material}
-                        onChange={(e) => setProductForm({...productForm, material: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, material: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Pilihan Ukuran (Koma dipisahkan, cth: All Size, XL)</span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={productForm.size}
-                        onChange={(e) => setProductForm({...productForm, size: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, size: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Pilihan Warna (Koma dipisahkan, cth: Maroon, Navy)</span>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={productForm.color}
-                        onChange={(e) => setProductForm({...productForm, color: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, color: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
@@ -2036,19 +2077,19 @@
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Berat (Gram)</span>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={productForm.weight}
-                          onChange={(e) => setProductForm({...productForm, weight: e.target.value})}
+                          onChange={(e) => setProductForm({ ...productForm, weight: e.target.value })}
                           className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                         />
                       </div>
                       <div className="space-y-1.5">
                         <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Stok</span>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={productForm.stock}
-                          onChange={(e) => setProductForm({...productForm, stock: e.target.value})}
+                          onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
                           className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                         />
                       </div>
@@ -2057,10 +2098,10 @@
 
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Deskripsi Produk</span>
-                    <textarea 
+                    <textarea
                       rows="3"
                       value={productForm.description}
-                      onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                      onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none resize-none leading-relaxed"
                     />
                   </div>
@@ -2069,28 +2110,28 @@
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-darkbg-border">
                     <div className="space-y-2">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Unggah Gambar Produk</span>
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={() => imgInputRef.current.click()}
                         disabled={uploadingImage}
                         className="w-full py-3 rounded-xl bg-gray-800 border border-dashed border-darkbg-border text-xs text-gray-400 font-bold hover:text-white transition"
                       >
                         {uploadingImage ? 'Mengunggah...' : 'Pilih File Gambar'}
                       </button>
-                      <input 
-                        type="file" 
-                        ref={imgInputRef} 
-                        onChange={handleProductImageUpload} 
-                        accept="image/*" 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        ref={imgInputRef}
+                        onChange={handleProductImageUpload}
+                        accept="image/*"
+                        className="hidden"
                       />
-                      
+
                       <div className="space-y-1 text-[10px]">
                         <span className="text-gray-600 font-semibold uppercase">Atau URL Gambar</span>
-                        <input 
-                          type="text" 
+                        <input
+                          type="text"
                           value={productForm.image}
-                          onChange={(e) => setProductForm({...productForm, image: e.target.value})}
+                          onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
                           className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                         />
                       </div>
@@ -2120,7 +2161,7 @@
           {confirmModalOpen && selectedConfirmOrder && (
             <div className="fixed inset-0 z-50 glass flex items-center justify-center p-4">
               <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-darkbg-card border border-darkbg-border overflow-hidden shadow-2xl flex flex-col">
-                
+
                 {/* Modal Header */}
                 <div className="px-6 py-4 border-b border-darkbg-border flex items-center justify-between bg-gray-50 dark:bg-gray-850/20">
                   <h3 className="font-extrabold text-sm">Konfirmasi Pembelian (Order #{selectedConfirmOrder.id})</h3>
@@ -2131,7 +2172,7 @@
                 <form onSubmit={handleConfirmPurchaseSubmit} className="p-6 space-y-5">
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Pilih Produk yang Dibeli</span>
-                    <select 
+                    <select
                       required
                       value={confirmForm.productId}
                       onChange={(e) => setConfirmForm({ ...confirmForm, productId: e.target.value })}
@@ -2149,8 +2190,8 @@
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Jumlah Pembelian (Pcs)</span>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         min="1"
                         required
                         value={confirmForm.quantity}
@@ -2161,8 +2202,8 @@
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Total Harga Final (Rp)</span>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         required
                         value={confirmForm.total}
                         onChange={(e) => setConfirmForm({ ...confirmForm, total: e.target.value })}
@@ -2214,4 +2255,5 @@
     root.render(<App />);
   </script>
 </body>
+
 </html>
