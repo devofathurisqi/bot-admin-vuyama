@@ -396,6 +396,7 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
   };
 };
 
+
 /**
  * Build dynamic system prompt containing the latest database context
  */
