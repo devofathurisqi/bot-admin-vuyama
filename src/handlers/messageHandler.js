@@ -96,28 +96,65 @@ const getComparisonReply = (userMessage) => {
   if (!userMessage) return null;
   const normalized = userMessage.trim().toLowerCase().replace(/[?,.!\s]+/g, ' ');
 
+  // List of comparative/choice keywords
+  const isComparisonQuery = /(beda|banding|vs|lawan|lebih|bagus|laku|mending|pilih|mana|kelebihan|kekurangan|perbedaan|selisih|populer|laris)/i.test(normalized);
+
   // 1. Paris Japan vs Paris Jadul
+  const hasJapan = /japan/i.test(normalized);
+  const hasJadul = /(jadul|legend|klasik|basic|ori)/i.test(normalized);
+  const hasParis = /paris/i.test(normalized);
+
   if (
-    /paris\s*(japan|jadul|legend|klasik|basic)/i.test(normalized) &&
-    /(beda|banding|vs|lawan|lebih bagus|bagusan|perbedaan|selisih)/i.test(normalized)
+    (hasParis && isComparisonQuery) ||
+    (hasJapan && hasJadul) ||
+    (hasParis && (hasJapan || hasJadul) && isComparisonQuery)
   ) {
-    return `Perbedaan Paris Japan vs Paris Jadul ya kak... 😊\n\n1. **Paris Japan**\n- Bahannya poliester premium kak, seratnya lebih rapat dan halus.\n- Teksturnya sangat lembut, jatuh, dan tegak di dahi (nggak kaku).\n\n2. **Paris Jadul**\n- Bahannya poliester standar, serat kainnya agak renggang.\n- Teksturnya sedikit kaku khas retro/vintage, tapi tetap adem saat dipakai.\n\nBiar makin jelas dan mudah dipahami, silakan cek gambar infografis perbandingannya di bawah ini ya kak... 👇\n\n[SEND_IMAGE: /media/others/paris_comparison.png]`;
+    // If specifically asking which is more popular / sells better
+    if (/(laku|laris|populer|banyak|beli|jual)/i.test(normalized)) {
+      return `Untuk Vuyama, **Paris Japan** jauh lebih banyak dipilih dan gampang laku kak! Karena bahannya premium, super lembut, tegak di dahi, dan feedback customernya sangat memuaskan... 😊\n\nSedangkan **Paris Jadul** biasanya dipilih untuk market massal karena harganya yang sangat murah & ekonomis.\n\nDetail tabel perbandingannya bisa langsung kakak cek pada gambar di bawah ini ya kak... 👇\n\n[SEND_IMAGE: /media/others/paris_comparison.png]`;
+    }
+    
+    // Default comparison
+    return `Ini perbandingan singkat antara Paris Japan dan Paris Jadul ya kak... 😊\n\n- **Paris Japan**: Bahan premium, serat rapat, super lembut, flowy, dan tegak di dahi (nggak kaku).\n- **Paris Jadul**: Bahan standar, serat renggang, tekstur agak kaku khas retro/vintage, sangat ekonomis.\n\nUntuk detail lengkapnya, silakan cek gambar tabel perbandingan di bawah ini kak... 👇\n\n[SEND_IMAGE: /media/others/paris_comparison.png]`;
   }
 
   // 2. Label Material (Akrilik vs Plat Besi vs Woven vs Satin)
+  const hasAklik = /(akrilik|acrylic)/i.test(normalized);
+  const hasPlat = /(plat|besi|logam)/i.test(normalized);
+  const hasWoven = /woven/i.test(normalized);
+  const hasSatin = /satin/i.test(normalized);
+  const hasLabel = /label/i.test(normalized);
+
+  // Check if at least two label types are mentioned, or one label type and comparative query
+  const labelMatchCount = [hasAklik, hasPlat, hasWoven, hasSatin].filter(Boolean).length;
+
   if (
-    /(akrilik|acrylic|plat besi|besi|logam|woven|satin|pita satin|bahan label|jenis label)/i.test(normalized) &&
-    /(beda|banding|vs|lawan|lebih bagus|bagusan|perbedaan|pilih)/i.test(normalized)
+    (hasLabel && isComparisonQuery) ||
+    (labelMatchCount >= 2) ||
+    ((hasAklik || hasPlat || hasWoven || hasSatin) && hasLabel && isComparisonQuery)
   ) {
-    return `Ini ringkasan perbedaan 4 jenis bahan label brand best seller kami kak... 😊\n\n1. **Label Akrilik**\n- Tampilan mewah & glossy mengkilap seperti kaca. Sangat modern!\n\n2. **Label Plat Besi/Logam**\n- Sangat kokoh & premium, memberi kesan eksklusif dan mahal pada hijab.\n\n3. **Label Woven**\n- Rajutan benang dengan detail tinggi, awet, klasik, dan sangat rapi.\n\n4. **Label Satin**\n- Bahan pita satin silky yang lembut di kulit, lentur, dan ekonomis.\n\nDetail lengkap perbandingannya bisa langsung kakak lihat pada gambar di bawah ini ya kak... 👇\n\n[SEND_IMAGE: /media/others/label_comparison.png]`;
+    if (/(laku|laris|populer|best|seller|bagusan|mending|pilih)/i.test(normalized)) {
+      return `Bahan label paling laris (*best seller*) kami adalah **Akrilik** (kesan mewah mengkilap) dan **Woven** (rajutan benang super awet) kak... 😊\n\nSetiap bahan memiliki keunikan masing-masing untuk menaikkan kelas brand hijab kakak.\n\nBiar gampang milihnya, yuk cek tabel perbandingan lengkap 4 bahan label best seller kami di bawah ini kak... 👇\n\n[SEND_IMAGE: /media/others/label_comparison.png]`;
+    }
+
+    return `Berikut ringkasan singkat 4 bahan label brand best seller kami kak... 😊\n\n- **Akrilik**: Kesan modern & super mewah (efek kaca mengkilap).\n- **Plat Besi/Logam**: Sangat premium, kokoh, memberi kesan eksklusif & mahal.\n- **Woven**: Rajutan benang detail tinggi, awet, & bernuansa klasik.\n- **Satin**: Lembut di kulit, lentur, dan sangat ekonomis.\n\nDetail visual perbandingannya bisa langsung kakak cek di gambar berikut ya kak... 👇\n\n[SEND_IMAGE: /media/others/label_comparison.png]`;
   }
 
   // 3. Pashmina Bamboo vs Pashmina Airtech
+  const hasBamboo = /bamboo/i.test(normalized);
+  const hasAirtech = /airtech/i.test(normalized);
+  const hasPashmina = /pashmina/i.test(normalized);
+
   if (
-    /(bamboo|airtech)/i.test(normalized) &&
-    /(beda|banding|vs|lawan|lebih bagus|bagusan|perbedaan|pilih)/i.test(normalized)
+    (hasPashmina && isComparisonQuery) ||
+    (hasBamboo && hasAirtech) ||
+    (hasPashmina && (hasBamboo || hasAirtech) && isComparisonQuery)
   ) {
-    return `Perbedaan Pashmina Bamboo Spandex vs Pashmina Airtech Ultrasoft kak... 😊\n\n1. **Pashmina Bamboo Spandex**\n- Terbuat dari serat bambu alami yang super lembut.\n- Dilengkapi cooling effect (efek dingin/adem) dan jatuh banget saat dipakai.\n\n2. **Pashmina Airtech Ultrasoft**\n- Sangat ringan dengan teknologi micro-ventilation (sirkulasi udara mikro).\n- Cepat menyerap keringat, quick-dry, cocok untuk aktivitas luar ruangan.\n\nUntuk perbandingan visual yang lengkap, bisa langsung kakak cek di gambar berikut ya kak... 👇\n\n[SEND_IMAGE: /media/others/pashmina_comparison.png]`;
+    if (/(laku|laris|populer|bagusan|mending|pilih)/i.test(normalized)) {
+      return `Kedua pashmina ini sangat laris dengan keunggulannya masing-masing kak... 😊\n\n- Pilih **Bamboo Spandex** jika mencari kenyamanan ekstra (sangat adem & ada *cooling effect* serat bambu alami).\n- Pilih **Airtech Ultrasoft** jika mencari pashmina yang sangat ringan, mudah menyerap keringat (*quick-dry*), dan pas untuk luar ruangan.\n\nSilakan cek tabel perbandingan visual lengkapnya di bawah ini kak... 👇\n\n[SEND_IMAGE: /media/others/pashmina_comparison.png]`;
+    }
+
+    return `Perbedaan singkat Pashmina Bamboo vs Pashmina Airtech kak... 😊\n\n- **Pashmina Bamboo**: Serat bambu alami, super lembut, adem dingin (*cooling effect*), & jatuh banget.\n- **Pashmina Airtech**: Sangat ringan, ada sirkulasi udara mikro (*micro-ventilation*), menyerap keringat, & *quick-dry*.\n\nBiar lebih jelas bedanya, yuk cek gambar tabel perbandingannya di bawah ini kak... 👇\n\n[SEND_IMAGE: /media/others/pashmina_comparison.png]`;
   }
 
   return null;
