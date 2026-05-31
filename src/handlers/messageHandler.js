@@ -143,7 +143,7 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
   
   // Table routing similarity score keyword models
   const routingKeywords = {
-    products: ['mukena', 'hijab', 'label', 'rukuh', 'kerudung', 'jilbab', 'khimar', 'pashmina', 'bawal', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'besi', 'kertas', 'hangtag', 'hang tag', 'ready', 'stok', 'harga', 'bahan', 'material', 'ukuran', 'size'],
+    products: ['mukena', 'hijab', 'label', 'rukuh', 'kerudung', 'jilbab', 'khimar', 'pashmina', 'bawal', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'besi', 'kertas', 'hangtag', 'hang tag', 'ready', 'stok', 'harga', 'bahan', 'material', 'ukuran', 'size', 'produk', 'product', 'barang', 'jualan', 'koleksi', 'katalog', 'catalog', 'list', 'daftar', 'pilihan', 'lihat', 'sell', 'jual'],
     services: ['jasa', 'layanan', 'custom', 'cetak', 'desain', 'design', 'buat brand', 'merek sendiri', 'dropship', 'dropshiper', 'dropshiping'],
     reseller: ['reseller', 'agen', 'grosir', 'diskon', 'potongan', 'tingkat', 'level', 'syarat', 'join', 'gabung', 'kemitraan', 'minimal beli', 'beli berapa'],
     shipping: ['kirim', 'ongkir', 'pos', 'jne', 'j&t', 'sicepat', 'ekspedisi', 'kargo', 'cargo', 'tarif', 'ongkos'],
@@ -167,13 +167,15 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
     });
   });
 
+  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+
   // Intent triggers
   const triggers = {
-    products: scores.products > 0 || tokens.length === 0, // Default true if empty query
+    products: scores.products > 0 || tokens.length === 0 || totalScore === 0, // Default true if empty or no keywords matched
     services: scores.services > 0,
     reseller: scores.reseller > 0,
     shipping: scores.shipping > 0,
-    company: scores.company > 0 || tokens.length === 0
+    company: scores.company > 0 || tokens.length === 0 || totalScore === 0
   };
 
   let products = [];
