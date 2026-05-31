@@ -441,6 +441,30 @@ app.put('/api/orders/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = await db('orders').where('id', id).first();
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+
+    await db('orders').where('id', id).del();
+
+    // Log audit
+    await db('audit_logs').insert({
+      action: 'DELETE_ORDER',
+      details: `Deleted order ID ${id} for customer ${order.phone_number}`
+    });
+
+    emitEvent('order_deleted', { id: parseInt(id) });
+    res.json({ success: true, message: 'Order successfully deleted.' });
+  } catch (error) {
+    logger.error('Error deleting order:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
   try {
     const { id } = req.params;
@@ -557,6 +581,30 @@ app.put('/api/complaints/:id/resolve', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/complaints/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const complaint = await db('complaints').where('id', id).first();
+    if (!complaint) {
+      return res.status(404).json({ success: false, error: 'Complaint not found.' });
+    }
+
+    await db('complaints').where('id', id).del();
+
+    // Log audit
+    await db('audit_logs').insert({
+      action: 'DELETE_COMPLAINT',
+      details: `Deleted complaint ID ${id} for number ${complaint.phone_number}`
+    });
+
+    emitEvent('complaint_deleted', { id: parseInt(id) });
+    res.json({ success: true, message: 'Complaint successfully deleted.' });
+  } catch (error) {
+    logger.error('Error deleting complaint:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

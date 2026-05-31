@@ -647,7 +647,34 @@
           if (d.success) {
             fetchOrders();
           }
-        } catch (e) {}
+      };
+
+      const handleDeleteOrder = async (id) => {
+        if (!confirm('Apakah Anda yakin ingin menghapus pesanan ini secara permanen dari database?')) return;
+        try {
+          const res = await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+          const d = await res.json();
+          if (d.success) {
+            fetchOrders();
+            alert('Pesanan berhasil dihapus.');
+          }
+        } catch (e) {
+          alert('Error menghapus pesanan.');
+        }
+      };
+
+      const handleDeleteComplaint = async (id) => {
+        if (!confirm('Apakah Anda yakin ingin menghapus laporan komplain ini dari database?')) return;
+        try {
+          const res = await fetch(`/api/complaints/${id}`, { method: 'DELETE' });
+          const d = await res.json();
+          if (d.success) {
+            fetchComplaints();
+            alert('Laporan komplain berhasil dihapus.');
+          }
+        } catch (e) {
+          alert('Error menghapus laporan komplain.');
+        }
       };
 
       const handleUpdateOrderTotal = async (id) => {
@@ -1550,6 +1577,14 @@
                                 <button onClick={() => handleUpdateOrderStatus(order.id, 'CANCELLED')} className="py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 font-extrabold transition">Cancel</button>
                               </div>
                             </div>
+                            <div className="pt-2.5 border-t border-dashed border-gray-100 dark:border-darkbg-border/60">
+                              <button 
+                                onClick={() => handleDeleteOrder(order.id)}
+                                className="w-full py-2 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-400 font-extrabold text-[10px] transition"
+                              >
+                                🗑 Hapus Order
+                              </button>
+                            </div>
                           </div>
 
                         </div>
@@ -1592,16 +1627,25 @@
                           </div>
                         </div>
 
-                        {comp.status === 'OPEN' ? (
-                          <button 
-                            onClick={() => handleResolveComplaint(comp.id)}
-                            className="w-full py-3 rounded-xl bg-rose-600 hover:bg-rose-500 font-extrabold text-sm text-white transition duration-150"
+                        <div className="space-y-2.5 pt-3 border-t border-darkbg-border flex flex-col sm:flex-row gap-2.5">
+                          {comp.status === 'OPEN' ? (
+                            <button 
+                              onClick={() => handleResolveComplaint(comp.id)}
+                              className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 font-extrabold text-xs text-white transition duration-150"
+                            >
+                              Resolve Problem (Enable Bot CS)
+                            </button>
+                          ) : (
+                            <span className="flex-1 py-2.5 inline-block rounded-xl bg-gray-800 font-bold text-[10px] text-gray-500 text-center uppercase tracking-wider flex items-center justify-center">RESOLVED</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteComplaint(comp.id)}
+                            className="py-2.5 px-4 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 hover:text-white text-rose-400 font-extrabold text-xs transition duration-150"
                           >
-                            Resolve Problem (Enable Bot CS)
+                            🗑 Hapus
                           </button>
-                        ) : (
-                          <span className="w-full py-3 inline-block rounded-xl bg-gray-800 font-bold text-xs text-gray-500 text-center uppercase tracking-wider">COMPLAINT RESOLVED</span>
-                        )}
+                        </div>
                       </div>
                     ))}
                     {complaints.length === 0 && (
