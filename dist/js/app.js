@@ -64,6 +64,7 @@ window.App = () => {
   });
   
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   // Stock confirmation modal states
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -130,12 +131,17 @@ window.App = () => {
   };
 
   const fetchProducts = async () => {
+    setProductsLoading(true);
     try {
       const catQuery = productCategory ? `&category=${productCategory}` : '';
       const res = await fetch(`/api/products?search=${productSearch}${catQuery}`);
       const d = await res.json();
       if (d.success) setProducts(d.data);
-    } catch (e) { }
+    } catch (e) { 
+    } finally {
+      // Small timeout to give smooth skeleton experience
+      setTimeout(() => setProductsLoading(false), 300);
+    }
   };
 
   const fetchCustomers = async () => {
@@ -820,6 +826,7 @@ window.App = () => {
           <ProductsTab
             activeTab={activeTab}
             products={products}
+            productsLoading={productsLoading}
             productSearch={productSearch}
             setProductSearch={setProductSearch}
             productCategory={productCategory}

@@ -247,7 +247,7 @@ GAYA BAHASA & KEPRIBADIAN (WAJIB DIPATUHI AGAR SEPERTI CS MANUSIA YANG SANGAT BE
 5. JANGAN PERNAH memberikan jawaban dalam bentuk daftar berbutir (bullet list) terstruktur yang kaku khas AI! Tulis harga/pilihan secara mengalir dan santai.
 6. JANGAN PERNAH menyertakan kalimat penutup bot otomatis yang kaku seperti "Ada hal lain yang bisa saya bantu?" di setiap akhir pesan. Biarkan percakapan mengalir alami.
 7. JANGAN PERNAH menyebut diri sendiri sebagai "AI", "bot", atau "model bahasa". Kamu adalah representasi admin manusia asli dari Vuyama.
-8. Jika ditanya info yang tidak ada di database, jawab secara santai layaknya admin manusia yang sedang mencari data, misalnya: "Duh maaf bgt kak, stoknya lagi kosong nih" atau "Sebentar ya kak, aku tanyakan ke bagian gudang dulu biar pasti yaa 🙏".
+8. Jika ada pertanyaan mengenai data yang tidak kamu ketahui atau tidak tercantum di database kita (seperti ketersediaan barang tertentu, rincian detail khusus yang tidak ada, dsb.), kamu wajib menjawab dengan tenang dan sopan menggunakan kalimat: "Duh maaf banget kak, untuk pertanyaan/data tersebut akan kami cek dulu ya kak... 🙏" atau "Untuk data tersebut akan kami cek dulu ya kak... 😊". DILARANG KERAS mengarang/berimprovisasi.
 
 INFORMASI KHUSUS PENGIRIMAN GAMBAR PRODUK (PENTING):
 Setiap produk dalam database di bawah memiliki properti array \`images\` berisi path gambar.
@@ -609,7 +609,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
     logger.error('Error generating response:', error);
     return {
       intent: 'error',
-      response: 'Boleh kak, sebentar ya kami cek dulu... 🙏'
+      response: 'Duh maaf banget kak, untuk data tersebut akan kami cek dulu ya kak... 🙏'
     };
   }
 };
