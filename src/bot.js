@@ -38,34 +38,74 @@ const logToDb = async (level, message) => {
 };
 
 /**
- * Asynchronously generates a custom comparison infographic using Gemini and Puppeteer,
- * and sends it to the customer when ready.
+ * Asynchronously generates a custom comparison PDF using Gemini and Puppeteer,
+ * caches it permanently under data/pdf/, and sends it to the customer.
  */
-const asyncGenerateAndSendComparison = async (client, phoneNumber, comparisonText) => {
+const asyncGenerateAndSendPdfComparison = async (client, phoneNumber, messageText, comparisonText) => {
   try {
-    logger.info(`Starting background comparison image generation for ${phoneNumber}...`);
+    logger.info(`Starting background PDF comparison generation for ${phoneNumber}...`);
     
     if (!client.pupBrowser) {
-      logger.warn('Puppeteer browser instance not found in WhatsApp client. Skipping dynamic image generation.');
+      logger.warn('Puppeteer browser instance not found in WhatsApp client. Skipping PDF generation.');
       return;
     }
 
-    // 1. Ask Gemini to generate a clean HTML table
-    const prompt = `You are a professional graphic designer for Vuyama (premium hijab and label brand). 
-Based on the following comparison explanation:
+    const normalized = messageText.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+    
+    // Determine a clean slug based on keywords for permanent caching
+    let slug = 'umum';
+    if (/paris/i.test(normalized) && /(japan|jadul|legend|klasik|basic|ori)/i.test(normalized)) {
+      slug = 'paris_japan_vs_paris_jadul';
+    } else if (/(akrilik|acrylic|plat|besi|woven|satin)/i.test(normalized)) {
+      slug = 'label_brand_comparison';
+    } else if (/(bamboo|airtech)/i.test(normalized)) {
+      slug = 'pashmina_bamboo_vs_airtech';
+    } else {
+      // General slug by extracting key nouns
+      const words = normalized.split(/\s+/).filter(w => w.length > 3 && !['sama', 'atau', 'vs', 'dan', 'beda', 'banding', 'lebih', 'bagus', 'laku', 'mending', 'pilih', 'mana'].includes(w));
+      if (words.length >= 2) {
+        slug = `${words[0]}_vs_${words[1]}`;
+      } else if (words.length === 1) {
+        slug = words[0];
+      } else {
+        slug = `custom_${Date.now()}`;
+      }
+    }
+
+    const filename = `perbandingan_${slug}.pdf`;
+    const outputPath = path.join(__dirname, '../data/pdf', filename);
+
+    // Ensure dir exists
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    // 1. If already generated and cached on disk, send it immediately!
+    if (fs.existsSync(outputPath)) {
+      logger.info(`PDF already exists in cache: ${filename}. Sending immediately.`);
+      const media = MessageMedia.fromFilePath(outputPath);
+      await client.sendMessage(phoneNumber, media);
+      logger.info(`Successfully sent cached PDF to ${phoneNumber}`);
+      return;
+    }
+
+    // 2. Ask Gemini to generate a clean, modern HTML comparison sheet
+    const prompt = `You are a professional layout designer for Vuyama (premium hijab and label brand).
+Vuyama is famous for its elegant, minimalist aesthetic: just a clean "V" logo on a solid white background.
+
+Create an extremely clean, beautiful, A4-styled HTML layout comparing:
 """
 ${comparisonText}
 """
 
-Create an extremely clean, beautiful, minimalist HTML comparison table.
 Design Guidelines (Strict):
-1. Background MUST be solid white (#ffffff).
-2. Use clean, elegant modern typography (e.g. from Google Fonts, import Inter or Montserrat).
-3. At the very top, place a simple, elegant centered dark logo "V" with a small sub-text "VUYAMA CS".
-4. Below the logo, create a clean comparison table with elegant light-gray borders (#e2e8f0), beautiful cell padding, and centered headers.
-5. Under the table, write a very brief 1-2 sentence clean summary or tips.
-6. The entire design must look premium, modern, clean, and not over-the-top (no colorful backgrounds, gradients, or dark modes).
-7. Return ONLY the complete HTML code starting with <!DOCTYPE html>. Do NOT wrap it in markdown code blocks like \`\`\`html.`;
+1. Background MUST be solid white (#ffffff). Font must be highly readable dark charcoal (#1a202c).
+2. At the top of the A4 page, place a large elegant dark capital letter "V" logo, centered, with subtitle "V U Y A M A".
+3. Under the logo, create a clean comparison table explaining the differences. The table should have elegant light-gray borders (#cbd5e1), beautiful cell padding, and clean structured headings.
+4. Below the table, include a clean 2-sentence summary or styling tips.
+5. The entire layout should fit perfectly on a single A4 page with generous margins.
+6. Return ONLY the complete HTML code starting with <!DOCTYPE html>. Do NOT wrap it in markdown code blocks like \`\`\`html.`;
 
     const htmlCode = await gemini.callGemini(prompt);
     
@@ -75,51 +115,31 @@ Design Guidelines (Strict):
     if (cleanHtml.endsWith('```')) cleanHtml = cleanHtml.replace(/```$/, '');
     cleanHtml = cleanHtml.trim();
 
-    // 2. Render screenshot via Puppeteer
+    // 3. Render PDF via Puppeteer
     const page = await client.pupBrowser.newPage();
     try {
       await page.setContent(cleanHtml, { waitUntil: 'networkidle0' });
-      await page.setViewport({ width: 800, height: 600, deviceScaleFactor: 2 });
       
-      const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
-      const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
-      
-      await page.setViewport({ 
-        width: Math.max(bodyWidth + 40, 800), 
-        height: Math.max(bodyHeight + 40, 400), 
-        deviceScaleFactor: 2 
+      await page.pdf({ 
+        path: outputPath, 
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '20mm', bottom: '20mm', left: '20mm', right: '20mm' }
       });
-
-      const filename = `dynamic_comparison_${Date.now()}.png`;
-      const outputPath = path.join(__dirname, '../data/media/others', filename);
       
-      const dir = path.dirname(outputPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
+      logger.info(`Successfully generated and cached comparison PDF at ${outputPath}`);
 
-      await page.screenshot({ path: outputPath, fullPage: true });
-      logger.info(`Successfully generated dynamic comparison image at ${outputPath}`);
-
-      // 3. Send the image to the customer via WhatsApp
+      // 4. Send PDF to the customer via WhatsApp
       if (fs.existsSync(outputPath)) {
         const media = MessageMedia.fromFilePath(outputPath);
         await client.sendMessage(phoneNumber, media);
-        logger.info(`Successfully sent dynamic comparison image to ${phoneNumber}`);
-        
-        // Clean up the temporary file
-        setTimeout(() => {
-          try {
-            fs.unlinkSync(outputPath);
-            logger.info(`Cleaned up temporary dynamic image: ${filename}`);
-          } catch (e) {}
-        }, 15000);
+        logger.info(`Successfully sent dynamic PDF comparison to ${phoneNumber}`);
       }
     } finally {
       await page.close();
     }
   } catch (error) {
-    logger.error('Failed to generate or send dynamic comparison image:', error);
+    logger.error('Failed to generate or send PDF comparison:', error);
   }
 };
 
@@ -369,8 +389,11 @@ client.on('message_create', async (msg) => {
     let replyText = response.response;
     
     // Extract all images
-    const imgMatches = [...replyText.matchAll(imgRegex)].map(m => m[1].trim());
+    let imgMatches = [...replyText.matchAll(imgRegex)].map(m => m[1].trim());
     replyText = replyText.replace(imgRegex, '').trim();
+    
+    // Filter out comparison images since we are using high-quality PDFs for comparisons now
+    imgMatches = imgMatches.filter(img => !img.includes('comparison'));
     
     // Extract all documents
     const docMatches = [...replyText.matchAll(docRegex)].map(m => m[1].trim());
@@ -439,15 +462,15 @@ client.on('message_create', async (msg) => {
         })().catch(err => logger.error('Error in async static image sending:', err));
       }
 
-      // Step B2: If no static images matched, but it's a comparison query, dynamically generate and send comparison infographic
+      // Step B2: If it's a comparison query, dynamically generate/retrieve and send comparison PDF in background
       const isCompQuery = /(beda|banding|vs|lawan|lebih|bagus|laku|mending|pilih|mana|kelebihan|kekurangan|perbedaan|selisih)/i.test(messageText);
       const isComp = response.intent === 'comparison_match' || 
                      response.intent === 'faq_match' || 
                      response.intent === 'ai_reply';
       
-      if (imgMatches.length === 0 && isCompQuery && isComp && replyText.length > 0) {
-        asyncGenerateAndSendComparison(client, phoneNumber, replyText)
-          .catch(err => logger.error('Error in dynamic comparison image generation:', err));
+      if (isCompQuery && isComp && replyText.length > 0) {
+        asyncGenerateAndSendPdfComparison(client, phoneNumber, messageText, replyText)
+          .catch(err => logger.error('Error in dynamic PDF comparison generation:', err));
       }
 
       // Step C: Send all matching documents back-to-back
