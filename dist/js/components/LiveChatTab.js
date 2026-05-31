@@ -136,7 +136,7 @@ window.LiveChatTab = ({
                         <React.Fragment>
                           {imgMatch && (
                             <div className="mb-2.5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10 max-h-48 bg-gray-100 flex items-center justify-center">
-                              <img src={imgMatch[1].trim()} alt="Sent media" className="object-cover w-full h-full" />
+                              <img src={imgMatch[1].trim()} alt="Sent media" className="object-contain max-h-48 p-1" />
                             </div>
                           )}
                           <p className="whitespace-pre-wrap">{cleanMessage}</p>
