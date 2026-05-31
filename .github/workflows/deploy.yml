@@ -1,0 +1,43 @@
+name: Deploy Vuyama Bot & CRM Suite
+
+on:
+  push:
+    branches:
+      - prod
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: 22
+          script: |
+            echo "========================================="
+            echo "STARTING CONTINUOUS DEPLOYMENT TO VPS..."
+            echo "========================================="
+            
+            # Navigate to project directory
+            cd ~/bot-admin-vuyama
+            
+            # Fetch latest changes and force hard reset to prod to prevent out-of-sync branch states
+            git fetch origin prod
+            git reset --hard origin/prod
+            
+            # Install production dependencies only to keep build light
+            npm install --production
+            
+            # Restart PM2 process to apply backend updates
+            pm2 restart vuyama-bot-suite
+            
+            echo "========================================="
+            echo "DEPLOYMENT COMPLETED SUCCESSFULLY!"
+            echo "========================================="
