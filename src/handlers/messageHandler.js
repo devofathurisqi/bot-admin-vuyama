@@ -7,6 +7,7 @@ const db = require('../utils/db');
 const { emitEvent } = require('../utils/socket');
 const logger = require('../utils/logger');
 
+
 // Database logging helper
 const logToDb = async (level, message) => {
   try {
@@ -28,34 +29,34 @@ const logToDb = async (level, message) => {
 const getStaticGreetingReply = (userMessage) => {
   if (!userMessage) return null;
   const normalized = userMessage.trim().toLowerCase().replace(/[?,.!\s]+/g, ' ');
-  
+
   // 1. Assalamualaikum patterns
   if (/^(assalamualaikum|assalamu'alaikum|askum|mikum|ass|asalamu'alaikum)/i.test(normalized)) {
     return "Waalaikumsalam Kak! Ada yang bisa kami bantu? 😊";
   }
-  
+
   // 2. Halo/Hai patterns
   if (/^(halo|hai|hello|hey|hei|p|halo admin|hallo|spada)/i.test(normalized) && normalized.length <= 12) {
     return "Halo juga Kak! Ada yang bisa kami bantu? 😊";
   }
-  
+
   // 3. Greeting by time patterns
   if (/^(selamat (pagi|siang|sore|malam))/i.test(normalized)) {
     const match = normalized.match(/selamat (pagi|siang|sore|malam)/i);
     const timeOfDay = match ? match[1] : 'hari';
     return `Selamat ${timeOfDay} juga Kak! Ada yang bisa kami bantu? 😊`;
   }
-  
+
   // 4. Test/Tes patterns
   if (/^(tes|test|testing|ping)/i.test(normalized) && normalized.length <= 6) {
     return "Iya Kak, masuk kok. Ada yang bisa kami bantu? 😊";
   }
-  
+
   // 5. Thank you patterns
   if (/^(terima kasih|makasih|tengkyu|thanks|suwun|thx|nuhun)/i.test(normalized) && normalized.length <= 15) {
     return "Sama-sama Kak! 😊 Senang bisa membantu. Jika ada hal lain yang perlu ditanyakan, hubungi kami saja ya...";
   }
-  
+
   return null;
 };
 
@@ -65,7 +66,7 @@ const getStaticGreetingReply = (userMessage) => {
  */
 const findMatchingLocalFAQ = (userMessage, faqs) => {
   if (!userMessage || !faqs || faqs.length === 0) return null;
-  
+
   const normalize = (str) => {
     return str
       .toLowerCase()
@@ -99,7 +100,7 @@ const findMatchingLocalFAQ = (userMessage, faqs) => {
   for (const faq of faqs) {
     const faqWords = getWords(faq.question);
     let score = calculateJaccard(userWords, faqWords);
-    
+
     // Substring phrase matching bonus
     const faqNormQuestion = normalize(faq.question);
     if (normalizedUser.includes(faqNormQuestion) || faqNormQuestion.includes(normalizedUser)) {
@@ -137,10 +138,10 @@ const findMatchingLocalFAQ = (userMessage, faqs) => {
  */
 const classifyIntentAndRetrieveContext = async (userMessage) => {
   const STOPWORDS = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok', 'mau', 'nanya', 'untuk', 'ada', 'saja', 'ya', 'halo', 'tanya', 'dong', 'sih', 'kok', 'apa', 'ada', 'aja']);
-  
+
   const cleanMessage = userMessage.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").trim();
   const tokens = cleanMessage.split(/\s+/).filter(w => w.length > 1 && !STOPWORDS.has(w));
-  
+
   // Comprehensive Table routing similarity score keyword models
   const routingKeywords = {
     products: [
@@ -213,28 +214,28 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
       products = await db('products').where('status', 'Tersedia').orderBy('id', 'asc');
     } else if (tokens.length > 0) {
       // Find direct product category matches to pull complete category inventory
-      const categoryMatch = ['mukena', 'hijab', 'label'].find(cat => 
+      const categoryMatch = ['mukena', 'hijab', 'label'].find(cat =>
         tokens.some(token => cat.includes(token) || token.includes(cat))
       );
 
       if (categoryMatch) {
         const categoryName = categoryMatch.charAt(0).toUpperCase() + categoryMatch.slice(1);
         const otherTokens = tokens.filter(t => t !== categoryMatch);
-        
+
         // Step A: Search for products in this category that match the other tokens (e.g. "akrilik" inside "label")
         let query = db('products').whereILike('category', `%${categoryName}%`).andWhere('status', 'Tersedia');
         if (otherTokens.length > 0) {
           query = query.where((q) => {
             otherTokens.forEach((token) => {
               q.orWhereILike('name', `%${token}%`)
-               .orWhereILike('sub_category', `%${token}%`)
-               .orWhereILike('material', `%${token}%`)
-               .orWhereILike('description', `%${token}%`);
+                .orWhereILike('sub_category', `%${token}%`)
+                .orWhereILike('material', `%${token}%`)
+                .orWhereILike('description', `%${token}%`);
             });
           });
         }
         products = await query.orderBy('id', 'asc').limit(8);
-        
+
         // Step B: If we found fewer than 8 matching products, fill the rest with general category products
         if (products.length < 8) {
           const generalProducts = await db('products')
@@ -251,10 +252,10 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
         query = query.where((q) => {
           tokens.forEach((token) => {
             q.orWhereILike('name', `%${token}%`)
-             .orWhereILike('category', `%${token}%`)
-             .orWhereILike('sub_category', `%${token}%`)
-             .orWhereILike('material', `%${token}%`)
-             .orWhereILike('id', `%${token}%`);
+              .orWhereILike('category', `%${token}%`)
+              .orWhereILike('sub_category', `%${token}%`)
+              .orWhereILike('material', `%${token}%`)
+              .orWhereILike('id', `%${token}%`);
           });
         });
         products = await query.orderBy('id', 'asc').limit(8);
@@ -382,7 +383,7 @@ const buildDynamicSystemPrompt = async (userMessage = "") => {
   try {
     // Smart RAG selector retrieval
     const context = await classifyIntentAndRetrieveContext(userMessage);
-    
+
     logger.info(`Smart RAG Classifier classified intent. Querying tables: [${context.selectedTables.join(', ')}]`);
 
     return `Kamu adalah seorang admin Customer Service resmi Vuyama (bernama Vumin) yang sangat profesional, ramah, dan berpengalaman luas di bidang produksi mukena, hijab, dan label brand hijab. 
@@ -446,8 +447,8 @@ Gunakan database kontekstual di atas untuk memberikan jawaban yang ramah, ringka
  */
 const isComplaintMessage = (msgText) => {
   const COMPLAINT_KEYWORDS = [
-    'kecewa', 'marah', 'refund', 'penipuan', 'barang belum datang', 
-    'respon lama', 'komplain', 'jelek', 'rugi', 'lambat', 
+    'kecewa', 'marah', 'refund', 'penipuan', 'barang belum datang',
+    'respon lama', 'komplain', 'jelek', 'rugi', 'lambat',
     'kembalikan uang', 'salah kirim', 'cacat', 'rusak', 'pecah'
   ];
   const normalized = msgText.toLowerCase();
@@ -459,8 +460,8 @@ const isComplaintMessage = (msgText) => {
  */
 const isOrderIntentMessage = (msgText) => {
   const ORDER_INTENT_KEYWORDS = [
-    'mau beli', 'cara order', 'order kak', 'mau pesan', 
-    'cara pesan', 'order dong', 'pesan mukena', 'beli kerudung', 
+    'mau beli', 'cara order', 'order kak', 'mau pesan',
+    'cara pesan', 'order dong', 'pesan mukena', 'beli kerudung',
     'format order', 'mau beli label'
   ];
   const normalized = msgText.toLowerCase();
@@ -508,11 +509,11 @@ ${text}
     if (cleaned.startsWith('```')) cleaned = cleaned.replace(/^```/, '');
     if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
     cleaned = cleaned.trim();
-    
+
     return JSON.parse(cleaned);
   } catch (err) {
     logger.error('Gemini order parsing failed, using regex fallback:', err);
-    
+
     const getMatch = (regex) => {
       const match = text.match(regex);
       return match ? match[1].trim() : null;
@@ -577,7 +578,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
     // 1. COMPLAINT DETECTION FLOW
     if (isComplaintMessage(userMessage)) {
       await logToDb('warn', `Deteksi otomatis Komplain dari ${phoneNumber}: "${userMessage.substring(0, 40)}..."`);
-      
+
       // Auto-block the bot from replying to this customer in the future
       const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
       if (!existingBlock) {
@@ -605,7 +606,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
         phone_number: phoneNumber,
         message: userMessage
       });
-      
+
       // Notify customer update to UI
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
@@ -617,11 +618,11 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
     }
 
     // 2. ORDER CONFIRMATION FLOW
-    
+
     // Scenario B: Customer fills the format (checked first to avoid phrase conflicts)
     if (isFilledOrderFormat(userMessage)) {
       await logToDb('info', `Customer ${phoneNumber} mengirimkan format order. Menjalankan AI parser...`);
-      
+
       const parsed = await parseOrderFormatWithGemini(userMessage);
 
       // Check if there is an existing PENDING order for this customer
@@ -647,7 +648,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
           font: parsed.font,
           updated_at: new Date()
         });
-        
+
         await logToDb('info', `Mengupdate Order #${orderId} yang ada dengan format yang telah terisi.`);
       } else {
         // Fallback: Save order to PostgreSQL if no pending order exists
@@ -667,7 +668,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
           total: 0
         }).returning('id');
         orderId = orderIdObj ? orderIdObj.id : null;
-        
+
         await logToDb('info', `Membuat Order #${orderId} baru karena tidak ditemukan order PENDING sebelumnya.`);
       }
 
@@ -702,7 +703,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
     // Scenario A: Customer wants to order (gives order format)
     if (isOrderIntentMessage(userMessage)) {
       await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
-      
+
       // Fetch customer name
       const customer = await db('customers').where('phone_number', phoneNumber).first();
       const customerName = customer ? customer.name : 'Customer Vuyama';
