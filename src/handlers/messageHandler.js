@@ -104,6 +104,8 @@ const getComparisonReply = (userMessage) => {
   const hasJadul = /(jadul|legend|klasik|basic|ori)/i.test(normalized);
   const hasParis = /paris/i.test(normalized);
 
+  let replyText = null;
+
   if (
     (hasParis && isComparisonQuery) ||
     (hasJapan && hasJadul) ||
@@ -111,11 +113,11 @@ const getComparisonReply = (userMessage) => {
   ) {
     // If specifically asking which is more popular / sells better
     if (/(laku|laris|populer|banyak|beli|jual)/i.test(normalized)) {
-      return `Untuk Vuyama, **Paris Japan** jauh lebih banyak dipilih dan gampang laku kak! Karena bahannya premium, super lembut, tegak di dahi, dan feedback customernya sangat memuaskan... 😊\n\nSedangkan **Paris Jadul** biasanya dipilih untuk market massal karena harganya yang sangat murah & ekonomis.`;
+      replyText = `Untuk Vuyama, **Paris Japan** jauh lebih banyak dipilih dan gampang laku kak! Karena bahannya premium, super lembut, tegak di dahi, dan feedback customernya sangat memuaskan... 😊\n\nSedangkan **Paris Jadul** biasanya dipilih untuk market massal karena harganya yang sangat murah & ekonomis.`;
+    } else {
+      // Default comparison
+      replyText = `Ini perbandingan singkat antara Paris Japan dan Paris Jadul ya kak... 😊\n\n- **Paris Japan**: Bahan premium, serat rapat, super lembut, flowy, dan tegak di dahi (nggak kaku).\n- **Paris Jadul**: Bahan standar, serat renggang, tekstur agak kaku khas retro/vintage, sangat ekonomis.`;
     }
-    
-    // Default comparison
-    return `Ini perbandingan singkat antara Paris Japan dan Paris Jadul ya kak... 😊\n\n- **Paris Japan**: Bahan premium, serat rapat, super lembut, flowy, dan tegak di dahi (nggak kaku).\n- **Paris Jadul**: Bahan standar, serat renggang, tekstur agak kaku khas retro/vintage, sangat ekonomis.`;
   }
 
   // 2. Label Material (Akrilik vs Plat Besi vs Woven vs Satin)
@@ -129,15 +131,17 @@ const getComparisonReply = (userMessage) => {
   const labelMatchCount = [hasAklik, hasPlat, hasWoven, hasSatin].filter(Boolean).length;
 
   if (
-    (hasLabel && isComparisonQuery) ||
-    (labelMatchCount >= 2) ||
-    ((hasAklik || hasPlat || hasWoven || hasSatin) && hasLabel && isComparisonQuery)
+    !replyText && (
+      (hasLabel && isComparisonQuery) ||
+      (labelMatchCount >= 2) ||
+      ((hasAklik || hasPlat || hasWoven || hasSatin) && hasLabel && isComparisonQuery)
+    )
   ) {
     if (/(laku|laris|populer|best|seller|bagusan|mending|pilih)/i.test(normalized)) {
-      return `Bahan label paling laris (*best seller*) kami adalah **Akrilik** (kesan mewah mengkilap) and **Woven** (rajutan benang super awet) kak... 😊\n\nSetiap bahan memiliki keunikan masing-masing untuk menaikkan kelas brand hijab kakak.`;
+      replyText = `Bahan label paling laris (*best seller*) kami adalah **Akrilik** (kesan mewah mengkilap) and **Woven** (rajutan benang super awet) kak... 😊\n\nSetiap bahan memiliki keunikan masing-masing untuk menaikkan kelas brand hijab kakak.`;
+    } else {
+      replyText = `Berikut ringkasan singkat 4 bahan label brand best seller kami kak... 😊\n\n- **Akrilik**: Kesan modern & super mewah (efek kaca mengkilap).\n- **Plat Besi/Logam**: Sangat premium, kokoh, memberi kesan eksklusif & mahal.\n- **Woven**: Rajutan benang detail tinggi, awet, & bernuansa klasik.\n- **Satin**: Lembut di kulit, lentur, dan sangat ekonomis.`;
     }
-
-    return `Berikut ringkasan singkat 4 bahan label brand best seller kami kak... 😊\n\n- **Akrilik**: Kesan modern & super mewah (efek kaca mengkilap).\n- **Plat Besi/Logam**: Sangat premium, kokoh, memberi kesan eksklusif & mahal.\n- **Woven**: Rajutan benang detail tinggi, awet, & bernuansa klasik.\n- **Satin**: Lembut di kulit, lentur, dan sangat ekonomis.`;
   }
 
   // 3. Pashmina Bamboo vs Pashmina Airtech
@@ -146,15 +150,21 @@ const getComparisonReply = (userMessage) => {
   const hasPashmina = /pashmina/i.test(normalized);
 
   if (
-    (hasPashmina && isComparisonQuery) ||
-    (hasBamboo && hasAirtech) ||
-    (hasPashmina && (hasBamboo || hasAirtech) && isComparisonQuery)
+    !replyText && (
+      (hasPashmina && isComparisonQuery) ||
+      (hasBamboo && hasAirtech) ||
+      (hasPashmina && (hasBamboo || hasAirtech) && isComparisonQuery)
+    )
   ) {
     if (/(laku|laris|populer|bagusan|mending|pilih)/i.test(normalized)) {
-      return `Kedua pashmina ini sangat laris dengan keunggulannya masing-masing kak... 😊\n\n- Pilih **Bamboo Spandex** jika mencari kenyamanan ekstra (sangat adem & ada *cooling effect* serat bambu alami).\n- Pilih **Airtech Ultrasoft** jika mencari pashmina yang sangat ringan, mudah menyerap keringat (*quick-dry*), dan pas untuk luar ruangan.`;
+      replyText = `Kedua pashmina ini sangat laris dengan keunggulannya masing-masing kak... 😊\n\n- Pilih **Bamboo Spandex** jika mencari kenyamanan ekstra (sangat adem & ada *cooling effect* serat bambu alami).\n- Pilih **Airtech Ultrasoft** jika mencari pashmina yang sangat ringan, mudah menyerap keringat (*quick-dry*), dan pas untuk luar ruangan.`;
+    } else {
+      replyText = `Perbedaan singkat Pashmina Bamboo vs Pashmina Airtech kak... 😊\n\n- **Pashmina Bamboo**: Serat bambu alami, super lembut, adem dingin (*cooling effect*), & jatuh banget.\n- **Pashmina Airtech**: Sangat ringan, ada sirkulasi udara mikro (*micro-ventilation*), menyerap keringat, & *quick-dry*.`;
     }
+  }
 
-    return `Perbedaan singkat Pashmina Bamboo vs Pashmina Airtech kak... 😊\n\n- **Pashmina Bamboo**: Serat bambu alami, super lembut, adem dingin (*cooling effect*), & jatuh banget.\n- **Pashmina Airtech**: Sangat ringan, ada sirkulasi udara mikro (*micro-ventilation*), menyerap keringat, & *quick-dry*.`;
+  if (replyText) {
+    return `${replyText}\n\nkami akan cari data perbandingan kami (gambar / pdf), jika ada kami akan kirim ke kakak. jika tidak ada tidak akan kami follow up tapi kaka boleh kok tanya tanya lagi hehe`;
   }
 
   return null;
@@ -593,12 +603,9 @@ INFORMASI KHUSUS PERTANYAAN PERBANDINGAN BAHAN/PRODUK (MUTLAK PENTING):
 Jika pelanggan menanyakan perbandingan (misalnya membandingkan jenis hijab, bahan kain, atau bahan label brand):
 1. Berikan penjelasan yang singkat, padat, ramah, dan sangat mudah dimengerti (maksimal 2-3 kalimat per poin).
 2. Gunakan format double enter yang rapi dan indah (seperti contoh di Aturan Kerapian Nomor 10).
-3. Kamu WAJIB melampirkan gambar infografis perbandingan yang sesuai dengan menambahkan tag \`[SEND_IMAGE: <path_gambar>]\` di bagian paling akhir balasan kamu.
-4. Daftar Gambar Infografis Perbandingan Resmi yang tersedia di disk:
-   - Perbandingan Paris Japan vs Paris Jadul/Basic/Legend: \`[SEND_IMAGE: /media/others/paris_comparison.png]\`
-   - Perbandingan Bahan Label Brand (Akrilik vs Plat Besi vs Woven vs Satin): \`[SEND_IMAGE: /media/others/label_comparison.png]\`
-   - Perbandingan Pashmina Bamboo Spandex vs Pashmina Airtech Ultrasoft: \`[SEND_IMAGE: /media/others/pashmina_comparison.png]\`
-JANGAN PERNAH LUPA menyertakan tag gambar ini agar pelayanan terasa sangat visual, informatif, dan premium!
+3. Kamu WAJIB mengakhiri seluruh teks jawaban perbandingan dengan kalimat penutup persis seperti ini (tanpa modifikasi):
+   "kami akan cari data perbandingan kami (gambar / pdf), jika ada kami akan kirim ke kakak. jika tidak ada tidak akan kami follow up tapi kaka boleh kok tanya tanya lagi hehe"
+JANGAN PERNAH LUPA menuliskan kalimat penutup ini di akhir setiap jawaban perbandingan!
 
 KNOWLEDGE BASE VUYAMA (TERRETRIEVE SECARA DINAMIS DARI DATABASE & FILE CADANGAN RESMI):
 ${JSON.stringify({
