@@ -69,32 +69,39 @@ const formatWhatsAppText = (text) => {
 
   let cleaned = text;
 
-  // 1. Decompress lowercase letter directly followed by uppercase letter (e.g. "JadulBahan:" -> "Jadul\nBahan:")
+  // 1. Decompress lowercase letter or number followed by punctuation (.?!), followed directly by uppercase letter
+  // e.g. "rapat.Tekstur" -> "rapat.\nTekstur", "siap?Boleh" -> "siap?\nBoleh"
+  cleaned = cleaned.replace(/([a-z0-9])([\.\?!])([A-Z])/g, '$1$2\n$3');
+
+  // 2. Decompress lowercase letter directly followed by uppercase letter (e.g. "JadulBahan:" -> "Jadul\nBahan:")
   cleaned = cleaned.replace(/([a-z])([A-Z])/g, '$1\n$2');
 
-  // 2. Insert double newline before list items that are attached to the end of a sentence (e.g. "Jadul.2. Paris" -> "Jadul.\n\n2. Paris")
+  // 3. Insert double newline before list items that start directly after a colon (e.g. "beda banget: 1. Paris" -> "beda banget: \n\n1. Paris")
+  cleaned = cleaned.replace(/:\s*(\d+\.\s+)/g, ': \n\n$1');
+
+  // 4. Insert double newline before list items that are attached to the end of a sentence (e.g. "Jadul.2. Paris" -> "Jadul.\n\n2. Paris")
   cleaned = cleaned.replace(/([a-zA-Z0-9])\.(\d+\.)/g, '$1.\n\n$2');
 
-  // 3. Add space after colon `:` when followed directly by letters, emojis, or list numbering without a space
+  // 5. Add space after colon `:` when followed directly by letters, emojis, or list numbering without a space
   // e.g. "banget:1. Paris" -> "banget: 1. Paris"
   cleaned = cleaned.replace(/:([a-zA-Z😊🙏✕✓●])/g, ': $1');
   cleaned = cleaned.replace(/:(\d+\.)/g, ': $1');
 
-  // 4. Ensure spacing around emojis if they are squished next to alphanumeric characters
+  // 6. Ensure spacing around emojis if they are squished next to alphanumeric characters
   // e.g. "kak😊" -> "kak 😊", "😊Silakan" -> "😊 Silakan"
   cleaned = cleaned.replace(/([a-zA-Z0-9])([😊🙏✕✓●👍🎉🔥🛍🚀❤️✨⭐👇ℹ️💡])/g, '$1 $2');
   cleaned = cleaned.replace(/([😊🙏✕✓●👍🎉🔥🛍🚀❤️✨⭐👇ℹ️💡])([a-zA-Z0-9])/g, '$1 $2');
 
-  // 5. Ensure space after list numbering dot (e.g. "1.Paris" -> "1. Paris")
+  // 7. Ensure space after list numbering dot (e.g. "1.Paris" -> "1. Paris")
   cleaned = cleaned.replace(/(\d+\.)([a-zA-Z])/g, '$1 $2');
 
-  // 6. Ensure list items have clean double linebreaks in WhatsApp
+  // 8. Ensure list items have clean double linebreaks in WhatsApp
   cleaned = cleaned.replace(/([^\n])\n(\d+\.\s+)/g, '$1\n\n$2');
   
-  // 7. Ensure bullet items (starting with emoji or dashes) are cleanly separated
+  // 9. Ensure bullet items (starting with emoji or dashes) are cleanly separated
   cleaned = cleaned.replace(/([^\n])\n([-\*•]\s+)/g, '$1\n\n$2');
 
-  // 8. Clean up any unintended 3+ consecutive newlines down to exactly 2 newlines
+  // 10. Clean up any unintended 3+ consecutive newlines down to exactly 2 newlines
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
 
   return cleaned.trim();
