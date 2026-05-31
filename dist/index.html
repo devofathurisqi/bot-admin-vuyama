@@ -621,7 +621,10 @@
           });
           const d = await res.json();
           if (d.success) {
-            setProductForm(prev => ({ ...prev, image: d.url }));
+            const currentImages = productForm.image ? productForm.image.split(',').map(i => i.trim()).filter(Boolean) : [];
+            currentImages.push(d.url);
+            setProductForm(prev => ({ ...prev, image: currentImages.join(', ') }));
+            showToast('Gambar berhasil diunggah!');
           }
         } catch (err) {
           showToast('Error mengunggah gambar.', 'error');
@@ -906,7 +909,7 @@
                   <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
                     {[
                       { id: 'dashboard', name: 'Dashboard', icon: Icons.Dashboard },
-                      { id: 'products', name: 'Products & Excel', icon: Icons.Products },
+                      { id: 'products', name: 'Products', icon: Icons.Products },
                       { id: 'customers', name: 'Live Chat CRM', icon: Icons.Customers, count: customers.reduce((acc, c) => acc + (c.unread_count || 0), 0) },
                       { id: 'orders', name: 'Orders Board', icon: Icons.Orders, count: orders.filter(o => o.status === 'PENDING').length },
                       { id: 'complaints', name: 'Complaints Queue', icon: Icons.Complaints, count: complaints.filter(c => c.status === 'OPEN').length },
@@ -969,7 +972,7 @@
               <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
                 {[
                   { id: 'dashboard', name: 'Dashboard', icon: Icons.Dashboard },
-                  { id: 'products', name: 'Products & Excel', icon: Icons.Products },
+                  { id: 'products', name: 'Products', icon: Icons.Products },
                   { id: 'customers', name: 'Live Chat CRM', icon: Icons.Customers, count: customers.reduce((acc, c) => acc + (c.unread_count || 0), 0) },
                   { id: 'orders', name: 'Orders Board', icon: Icons.Orders, count: orders.filter(o => o.status === 'PENDING').length },
                   { id: 'complaints', name: 'Complaints Queue', icon: Icons.Complaints, count: complaints.filter(c => c.status === 'OPEN').length },
@@ -1048,26 +1051,7 @@
                   <div className="p-6 md:p-8 rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-indigo-700 text-white flex flex-col md:flex-row items-center justify-between relative overflow-hidden shadow-xl shadow-brand-500/10">
                     <div className="space-y-2.5 relative z-10">
                       <h2 className="text-2xl md:text-3xl font-extrabold font-sans leading-tight">Vuyama CS Control Suite</h2>
-                      <p className="text-brand-100 text-sm max-w-lg">WhatsApp Bot & human admin collaboration dashboard. Read Excel data, view live messages, manage orders, and check complaints from a unified hub.</p>
-                    </div>
-
-                    {/* Excel Quick Upload Sync Widget */}
-                    <div className="mt-5 md:mt-0 flex items-center space-x-4 relative z-10">
-                      <button
-                        onClick={() => fileInputRef.current.click()}
-                        disabled={uploadingExcel}
-                        className="px-5 py-3 rounded-xl bg-white hover:bg-brand-50 font-bold text-sm text-brand-600 shadow-md flex items-center space-x-2 transition"
-                      >
-                        <Icons.Upload />
-                        <span>{uploadingExcel ? 'Syncing...' : 'Sync Excel File'}</span>
-                      </button>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleExcelSync}
-                        accept=".xlsx, .xls"
-                        className="hidden"
-                      />
+                      <p className="text-brand-100 text-sm max-w-lg">WhatsApp Bot & human admin collaboration dashboard. View live messages, manage products, manage orders, and check complaints from a unified hub.</p>
                     </div>
 
                     {/* Decorative abstract elements */}
@@ -1240,11 +1224,24 @@
 
                         {/* PRODUCT IMAGE OR FALLBACK */}
                         <div className="h-44 w-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
-                          {p.image ? (
-                            <img src={p.image.startsWith('/') ? p.image : p.image} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 duration-300" />
-                          ) : (
-                            <div className="text-gray-400 font-bold uppercase text-[10px] tracking-widest select-none">No Preview Image</div>
-                          )}
+                          {(() => {
+                            const images = p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [];
+                            if (images.length > 0) {
+                              return (
+                                <React.Fragment>
+                                  <img src={images[0]} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 duration-300" />
+                                  {images.length > 1 && (
+                                    <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-sm text-[9px] font-bold text-white shadow-sm border border-white/10">
+                                      📸 +{images.length - 1} Gambar
+                                    </span>
+                                  )}
+                                </React.Fragment>
+                              );
+                            }
+                            return (
+                              <div className="text-gray-400 font-bold uppercase text-[10px] tracking-widest select-none">No Preview Image</div>
+                            );
+                          })()}
 
                           {/* Status Badge */}
                           <span className={`absolute top-3 right-3 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${p.status === 'Tersedia' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
@@ -1407,7 +1404,20 @@
                               className={`flex ${msg.sender === 'customer' ? 'justify-start' : 'justify-end'}`}
                             >
                               <div className={`p-4 rounded-2xl max-w-sm space-y-1.5 shadow-sm leading-relaxed text-xs border ${msg.sender === 'customer' ? 'bg-white dark:bg-darkbg-card border-gray-100 dark:border-darkbg-border text-gray-800 dark:text-gray-200 rounded-tl-none' : 'bg-brand-600 text-white border-brand-700 rounded-tr-none'}`}>
-                                <p className="whitespace-pre-wrap">{msg.message}</p>
+                                {(() => {
+                                  const imgMatch = msg.message && msg.message.match(/\[Gambar:\s*(.+?)\]/);
+                                  const cleanMessage = imgMatch ? msg.message.replace(imgMatch[0], '').trim() : msg.message;
+                                  return (
+                                    <React.Fragment>
+                                      {imgMatch && (
+                                        <div className="mb-2.5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10 max-h-48 bg-gray-100 flex items-center justify-center">
+                                          <img src={imgMatch[1].trim()} alt="Sent media" className="object-cover w-full h-full" />
+                                        </div>
+                                      )}
+                                      <p className="whitespace-pre-wrap">{cleanMessage}</p>
+                                    </React.Fragment>
+                                  );
+                                })()}
                                 <div className="text-[9px] font-semibold opacity-60 text-right">
                                   {new Date(msg.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                 </div>
@@ -1550,9 +1560,7 @@
                         <span>•</span>
                         <span className="text-blue-400">Shipped: <strong>{orders.filter(o => o.status === 'SHIPPED').length}</strong></span>
                       </div>
-                    </div>
-
-                    {/* SLICK SUBTABS NAVIGATION BAR */}
+                                   {/* SLICK SUBTABS NAVIGATION BAR */}
                     <div className="flex flex-wrap gap-2 p-1.5 rounded-2xl bg-gray-100 dark:bg-gray-800/40 border border-gray-200 dark:border-darkbg-border/60 max-w-4xl">
                       {[
                         { id: 'semua', label: 'Semua', count: orders.length },
@@ -1560,6 +1568,7 @@
                         { id: 'CONFIRMED', label: 'Confirmed (Dikonfirmasi)', count: orders.filter(o => o.status === 'CONFIRMED').length, color: 'text-indigo-400 bg-indigo-500/10' },
                         { id: 'PAID', label: 'Paid (Lunas)', count: orders.filter(o => o.status === 'PAID').length, color: 'text-emerald-500 bg-emerald-500/10' },
                         { id: 'SHIPPED', label: 'Shipped (Dikirim)', count: orders.filter(o => o.status === 'SHIPPED').length, color: 'text-blue-400 bg-blue-500/10' },
+                        { id: 'COMPLETED', label: 'Completed (Selesai)', count: orders.filter(o => o.status === 'COMPLETED').length, color: 'text-emerald-400 bg-emerald-500/10' },
                         { id: 'CANCELLED', label: 'Cancelled (Batal)', count: orders.filter(o => o.status === 'CANCELLED').length, color: 'text-rose-500 bg-rose-500/10' }
                       ].map(tab => (
                         <button
@@ -1588,7 +1597,7 @@
                           <div className="space-y-2">
                             <div className="flex items-center justify-between border-b border-darkbg-border pb-2.5">
                               <span className="text-xs font-bold text-brand-400">Order ID: #{order.id}</span>
-                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${order.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 animate-pulse' : order.status === 'CONFIRMED' ? 'bg-indigo-500/10 text-indigo-400' : order.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-500' : order.status === 'SHIPPED' ? 'bg-blue-500/10 text-blue-400' : 'bg-rose-500/10 text-rose-500'}`}>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${order.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 animate-pulse' : order.status === 'CONFIRMED' ? 'bg-indigo-500/10 text-indigo-400' : order.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-500' : order.status === 'SHIPPED' ? 'bg-blue-500/10 text-blue-400' : order.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                                 {order.status}
                               </span>
                             </div>
@@ -1626,9 +1635,11 @@
                               <span className="text-xs text-gray-500 font-semibold">Total Price:</span>
                               <div className="flex items-center space-x-2">
                                 <span className="font-extrabold text-sm text-brand-400">Rp {order.total.toLocaleString('id-ID')}</span>
-                                <button onClick={() => handleUpdateOrderTotal(order.id)} className="p-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition">
-                                  ✎
-                                </button>
+                                {order.status !== 'COMPLETED' && (
+                                  <button onClick={() => handleUpdateOrderTotal(order.id)} className="p-1 rounded bg-gray-850 hover:bg-gray-700 text-gray-400 hover:text-white transition">
+                                    ✎
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -1652,15 +1663,17 @@
                               </div>
                             )}
 
-                            <div className="space-y-1.5">
-                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Update Order Status</span>
-                              <div className="grid grid-cols-2 gap-1.5 text-[10px]">
-                                <button onClick={() => handleUpdateOrderStatus(order.id, 'CONFIRMED')} className="py-1.5 rounded-lg border border-brand-500/20 bg-brand-500/5 hover:bg-brand-500 font-extrabold transition">Confirm</button>
-                                <button onClick={() => handleUpdateOrderStatus(order.id, 'PAID')} className="py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 font-extrabold transition">Paid</button>
-                                <button onClick={() => handleUpdateOrderStatus(order.id, 'SHIPPED')} className="py-1.5 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500 font-extrabold transition">Shipped</button>
-                                <button onClick={() => handleUpdateOrderStatus(order.id, 'CANCELLED')} className="py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 font-extrabold transition">Cancel</button>
+                            {order.status !== 'COMPLETED' && (
+                              <div className="space-y-1.5">
+                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Update Order Status</span>
+                                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                                  <button onClick={() => handleUpdateOrderStatus(order.id, 'CONFIRMED')} className="py-1.5 rounded-lg border border-brand-500/20 bg-brand-500/5 hover:bg-brand-500 font-extrabold transition">Confirm</button>
+                                  <button onClick={() => handleUpdateOrderStatus(order.id, 'PAID')} className="py-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 font-extrabold transition">Paid</button>
+                                  <button onClick={() => handleUpdateOrderStatus(order.id, 'SHIPPED')} className="py-1.5 rounded-lg border border-blue-500/20 bg-blue-500/5 hover:bg-blue-500 font-extrabold transition">Shipped</button>
+                                  <button onClick={() => handleUpdateOrderStatus(order.id, 'CANCELLED')} className="py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 font-extrabold transition">Cancel</button>
+                                </div>
                               </div>
-                            </div>
+                            )}
                             <div className="pt-2.5 border-t border-dashed border-gray-100 dark:border-darkbg-border/60">
                               <button
                                 onClick={() => handleDeleteOrder(order.id)}
@@ -1669,7 +1682,7 @@
                                 🗑 Hapus Order
                               </button>
                             </div>
-                          </div>
+                          </div>               </div>
 
                         </div>
                       ))}
@@ -2021,22 +2034,52 @@
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Kategori</span>
-                      <input
-                        type="text"
+                      <select 
+                        required
                         value={productForm.category}
-                        onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
+                        onChange={(e) => setProductForm({ ...productForm, category: e.target.value, sub_category: '' })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
-                      />
+                      >
+                        <option value="">-- Pilih Kategori --</option>
+                        <option value="Mukena">Mukena</option>
+                        <option value="Hijab">Hijab</option>
+                        <option value="Label">Label</option>
+                        <option value="Lainnya">Lainnya</option>
+                      </select>
                     </div>
 
                     <div className="space-y-1.5">
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Sub Kategori</span>
-                      <input
-                        type="text"
+                      <select 
+                        required
                         value={productForm.sub_category}
                         onChange={(e) => setProductForm({ ...productForm, sub_category: e.target.value })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
-                      />
+                      >
+                        <option value="">-- Pilih Sub Kategori --</option>
+                        {productForm.category === 'Mukena' && (
+                          <React.Fragment>
+                            <option value="Mukena Dewasa">Mukena Dewasa</option>
+                            <option value="Mukena Anak">Mukena Anak</option>
+                            <option value="Mukena Traveling">Mukena Traveling</option>
+                          </React.Fragment>
+                        )}
+                        {productForm.category === 'Hijab' && (
+                          <React.Fragment>
+                            <option value="Hijab Bella Square">Hijab Bella Square</option>
+                            <option value="Hijab Pashmina">Hijab Pashmina</option>
+                            <option value="Hijab Segitiga">Hijab Segitiga</option>
+                          </React.Fragment>
+                        )}
+                        {productForm.category === 'Label' && (
+                          <React.Fragment>
+                            <option value="Label Woven">Label Woven</option>
+                            <option value="Label Satin">Label Satin</option>
+                            <option value="Label Piterban">Label Piterban</option>
+                          </React.Fragment>
+                        )}
+                        <option value="Lainnya">Lainnya</option>
+                      </select>
                     </div>
 
                     {/* Pricings */}
@@ -2044,8 +2087,10 @@
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Harga Umum (Retail) (Rp)</span>
                       <input
                         type="number"
+                        min="0"
+                        required
                         value={productForm.price_retail}
-                        onChange={(e) => setProductForm({ ...productForm, price_retail: e.target.value })}
+                        onChange={(e) => setProductForm({ ...productForm, price_retail: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
@@ -2054,8 +2099,10 @@
                       <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Harga Reseller (Rp)</span>
                       <input
                         type="number"
+                        min="0"
+                        required
                         value={productForm.price_reseller}
-                        onChange={(e) => setProductForm({ ...productForm, price_reseller: e.target.value })}
+                        onChange={(e) => setProductForm({ ...productForm, price_reseller: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                       />
                     </div>
@@ -2091,13 +2138,28 @@
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Status Ketersediaan</span>
+                      <select 
+                        required
+                        value={productForm.status}
+                        onChange={(e) => setProductForm({ ...productForm, status: e.target.value })}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
+                      >
+                        <option value="Tersedia">Tersedia</option>
+                        <option value="Habis">Habis</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 col-span-full md:col-span-1">
                       <div className="space-y-1.5">
                         <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Berat (Gram)</span>
                         <input
                           type="number"
+                          min="0"
+                          required
                           value={productForm.weight}
-                          onChange={(e) => setProductForm({ ...productForm, weight: e.target.value })}
+                          onChange={(e) => setProductForm({ ...productForm, weight: parseInt(e.target.value) || 0 })}
                           className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                         />
                       </div>
@@ -2105,8 +2167,10 @@
                         <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Stok</span>
                         <input
                           type="number"
+                          min="0"
+                          required
                           value={productForm.stock}
-                          onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
+                          onChange={(e) => setProductForm({ ...productForm, stock: parseInt(e.target.value) || 0 })}
                           className="w-full px-3.5 py-2.5 rounded-xl bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
                         />
                       </div>
@@ -2147,6 +2211,7 @@
                         <span className="text-gray-600 font-semibold uppercase">Atau URL Gambar</span>
                         <input
                           type="text"
+                          placeholder="Masukkan URL gambar lalu tekan Enter / Tambah..."
                           value={productForm.image}
                           onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
                           className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-darkbg-border text-xs focus:outline-none"
@@ -2154,12 +2219,35 @@
                       </div>
                     </div>
 
-                    <div className="h-32 rounded-xl bg-gray-800 border border-darkbg-border flex items-center justify-center overflow-hidden">
-                      {productForm.image ? (
-                        <img src={productForm.image} alt="Preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[10px] text-gray-600 font-bold uppercase tracking-wider">Preview Uploader</span>
-                      )}
+                    {/* Dynamic Multi-Image Gallery Manager */}
+                    <div className="rounded-xl bg-gray-800 border border-darkbg-border p-3.5 space-y-2.5">
+                      <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Daftar Gambar Produk ({productForm.image ? productForm.image.split(',').filter(Boolean).length : 0})</span>
+                      <div className="grid grid-cols-3 gap-2 max-h-36 overflow-y-auto pr-1">
+                        {productForm.image && productForm.image.split(',').map(i => i.trim()).filter(Boolean).length > 0 ? (
+                          productForm.image.split(',').map((imgUrl, idx) => {
+                            const cleanUrl = imgUrl.trim();
+                            if (!cleanUrl) return null;
+                            return (
+                              <div key={idx} className="relative h-16 rounded-lg overflow-hidden bg-gray-900 border border-darkbg-border group">
+                                <img src={cleanUrl} alt="Preview" className="w-full h-full object-cover" />
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    const list = productForm.image.split(',').map(i => i.trim()).filter(Boolean);
+                                    list.splice(idx, 1);
+                                    setProductForm({ ...productForm, image: list.join(', ') });
+                                  }}
+                                  className="absolute inset-0 bg-rose-600/90 text-white font-extrabold text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-150 rounded-lg"
+                                >
+                                  Hapus
+                                </button>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="col-span-full text-center text-[10px] text-gray-500 py-6">Belum ada gambar terunggah.</div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

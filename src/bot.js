@@ -1,4 +1,4 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const logger = require('./utils/logger');
 const config = require('./utils/config');
@@ -272,21 +272,69 @@ client.on('message_create', async (msg) => {
     }
 
     // 4. SEND BOT RESPONSE
+    const regex = /\[SEND_IMAGE:\s*([^\]]+)\]/i;
+    const match = response.response.match(regex);
+    let replyText = response.response;
+    let imagePath = null;
+
+    if (match) {
+      imagePath = match[1].trim();
+      replyText = response.response.replace(regex, '').trim();
+    }
+
     const key = `${phoneNumber}:${response.response}`;
     pendingOutgoingMessages.add(key);
+    
+    let sentMsg = null;
+    let mediaSent = false;
+
     try {
-      await msg.reply(response.response);
+      if (imagePath) {
+        let absolutePath = null;
+        if (imagePath.startsWith('/uploads/')) {
+          absolutePath = path.join(__dirname, '../learn/images', path.basename(imagePath));
+        } else if (imagePath.startsWith('/media/')) {
+          absolutePath = path.join(__dirname, '../data/media', path.basename(imagePath));
+        } else {
+          const p1 = path.join(__dirname, '../learn/images', path.basename(imagePath));
+          const p2 = path.join(__dirname, '../data/media', path.basename(imagePath));
+          if (fs.existsSync(p1)) absolutePath = p1;
+          else if (fs.existsSync(p2)) absolutePath = p2;
+        }
+
+        if (absolutePath && fs.existsSync(absolutePath)) {
+          try {
+            const media = MessageMedia.fromFilePath(absolutePath);
+            sentMsg = await client.sendMessage(phoneNumber, media, { caption: replyText });
+            mediaSent = true;
+            logger.info(`Bot merespons ke ${phoneNumber} dengan gambar "${imagePath}"`);
+          } catch (mediaErr) {
+            logger.error(`Gagal membuat/mengirim media dari path ${absolutePath}:`, mediaErr);
+          }
+        } else {
+          logger.warn(`Gambar "${imagePath}" tidak ditemukan di disk pada path ${absolutePath || 'unknown'}`);
+        }
+      }
+
+      if (!mediaSent) {
+        sentMsg = await msg.reply(replyText);
+        logger.info(`Bot merespons ke ${phoneNumber}: "${replyText.substring(0, 40)}..."`);
+      }
+    } catch (sendErr) {
+      logger.error('Gagal mengirim respon bot:', sendErr);
     } finally {
       setTimeout(() => pendingOutgoingMessages.delete(key), 5000);
     }
-    logger.info(`Bot merespons ke ${phoneNumber}: "${response.response.substring(0, 40)}..."`);
 
-    // Save bot reply to database
+    // Save bot reply to database (use [Gambar: <path>] if media was successfully sent)
+    const dbMessage = mediaSent ? `${replyText}\n[Gambar: ${imagePath}]` : replyText;
+    const dbMessageType = mediaSent ? 'image' : 'text';
+
     await db('conversations').insert({
       phone_number: phoneNumber,
-      message: response.response,
+      message: dbMessage,
       sender: 'bot',
-      message_type: 'text',
+      message_type: dbMessageType,
       status: 'sent',
       timestamp: new Date()
     });
@@ -294,9 +342,9 @@ client.on('message_create', async (msg) => {
     // Stream bot's reply to dashboard Live Chat in real-time
     emitEvent('incoming_message', {
       phone_number: phoneNumber,
-      message: response.response,
+      message: dbMessage,
       sender: 'bot',
-      message_type: 'text',
+      message_type: dbMessageType,
       status: 'sent',
       timestamp: new Date()
     });
