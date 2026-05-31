@@ -442,6 +442,14 @@ app.put('/api/orders/:id', async (req, res) => {
     const { id } = req.params;
     const { status, total } = req.body;
 
+    const existingOrder = await db('orders').where('id', id).first();
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+    if (existingOrder.status === 'COMPLETED' || existingOrder.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, error: 'Pesanan yang sudah Completed atau Cancelled tidak dapat diedit lagi.' });
+    }
+
     const updates = { updated_at: new Date() };
     if (status !== undefined) updates.status = status;
     if (total !== undefined) updates.total = parseFloat(total) || 0;
@@ -457,8 +465,8 @@ app.put('/api/orders/:id', async (req, res) => {
     // Notify
     const updatedOrder = await db('orders').where('id', id).first();
     
-    // Unblock customer ONLY when order is COMPLETED
-    if (status && status === 'COMPLETED') {
+    // Unblock customer when order is COMPLETED or CANCELLED
+    if (status && (status === 'COMPLETED' || status === 'CANCELLED')) {
       if (updatedOrder && updatedOrder.phone_number) {
         await db('blocked_numbers').where('phone_number', updatedOrder.phone_number).del();
         await db('customers').where('phone_number', updatedOrder.phone_number).update({
@@ -523,6 +531,9 @@ app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
     const order = await db('orders').where('id', id).first();
     if (!order) {
       return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+    if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, error: 'Pesanan yang sudah Completed atau Cancelled tidak dapat diselesaikan lagi.' });
     }
 
     // 1. Deduct product stock in database

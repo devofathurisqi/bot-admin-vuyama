@@ -114,7 +114,7 @@ window.OrdersTab = ({
                 <span className="text-xs text-gray-500 font-semibold">Total Price:</span>
                 <div className="flex items-center space-x-2">
                   <span className="font-extrabold text-sm text-brand-400">Rp {order.total.toLocaleString('id-ID')}</span>
-                  {order.status !== 'COMPLETED' && (
+                  {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
                     <button onClick={() => handleUpdateOrderTotal(order.id)} className="p-1 rounded bg-gray-800 dark:bg-gray-850 hover:bg-gray-700 text-gray-400 hover:text-white transition">
                       ✎
                     </button>
@@ -142,7 +142,7 @@ window.OrdersTab = ({
                 </div>
               )}
 
-              {order.status !== 'COMPLETED' && (
+              {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
                 <div className="space-y-1.5">
                   <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Update Order Status</span>
                   <div className="grid grid-cols-2 gap-1.5 text-[10px]">

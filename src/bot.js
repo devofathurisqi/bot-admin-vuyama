@@ -186,14 +186,19 @@ client.on('message_create', async (msg) => {
     const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
     emitEvent('customer_updated', updatedCustomer);
 
-    // 2. CHECK BLOCK TABLE (If customer is blocked, bot ignores and remains silent)
+    // 2. CHECK BLOCK TABLE & ACTIVE ORDERS (If customer is blocked or has an active order, bot ignores and remains silent)
     const isBlocked = await db('blocked_numbers').where('phone_number', phoneNumber).first();
-    if (isBlocked) {
-      logger.info(`Bot dinonaktifkan (BLOCKED) untuk ${phoneNumber}. Human admin yang membalas.`);
+    const activeOrder = await db('orders')
+      .where('phone_number', phoneNumber)
+      .whereIn('status', ['PENDING', 'CONFIRMED', 'PAID', 'SHIPPED'])
+      .first();
+
+    if (isBlocked || activeOrder) {
+      logger.info(`Bot dinonaktifkan untuk ${phoneNumber}. Human admin yang membalas. (Blocked: ${!!isBlocked}, Active Order: ${!!activeOrder})`);
       
-      // OPTIMIZATION: If a blocked user sends the filled order format, still parse and update the order board, but keep bot silent!
+      // OPTIMIZATION: If a blocked/active user sends the filled order format, still parse and update the order board, but keep bot silent!
       if (messageHandler.isFilledOrderFormat(messageText)) {
-        logger.info(`Customer terblokir ${phoneNumber} mengirimkan format order terisi. Mem-parsing untuk order board...`);
+        logger.info(`Customer ${phoneNumber} mengirimkan format order terisi. Mem-parsing untuk order board...`);
         try {
           const parsed = await messageHandler.parseOrderFormatWithGemini(messageText);
           const existingPendingOrder = await db('orders')
@@ -218,7 +223,7 @@ client.on('message_create', async (msg) => {
               font: parsed.font,
               updated_at: new Date()
             });
-            logger.info(`Mengupdate Order #${orderId} milik customer terblokir.`);
+            logger.info(`Mengupdate Order #${orderId} milik customer.`);
           } else {
             const [orderIdObj] = await db('orders').insert({
               phone_number: phoneNumber,
@@ -236,7 +241,7 @@ client.on('message_create', async (msg) => {
               total: 0
             }).returning('id');
             orderId = orderIdObj ? orderIdObj.id : null;
-            logger.info(`Membuat Order #${orderId} baru untuk customer terblokir.`);
+            logger.info(`Membuat Order #${orderId} baru untuk customer.`);
           }
 
           // Update customer CRM status
@@ -252,7 +257,7 @@ client.on('message_create', async (msg) => {
           const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
           emitEvent('customer_updated', updatedCustomer);
         } catch (err) {
-          logger.error('Gagal mem-parsing format order untuk customer terblokir:', err);
+          logger.error('Gagal mem-parsing format order untuk customer:', err);
         }
       }
       return;
