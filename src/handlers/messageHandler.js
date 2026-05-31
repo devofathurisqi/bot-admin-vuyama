@@ -207,7 +207,11 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
 
   // Query 1: Products table selector
   if (triggers.products) {
-    if (tokens.length > 0) {
+    const isBroadQuery = tokens.some(t => ['semua', 'all', 'daftar', 'list', 'apa aja', 'apa saja', 'koleksi', 'katalog', 'catalog', 'lengkap', 'pricelist', 'produk', 'product', 'barang', 'toko', 'jual', 'jualan'].includes(t)) || tokens.length === 0 || totalScore === 0;
+
+    if (isBroadQuery) {
+      products = await db('products').where('status', 'Tersedia').orderBy('id', 'asc');
+    } else if (tokens.length > 0) {
       // Find direct product category matches to pull complete category inventory
       const categoryMatch = ['mukena', 'hijab', 'label'].find(cat => 
         tokens.some(token => cat.includes(token) || token.includes(cat))
@@ -406,17 +410,14 @@ INFORMASI KHUSUS PENGIRIMAN GAMBAR PRODUK (PENTING):
 Setiap produk dalam database di bawah memiliki properti array \`images\` berisi path gambar.
 Kamu harus PROAKTIF mengirimkan gambar produk. JANGAN MENUNGGU customer meminta foto/gambar terlebih dahulu!
 Setiap kali kamu merekomendasikan produk, menjelaskan detail bahan/spesifikasi suatu produk (misal: membahas bahan Mukena MK-001, warna Hijab Segiempat, dll.), menawarkan pilihan stok yang ready, atau saat customer membicarakan produk tertentu yang gambarnya kita miliki di database, kamu WAJIB melampirkan gambar produk tersebut agar pelayanan terasa visual, premium, dan sangat menarik bagi pembeli.
-Caranya: Tambahkan tag khusus \`[SEND_IMAGE: <path_gambar>]\` di bagian paling akhir balasan kamu.
-Pilih salah satu path gambar yang valid dari array \`images\` milik produk bersangkutan. Jangan mengarang path gambar!
-Contoh: "Ini kak, mukena MK-001 bermotif cantik dengan bahan rayon premium yang super adem bgt itu kak... 😊 [SEND_IMAGE: /uploads/product-1717-unique.jpg]"
-Ingat: Kamu hanya bisa melampirkan maksimal 1 gambar per balasan chat.
+Jika produk yang kamu rekomendasikan memiliki lebih dari satu gambar dalam array \`images\` di database, kamu WAJIB melampirkan SEMUA path gambar tersebut! Jangan hanya mengirimkan satu!
+Caranya: Tambahkan beberapa tag khusus \`[SEND_IMAGE: <path_gambar>]\` berturut-turut di bagian paling akhir balasan kamu (contoh jika produk memiliki 3 gambar: \`[SEND_IMAGE: /uploads/img1.png] [SEND_IMAGE: /uploads/img2.png] [SEND_IMAGE: /uploads/img3.png]\`).
 
 INFORMASI KHUSUS PENGIRIMAN DOKUMEN PDF (PENTING):
-Jika customer meminta katalog, pricelist, daftar harga reseller, brosur, atau Kakak merasa customer sedang membutuhkan berkas PDF yang kita miliki di KNOWLEDGE BASE di bawah, kamu WAJIB melampirkan berkas dokumen tersebut!
+Jika customer meminta katalog, pricelist, daftar harga reseller, brosur, atau bertanya secara luas mengenai semua produk/koleksi kita ("mau tahu semua produk", "apa saja produknya", "minta daftar produk", dll.), kamu WAJIB menyertakan dokumen katalog/pricelist PDF yang kita miliki di KNOWLEDGE BASE di bawah! JANGAN PERNAH LUPA melampirkan berkas PDF ini untuk pertanyaan luas.
 Caranya: Tambahkan tag khusus \`[SEND_DOCUMENT: <path_dokumen>]\` di bagian paling akhir balasan kamu.
 Pilih salah satu path berkas yang valid dari list \`documents\` di KNOWLEDGE BASE di bawah. Jangan mengarang path berkas!
 Contoh: "Ini kak, silakan diunduh daftar harga pricelist reseller Vuyama terbaru ya kak... 😊 [SEND_DOCUMENT: /pdf/PRICELIST (KHUSUS RESELLER) Update Mei 2026.pdf]"
-Ingat: Kamu hanya bisa melampirkan maksimal 1 dokumen per balasan chat.
 
 INFORMASI KHUSUS MULTI-VARIAN & TIERED PRICING / GROSIR (PENTING):
 Setiap produk memiliki array \`variants\` (varian/jenis) dan array \`wholesale_tiers\` (aturan kuantitas grosir).
