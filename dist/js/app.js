@@ -714,7 +714,7 @@ window.App = () => {
                 {darkMode ? <Icons.Sun /> : <Icons.Moon />}
               </button>
             </div>
-          </</aside>
+          </aside>
         </div>
       )}
 
