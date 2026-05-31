@@ -1,0 +1,303 @@
+{
+  "metadata": {
+    "title": "Price List Produk, Label dan Packaging Vuyama",
+    "last_update": "April/Mei 2026",
+    "status": "Official PDF Extraction Backup"
+  },
+  "paket_reseller": [
+    {
+      "nama": "Reseller A",
+      "isi": "10 pc motif tryspan ultrafine, 100 Label kain/50 label akrilik, Free ziplock, Free jasa pemasangan",
+      "harga": "499.000"
+    },
+    {
+      "nama": "Reseller B",
+      "isi": "10 pc gana instan, 100 Label kain/50 label akrilik, Free plastik opp, Free jasa pemasangan",
+      "harga": "560.000"
+    },
+    {
+      "nama": "Reseller C",
+      "isi": "10 pc paris legend (paris jadul), 100 Label kain/50 label akrilik, Free plastik opp bersablon, Free jasa pemasangan",
+      "harga": "265.000"
+    },
+    {
+      "nama": "Reseller D",
+      "isi": "10 pc segiempat paris japan ori, 100 Label kain/50 label akrilik, Free plastik opp, Free jasa pemasangan",
+      "harga": "485.000"
+    },
+    {
+      "nama": "Reseller E",
+      "isi": "10 pc hawa instant, 100 Label kain/50 label akrilik, Free plastik opp, Free jasa pemasangan",
+      "harga": "445.000"
+    },
+    {
+      "nama": "Reseller F",
+      "isi": "3 pc mukena segenggam polos, 100 Label kain/50 label akrilik, Free plastik opp, Free jasa pemasangan",
+      "harga": "425.000"
+    },
+    {
+      "nama": "Reseller G",
+      "isi": "10 pc Pashmina Bamboo Spandex, 100 Label kain/50 label akrilik, Free plastik opp, Free jasa pemasangan",
+      "harga": "525.000"
+    },
+    {
+      "nama": "Reseller Legend",
+      "isi": "50 pc paris klasik (paris jadul), 100 Label kain/50 label akrilik, Free plastik sablon, Free hangtag, Free jasa pemasangan",
+      "harga": "925.000"
+    },
+    {
+      "nama": "Reseller Sultan",
+      "isi": "200 pc paris klasik (paris jadul), 200 Label kain/200 label akrilik, Free hangtag, Free plastik opp, Free jasa pemasangan",
+      "harga": "3.500.000"
+    },
+    {
+      "nama": "Paris Japan Legend",
+      "isi": "50 pc paris japan ori, 100 Label kain/50 label akrilik, Free plastik opp, Free hangtag, Free jasa pemasangan",
+      "harga": "1.865.000"
+    },
+    {
+      "nama": "Paris Japan Sultan",
+      "isi": "200 pc paris japan ori, 200 Label kain/200 label akrilik, Free hangtag, Free plastik opp, Free jasa pemasangan",
+      "harga": "6.850.000"
+    },
+    {
+      "nama": "Motif Sultan Random",
+      "isi": "100 pc hijab motif tryspan ultrafine ukuran standar (tidak boleh pilih), 100 Label akrilik, Free hangtag, Free ziplock custom, Free jasa pemasangan",
+      "harga": "3.800.000"
+    },
+    {
+      "nama": "Motif Sultan Request",
+      "isi": "100 pc hijab motif tryspan ultrafine ukuran standar (bebas pilih & mix), 100 Label akrilik, Free hangtag, Free ziplock custom, Free jasa pemasangan",
+      "harga": "3.900.000"
+    },
+    {
+      "nama": "Motif Agen Request",
+      "isi": "200 pc hijab motif tryspan ultrafine ukuran standar (bebas pilih & mix), 200 Label akrilik, Free hangtag, Free ziplock custom, Free jasa pemasangan",
+      "harga": "6.990.000"
+    }
+  ],
+  "hijab": [
+    {
+      "nama": "Paris Legend (Paris Basic Ori)",
+      "ukuran": "110x110 CM",
+      "harga_ecer": "29.000",
+      "harga_reseller_min10": "16.700",
+      "harga_agen_min200": "15.700",
+      "harga_partai_min800": "14.700"
+    },
+    {
+      "nama": "Paris Japan (Paris Japan Ori)",
+      "ukuran": "115x115 CM",
+      "harga_ecer": "49.000",
+      "harga_reseller_min10": "34.500",
+      "harga_agen_min200": "33.000",
+      "harga_partai_min800": "30.000"
+    },
+    {
+      "nama": "Motif Voal Tryspan Ultrafine",
+      "ukuran": "110x110 CM",
+      "harga_ecer": "79.000",
+      "harga_reseller_min10": "36.900",
+      "harga_agen_min200": "35.000",
+      "harga_partai_min800": "33.000"
+    },
+    {
+      "nama": "Paris Voilé",
+      "ukuran": "110x110 CM",
+      "material": "Cotton Voilé + Polyester",
+      "harga_ecer": "49.000",
+      "harga_reseller_min10": "23.500",
+      "harga_agen_min200": "21.500",
+      "harga_partai_min800": "20.500"
+    },
+    {
+      "nama": "Zoya Instant (Pashmina Instant with ciput)",
+      "material": "Bamboo Spandex",
+      "harga_ecer": "69.000",
+      "harga_reseller_min10": "47.500",
+      "harga_agen_min200": "46.000",
+      "harga_partai_min800": "45.000"
+    },
+    {
+      "nama": "Hawa Instan",
+      "material": "Bamboo Spandex",
+      "harga_ecer": "49.000",
+      "harga_reseller_min10": "35.500",
+      "harga_agen_min200": "34.000",
+      "harga_partai_min800": "33.000"
+    },
+    {
+      "nama": "Gana Instant",
+      "material": "Bamboo Spandex",
+      "harga_ecer": "55.000",
+      "harga_reseller_min10": "42.000",
+      "harga_agen_min200": "41.000",
+      "harga_partai_min800": "40.000"
+    },
+    {
+      "nama": "Pashmina Bamboo Spandex",
+      "material": "Bamboo Spandex",
+      "harga_ecer": "75.000",
+      "harga_reseller_min10": "42.500",
+      "harga_agen_min200": "41.000",
+      "harga_partai_min800": "40.000"
+    },
+    {
+      "nama": "Pashmina Printed Viscose",
+      "material": "Modal Viscose",
+      "harga_ecer": "99.000",
+      "harga_reseller_min10": "52.500",
+      "harga_agen_min200": "51.000",
+      "harga_partai_min800": "49.500"
+    },
+    {
+      "nama": "Slip On Bamboo",
+      "material": "Bamboo Spandex",
+      "harga_ecer": "40.000",
+      "harga_reseller_min10": "23.500",
+      "harga_agen_min200": "23.000",
+      "harga_partai_min800": "22.000"
+    },
+    {
+      "nama": "Pashmina Airtech Ultrasoft",
+      "material": "Bamboo Airtech",
+      "harga_ecer": "75.000",
+      "harga_reseller_min10": "52.000",
+      "harga_agen_min200": "51.000",
+      "harga_partai_min800": "49.000"
+    },
+    {
+      "nama": "Pashmina Modal Viscose",
+      "material": "Modal Viscose",
+      "harga_ecer": "59.000",
+      "harga_reseller_min10": "41.500",
+      "harga_agen_min200": "40.500",
+      "harga_partai_min800": "39.500"
+    },
+    {
+      "nama": "Pashmina Highlight Viscose (Highlight Textured)",
+      "harga_ecer": "79.000",
+      "harga_reseller_min10": "57.500",
+      "harga_agen_min200": "56.500",
+      "harga_partai_min800": "55.000"
+    }
+  ],
+  "inner": [
+    {
+      "nama": "Inner Tali (Ciput)",
+      "material": "Modal Tencel",
+      "harga_ecer": "25.000",
+      "harga_reseller_min10": "17.500",
+      "harga_agen_min200": "16.500",
+      "harga_partai_min800": "15.000"
+    }
+  ],
+  "mukena": [
+    {
+      "nama": "Segenggam Polos",
+      "material": "New Solite",
+      "harga_ecer": "169.000",
+      "harga_reseller_min3": "132.500",
+      "harga_reseller_min10": "127.500"
+    },
+    {
+      "nama": "Armani Lasercut",
+      "material": "Atasan Armani Ori, Bawahan Armani Velvet",
+      "harga_ecer": "279.000",
+      "harga_reseller_min3": "145.000",
+      "harga_reseller_min10": "142.000",
+      "harga_reseller_min50": "137.500"
+    },
+    {
+      "nama": "Armani Panel Printing",
+      "material": "Armani Panel (Bisa custom design sendiri)",
+      "harga_ecer": "349.000",
+      "harga_reseller_min3": "285.000",
+      "harga_reseller_min10": "265.000"
+    }
+  ],
+  "label_akrilik": {
+    "label_basic": {
+      "pilihan_warna": ["Silver", "Gold", "Copper", "Rosegold"],
+      "proses": "2-4 hari",
+      "minimal_order": "50 pcs",
+      "ukuran": [
+        { "dimensi": "1 X 2 CM", "harga": "800", "keterangan": "Muat 2 huruf, contoh: AB" },
+        { "dimensi": "1 X 3 CM", "harga": "1.000", "keterangan": "Satu kata, contoh: hijab" },
+        { "dimensi": "1 X 4 CM", "harga": "1.300", "keterangan": "2 kata, contoh: VUYAMA hijab" }
+      ]
+    },
+    "label_custom": {
+      "pilihan_warna": ["Silver", "Gold", "Rosegold"],
+      "proses": "4-8 hari",
+      "minimal_order": "50 pcs",
+      "tipe": [
+        { "jenis": "Inisial", "harga": "1.500/pc" },
+        { "jenis": "Outline", "harga": "2.500/pc" },
+        { "jenis": "Bulat Inisial", "harga": "1.500/pc" },
+        { "jenis": "Bulat Grafir", "harga": "1.500/pc" }
+      ]
+    }
+  },
+  "label_plat": {
+    "keterangan": "Ketebalan 0,3mm",
+    "harga": "1.800/pcs",
+    "minimal_order": "100 pcs",
+    "proses": "4-8 hari"
+  },
+  "label_kain": {
+    "proses": "4-8 hari",
+    "minimal_order": "1 roll (isi 150 pcs)",
+    "warna_dasar": ["Putih", "Cream"],
+    "warna_tinta": "Bebas",
+    "ukuran": [
+      { "lebar": "1.3 CM", "harga_per_roll": "90.000" },
+      { "lebar": "1.5 CM", "harga_per_roll": "95.000" },
+      { "lebar": "2 CM", "harga_per_roll": "100.000" }
+    ]
+  },
+  "packaging": {
+    "plastik_opp_polos": {
+      "harga": "FREE / Gratis"
+    },
+    "plastik_opp_sablon_custom": {
+      "harga": "95.000/100pcs",
+      "minimal_order": "100 pcs",
+      "proses": "7-10 hari",
+      "warna_tinta": "Bebas"
+    },
+    "ziplock_polos": {
+      "harga": "2.750/pcs"
+    },
+    "ziplock_sablon_custom": {
+      "harga": "3.300/pcs",
+      "minimal_order": "100 pcs",
+      "proses": "7-10 hari",
+      "warna_tinta": "Bebas"
+    },
+    "plastik_plong": {
+      "minimal_order": "100 pcs",
+      "proses": "7-10 hari",
+      "ukuran": [
+        { "dimensi": "15x22 CM", "harga": "1.100/pcs" },
+        { "dimensi": "20x30 CM", "harga": "1.400/pcs" },
+        { "dimensi": "30x40 CM", "harga": "1.750/pcs" },
+        { "dimensi": "35x50 CM", "harga": "1.950/pcs" }
+      ]
+    },
+    "hangtag": {
+      "bahan": "Art Carton 310gr",
+      "proses": "1-2 hari",
+      "minimal_order": "1 lembar (isi 50-70pcs tergantung ukuran)",
+      "warna_dan_ukuran": "Bebas, bisa pakai lebih dari satu warna",
+      "tipe": [
+        { "jenis": "1 Sisi", "harga_per_lembar": "15.000" },
+        { "jenis": "2 Sisi", "harga_per_lembar": "30.000" }
+      ]
+    }
+  },
+  "jasa_jahit_pasang_label": {
+    "tata_letak_jahit": ["Siku", "Sudut", "Lipat", "Siku Tengah"],
+    "biaya_pasang": "1.000/pcs"
+  }
+}
