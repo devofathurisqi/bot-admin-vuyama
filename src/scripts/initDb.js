@@ -40,6 +40,8 @@ const initDb = async () => {
       table.integer('stock').defaultTo(0);
       table.string('image'); // Link to image
       table.string('status').defaultTo('Active');
+      table.jsonb('variants').defaultTo('[]');
+      table.jsonb('wholesale_tiers').defaultTo('[]');
       table.timestamps(true, true);
     });
     logger.info('Table "products" created');

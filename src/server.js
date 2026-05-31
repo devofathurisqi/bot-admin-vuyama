@@ -136,7 +136,9 @@ app.get('/api/products', async (req, res) => {
       price_retail: parseFloat(p.price_retail),
       price_reseller: parseFloat(p.price_reseller),
       color: typeof p.color === 'string' ? JSON.parse(p.color) : p.color,
-      size: typeof p.size === 'string' ? JSON.parse(p.size) : p.size
+      size: typeof p.size === 'string' ? JSON.parse(p.size) : p.size,
+      variants: typeof p.variants === 'string' ? JSON.parse(p.variants) : (p.variants || []),
+      wholesale_tiers: typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers) : (p.wholesale_tiers || [])
     }));
 
     res.json({
@@ -155,7 +157,7 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   try {
-    const { id, name, category, sub_category, description, price_retail, price_reseller, color, size, material, weight, stock, image, status } = req.body;
+    const { id, name, category, sub_category, description, price_retail, price_reseller, color, size, material, weight, stock, image, status, variants, wholesale_tiers } = req.body;
     
     const existing = await db('products').where('id', id).first();
     if (existing) {
@@ -176,13 +178,15 @@ app.post('/api/products', async (req, res) => {
       weight: parseInt(weight) || 0,
       stock: parseInt(stock) || 0,
       image,
-      status: status || 'Tersedia'
+      status: status || 'Tersedia',
+      variants: JSON.stringify(variants || []),
+      wholesale_tiers: JSON.stringify(wholesale_tiers || [])
     };
 
     await db('products').insert(payload);
     await db('audit_logs').insert({ action: 'CREATE_PRODUCT', details: `Created product: ${id} - ${name}` });
 
-    res.json({ success: true, data: { ...payload, color, size } });
+    res.json({ success: true, data: { ...payload, color, size, variants, wholesale_tiers } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -191,7 +195,7 @@ app.post('/api/products', async (req, res) => {
 app.put('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, category, sub_category, description, price_retail, price_reseller, color, size, material, weight, stock, image, status } = req.body;
+    const { name, category, sub_category, description, price_retail, price_reseller, color, size, material, weight, stock, image, status, variants, wholesale_tiers } = req.body;
 
     const payload = {
       name,
@@ -207,13 +211,15 @@ app.put('/api/products/:id', async (req, res) => {
       stock: parseInt(stock) || 0,
       image,
       status: status || 'Tersedia',
+      variants: JSON.stringify(variants || []),
+      wholesale_tiers: JSON.stringify(wholesale_tiers || []),
       updated_at: new Date()
     };
 
     await db('products').where('id', id).update(payload);
     await db('audit_logs').insert({ action: 'UPDATE_PRODUCT', details: `Updated product: ${id}` });
 
-    res.json({ success: true, data: { id, ...payload, color, size } });
+    res.json({ success: true, data: { id, ...payload, color, size, variants, wholesale_tiers } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

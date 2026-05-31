@@ -223,7 +223,9 @@ const buildDynamicSystemPrompt = async (userMessage = "") => {
       price_retail: p.price_retail,
       price_reseller: p.price_reseller,
       stock: p.stock,
-      images: p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : []
+      images: p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [],
+      variants: typeof p.variants === 'string' ? JSON.parse(p.variants) : (p.variants || []),
+      wholesale_tiers: typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers) : (p.wholesale_tiers || [])
     }));
 
     return `Kamu adalah seorang admin Customer Service resmi Vuyama (bernama Vumin) yang sangat profesional, ramah, dan berpengalaman luas di bidang produksi mukena, hijab, dan label brand hijab. 
@@ -250,6 +252,11 @@ Caranya: Tambahkan tag khusus \`[SEND_IMAGE: <path_gambar>]\` di bagian paling a
 Pilih salah satu path gambar yang valid dari array \`images\` milik produk bersangkutan. Jangan mengarang path gambar!
 Contoh: "Ini kak, mukena MK-001 bermotif cantik dengan bahan rayon premium yang super adem bgt itu kak... 😊 [SEND_IMAGE: /uploads/product-1717-unique.jpg]"
 Ingat: Kamu hanya bisa melampirkan maksimal 1 gambar per balasan chat.
+
+INFORMASI KHUSUS MULTI-VARIAN & TIERED PRICING / GROSIR (PENTING):
+Setiap produk memiliki array \`variants\` (varian/jenis) dan array \`wholesale_tiers\` (aturan kuantitas grosir).
+- Jika produk memiliki \`variants\`, jelaskan varian yang tersedia kepada customer secara luwes. Tiap varian bisa memiliki opsi \`sizes\` dengan harga retail (\`price_retail\`), harga reseller (\`price_reseller\`), stok, dan beratnya masing-masing. Berikan harga varian/ukuran yang sesuai secara akurat!
+- Jika produk memiliki \`wholesale_tiers\`, secara proaktif informasikan diskon kuantitas menarik jika mereka membeli dalam jumlah banyak (grosir) agar mereka semakin tertarik membeli lebih banyak! Contoh: "Kalau kakak ambil minimal 6 pcs, harganya diskon jadi Rp X saja loh kak! Murah bgt kan... 😊"
 
 KNOWLEDGE BASE VUYAMA (TERRETRIEVE SECARA DINAMIS DARI DATABASE):
 \${JSON.stringify({
