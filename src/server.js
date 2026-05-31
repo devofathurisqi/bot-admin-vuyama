@@ -419,8 +419,8 @@ app.put('/api/orders/:id', async (req, res) => {
     // Notify
     const updatedOrder = await db('orders').where('id', id).first();
     
-    // Unblock customer ONLY when order is COMPLETED or CANCELLED
-    if (status && ['COMPLETED', 'CANCELLED'].includes(status)) {
+    // Unblock customer ONLY when order is COMPLETED
+    if (status && status === 'COMPLETED') {
       if (updatedOrder && updatedOrder.phone_number) {
         await db('blocked_numbers').where('phone_number', updatedOrder.phone_number).del();
         await db('customers').where('phone_number', updatedOrder.phone_number).update({
