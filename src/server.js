@@ -65,14 +65,16 @@ const uploadProductImg = multer({ storage: productImgStorage });
 // General Media Gallery Storage (saves to media/others, but routes color stock uploads to color_stock)
 const galleryStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    if (file.originalname.toLowerCase().includes('color stock')) {
+    const isColorStock = file.originalname.toLowerCase().includes('color stock') || file.originalname.toLowerCase().includes('color_stock') || (req.body && req.body.tag === 'color_stock');
+    if (isColorStock) {
       cb(null, colorStockMediaDir);
     } else {
       cb(null, othersMediaDir);
     }
   },
   filename: (req, file, cb) => {
-    if (file.originalname.toLowerCase().includes('color stock')) {
+    const isColorStock = file.originalname.toLowerCase().includes('color stock') || file.originalname.toLowerCase().includes('color_stock') || (req.body && req.body.tag === 'color_stock');
+    if (isColorStock) {
       // Preserve original name so it overwrites harian color stocks perfectly!
       cb(null, file.originalname);
     } else {
@@ -722,13 +724,88 @@ app.delete('/api/blocked-numbers/:phoneNumber', async (req, res) => {
 // 8. Media Gallery API
 app.get('/api/media', async (req, res) => {
   try {
-    const { tag } = req.query;
-    let query = db('media_gallery');
-    if (tag) {
-      query = query.where('tag', tag);
+    const colorStockDir = path.join(__dirname, '../data/media/color_stock');
+    const othersDir = path.join(__dirname, '../data/media/others');
+    
+    let filesList = [];
+    
+    // Scan color_stock
+    if (fs.existsSync(colorStockDir)) {
+      try {
+        const files = fs.readdirSync(colorStockDir);
+        files.forEach(f => {
+          const filePath = path.join(colorStockDir, f);
+          if (fs.statSync(filePath).isFile()) {
+            const stats = fs.statSync(filePath);
+            filesList.push({
+              id: 'color-stock-' + f,
+              filename: f,
+              original_name: f,
+              filepath: `/media/color_stock/${f}`,
+              mime_type: f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
+              size: stats.size,
+              tag: 'color_stock',
+              created_at: stats.mtime
+            });
+          }
+        });
+      } catch (err) {
+        logger.error('Error scanning color_stock:', err);
+      }
     }
-    const media = await query.orderBy('created_at', 'desc');
-    res.json({ success: true, data: media });
+    
+    // Scan others
+    if (fs.existsSync(othersDir)) {
+      try {
+        const files = fs.readdirSync(othersDir);
+        files.forEach(f => {
+          const filePath = path.join(othersDir, f);
+          if (fs.statSync(filePath).isFile()) {
+            const stats = fs.statSync(filePath);
+            filesList.push({
+              id: 'others-' + f,
+              filename: f,
+              original_name: f,
+              filepath: `/media/others/${f}`,
+              mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+              size: stats.size,
+              tag: 'others',
+              created_at: stats.mtime
+            });
+          }
+        });
+      } catch (err) {
+        logger.error('Error scanning others:', err);
+      }
+    }
+    
+    // Also include any generic files in root data/media if any
+    const mediaDir = path.join(__dirname, '../data/media');
+    if (fs.existsSync(mediaDir)) {
+      try {
+        const files = fs.readdirSync(mediaDir);
+        files.forEach(f => {
+          const filePath = path.join(mediaDir, f);
+          if (fs.statSync(filePath).isFile()) {
+            const stats = fs.statSync(filePath);
+            filesList.push({
+              id: 'media-' + f,
+              filename: f,
+              original_name: f,
+              filepath: `/media/${f}`,
+              mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+              size: stats.size,
+              tag: 'others',
+              created_at: stats.mtime
+            });
+          }
+        });
+      } catch (err) {
+        // Safe to ignore
+      }
+    }
+    
+    res.json({ success: true, data: filesList });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -741,20 +818,24 @@ app.post('/api/media/upload', uploadGalleryFile.single('file'), async (req, res)
     }
     const { tag } = req.body;
     
+    const isColorStock = req.file.destination.includes('color_stock');
+    const finalTag = isColorStock ? 'color_stock' : (tag || 'general');
+    const filepath = isColorStock ? `/media/color_stock/${req.file.filename}` : `/media/others/${req.file.filename}`;
+    
     const payload = {
       filename: req.file.filename,
       original_name: req.file.originalname,
-      filepath: `/media/others/${req.file.filename}`,
+      filepath: filepath,
       mime_type: req.file.mimetype,
       size: req.file.size,
-      tag: tag || 'general'
+      tag: finalTag
     };
 
     const [inserted] = await db('media_gallery').insert(payload).returning('*');
 
     await db('audit_logs').insert({
       action: 'UPLOAD_MEDIA',
-      details: `Uploaded media: ${req.file.originalname} as tag ${tag}`
+      details: `Uploaded media: ${req.file.originalname} to folder ${isColorStock ? 'color_stock' : 'others'}`
     });
 
     res.json({ success: true, data: inserted });
@@ -766,21 +847,38 @@ app.post('/api/media/upload', uploadGalleryFile.single('file'), async (req, res)
 app.delete('/api/media/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const media = await db('media_gallery').where('id', id).first();
-    if (!media) {
-      return res.status(404).json({ success: false, error: 'Media not found.' });
-    }
-
-    // Delete from disk
-    const diskPath = path.join(__dirname, '../data/media/others', media.filename);
-    if (fs.existsSync(diskPath)) {
-      fs.unlinkSync(diskPath);
-    }
-
-    // Delete from DB
-    await db('media_gallery').where('id', id).del();
     
-    res.json({ success: true });
+    let filename = '';
+    let subFolder = '';
+    
+    if (String(id).startsWith('color-stock-')) {
+      filename = String(id).replace('color-stock-', '');
+      subFolder = 'color_stock';
+    } else if (String(id).startsWith('others-')) {
+      filename = String(id).replace('others-', '');
+      subFolder = 'others';
+    } else if (String(id).startsWith('media-')) {
+      filename = String(id).replace('media-', '');
+      subFolder = '';
+    } else {
+      // Fallback to database query if numeric ID
+      const media = await db('media_gallery').where('id', id).first();
+      if (media) {
+        filename = media.filename;
+        subFolder = media.filepath.includes('/others/') ? 'others' : (media.filepath.includes('/color_stock/') ? 'color_stock' : '');
+        await db('media_gallery').where('id', id).del();
+      }
+    }
+    
+    if (filename) {
+      const diskPath = path.join(__dirname, '../data/media', subFolder, filename);
+      if (fs.existsSync(diskPath)) {
+        fs.unlinkSync(diskPath);
+      }
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ success: false, error: 'Media not found.' });
+    }
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

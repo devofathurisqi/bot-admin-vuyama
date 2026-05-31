@@ -12,7 +12,7 @@ window.MediaTab = ({
 }) => {
   if (activeTab !== 'media') return null;
 
-  const [mediaSubTab, setMediaSubTab] = React.useState('gallery'); // 'gallery' or 'colors'
+  const [mediaSubTab, setMediaSubTab] = React.useState('color_stock'); // 'color_stock', 'gallery', or 'colors'
   const [newColorName, setNewColorName] = React.useState('');
   const [newColorCategory, setNewColorCategory] = React.useState('Mukena');
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -67,6 +67,17 @@ window.MediaTab = ({
         {/* Sub-tab Switcher Buttons */}
         <div className="p-1 rounded-xl bg-gray-100 dark:bg-darkbg-card border border-darkbg-border flex items-center space-x-1 shrink-0 w-fit self-start md:self-auto">
           <button
+            onClick={() => setMediaSubTab('color_stock')}
+            className={`px-4 py-2 rounded-lg font-bold text-xs transition duration-200 flex items-center space-x-2 ${
+              mediaSubTab === 'color_stock'
+                ? 'bg-white dark:bg-gray-800 text-brand-500 dark:text-white shadow-sm'
+                : 'text-gray-500 hover:text-gray-700 dark:hover:text-white'
+            }`}
+          >
+            <Icons.Palette />
+            <span>Color Stock</span>
+          </button>
+          <button
             onClick={() => setMediaSubTab('gallery')}
             className={`px-4 py-2 rounded-lg font-bold text-xs transition duration-200 flex items-center space-x-2 ${
               mediaSubTab === 'gallery'
@@ -75,7 +86,7 @@ window.MediaTab = ({
             }`}
           >
             <Icons.Folder />
-            <span>General Gallery</span>
+            <span>Others</span>
           </button>
           <button
             onClick={() => setMediaSubTab('colors')}
@@ -85,39 +96,103 @@ window.MediaTab = ({
                 : 'text-gray-500 hover:text-gray-700 dark:hover:text-white'
             }`}
           >
-            <Icons.Palette />
+            <Icons.Check />
             <span>Stock Color Board</span>
           </button>
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* 1. GENERAL GALLERY SUB-TAB */}
+      {/* 1A. COLOR STOCK FILES SUB-TAB */}
+      {/* ============================================================== */}
+      {mediaSubTab === 'color_stock' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-extrabold text-gray-750 dark:text-gray-200 flex items-center space-x-2">
+              <span className="w-1.5 h-3 rounded bg-indigo-500"></span>
+              <span>Color Stock Compilation Folder (`data/media/color_stock`)</span>
+            </h3>
+            <button
+              onClick={() => {
+                galleryInputRef.current.tagToUpload = 'color_stock';
+                galleryInputRef.current.click();
+              }}
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg shadow-indigo-500/15 flex items-center space-x-2 transition"
+            >
+              <Icons.Upload />
+              <span>Upload Color Stock File</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6 text-gray-800 dark:text-gray-250">
+            {media.filter(item => item.tag === 'color_stock').map(item => (
+              <div key={item.id} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between group">
+                
+                {/* File Preview */}
+                <div className="h-32 bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
+                  <img src={item.filepath} alt={item.original_name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] font-extrabold bg-indigo-600/90 text-white uppercase tracking-wide">
+                    Color Stock
+                  </span>
+                </div>
+
+                {/* File Meta */}
+                <div className="p-3.5 space-y-1">
+                  <h4 className="font-bold text-xs truncate text-gray-850 dark:text-white" title={item.original_name}>{item.original_name}</h4>
+                  <span className="text-[9px] text-gray-500 font-semibold">{(item.size / 1024).toFixed(1)} KB</span>
+                </div>
+
+                {/* Copy URL & Delete */}
+                <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between shrink-0">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.origin + item.filepath);
+                      alert('Link media stock warna berhasil dicopy!');
+                    }}
+                    className="px-2.5 py-1 rounded text-[9px] font-extrabold bg-gray-850 dark:bg-gray-800 text-gray-400 hover:text-white transition"
+                  >
+                    Copy Link
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMedia(item.id)}
+                    className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 transition"
+                  >
+                    <Icons.Trash />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {media.filter(item => item.tag === 'color_stock').length === 0 && (
+              <p className="col-span-full p-12 text-center text-gray-500">Belum ada file stock warna terunggah di folder `color_stock`.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 1B. OTHERS FILES GALLERY SUB-TAB */}
       {/* ============================================================== */}
       {mediaSubTab === 'gallery' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-extrabold text-gray-750 dark:text-gray-200 flex items-center space-x-2">
               <span className="w-1.5 h-3 rounded bg-brand-500"></span>
-              <span>General Files Gallery</span>
+              <span>Others Files Gallery (`data/media/others`)</span>
             </h3>
             <button
-              onClick={() => galleryInputRef.current.click()}
+              onClick={() => {
+                galleryInputRef.current.tagToUpload = 'general';
+                galleryInputRef.current.click();
+              }}
               className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition"
             >
               <Icons.Upload />
               <span>Upload Media File</span>
             </button>
-            <input
-              type="file"
-              ref={galleryInputRef}
-              onChange={handleMediaUpload}
-              className="hidden"
-            />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6 text-gray-800 dark:text-gray-250">
-            {media.map(item => (
+            {media.filter(item => item.tag !== 'color_stock').map(item => (
               <div key={item.id} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between group">
                 
                 {/* File Preview */}
@@ -159,7 +234,7 @@ window.MediaTab = ({
                 </div>
               </div>
             ))}
-            {media.length === 0 && (
+            {media.filter(item => item.tag !== 'color_stock').length === 0 && (
               <p className="col-span-full p-12 text-center text-gray-500">Belum ada file terunggah.</p>
             )}
           </div>
@@ -359,7 +434,12 @@ window.MediaTab = ({
           </div>
         </div>
       )}
-
+      <input
+        type="file"
+        ref={galleryInputRef}
+        onChange={handleMediaUpload}
+        className="hidden"
+      />
     </div>
   );
 };

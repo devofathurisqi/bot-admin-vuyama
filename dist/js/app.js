@@ -588,10 +588,10 @@ window.App = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const tag = prompt('Masukkan tag media (opsional: product, label, catalog, general):', 'general');
+    const chosenTag = galleryInputRef.current.tagToUpload || 'general';
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('tag', tag);
+    formData.append('tag', chosenTag);
 
     try {
       const res = await fetch('/api/media/upload', {
