@@ -25,9 +25,14 @@ app.use(express.urlencoded({ extended: true }));
 const uploadDir = path.join(__dirname, '../learn/images');
 const mediaDir = path.join(__dirname, '../data/media');
 const pdfDir = path.join(__dirname, '../data/pdf');
+const colorStockMediaDir = path.join(mediaDir, 'color_stock');
+const othersMediaDir = path.join(mediaDir, 'others');
+
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
 if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
+if (!fs.existsSync(colorStockMediaDir)) fs.mkdirSync(colorStockMediaDir, { recursive: true });
+if (!fs.existsSync(othersMediaDir)) fs.mkdirSync(othersMediaDir, { recursive: true });
 
 // Serve Static Uploads & PDFs
 app.use('/uploads', express.static(uploadDir));
@@ -57,17 +62,39 @@ const productImgStorage = multer.diskStorage({
 });
 const uploadProductImg = multer({ storage: productImgStorage });
 
+// General Media Gallery Storage (saves to media/others, but routes color stock uploads to color_stock)
 const galleryStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, mediaDir);
+    if (file.originalname.toLowerCase().includes('color stock')) {
+      cb(null, colorStockMediaDir);
+    } else {
+      cb(null, othersMediaDir);
+    }
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, 'media-' + uniqueSuffix + ext);
+    if (file.originalname.toLowerCase().includes('color stock')) {
+      // Preserve original name so it overwrites harian color stocks perfectly!
+      cb(null, file.originalname);
+    } else {
+      const ext = path.extname(file.originalname);
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      cb(null, 'media-' + uniqueSuffix + ext);
+    }
   }
 });
 const uploadGalleryFile = multer({ storage: galleryStorage });
+
+// Stock Colors Specific Storage (saves to media/color_stock and preserves original filename)
+const stockColorStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, colorStockMediaDir);
+  },
+  filename: (req, file, cb) => {
+    // Preserve original filename to allow overwrites and matching
+    cb(null, file.originalname);
+  }
+});
+const uploadStockColorFile = multer({ storage: stockColorStorage });
 
 /**
  * Realtime Logger Helper to store logs in PostgreSQL and broadcast to clients
@@ -717,7 +744,7 @@ app.post('/api/media/upload', uploadGalleryFile.single('file'), async (req, res)
     const payload = {
       filename: req.file.filename,
       original_name: req.file.originalname,
-      filepath: `/media/${req.file.filename}`,
+      filepath: `/media/others/${req.file.filename}`,
       mime_type: req.file.mimetype,
       size: req.file.size,
       tag: tag || 'general'
@@ -745,7 +772,7 @@ app.delete('/api/media/:id', async (req, res) => {
     }
 
     // Delete from disk
-    const diskPath = path.join(__dirname, '../data/media', media.filename);
+    const diskPath = path.join(__dirname, '../data/media/others', media.filename);
     if (fs.existsSync(diskPath)) {
       fs.unlinkSync(diskPath);
     }
@@ -774,13 +801,13 @@ app.get('/api/stock-colors', async (req, res) => {
   }
 });
 
-app.post('/api/stock-colors', uploadGalleryFile.single('file'), async (req, res) => {
+app.post('/api/stock-colors', uploadStockColorFile.single('file'), async (req, res) => {
   try {
     const { color_name, category, is_ready } = req.body;
     let image_path = '';
 
     if (req.file) {
-      image_path = `/media/${req.file.filename}`;
+      image_path = `/media/color_stock/${req.file.filename}`;
     } else if (req.body.image_path) {
       image_path = req.body.image_path;
     } else {
@@ -851,7 +878,9 @@ app.delete('/api/stock-colors/:id', async (req, res) => {
     // Delete file from disk if it was uploaded
     if (original.image_path.startsWith('/media/')) {
       const filename = path.basename(original.image_path);
-      const diskPath = path.join(__dirname, '../data/media', filename);
+      // Determine the directory from image_path or fallback to color_stock
+      const subFolder = original.image_path.includes('/color_stock/') ? 'color_stock' : (original.image_path.includes('/others/') ? 'others' : '');
+      const diskPath = path.join(__dirname, '../data/media', subFolder, filename);
       if (fs.existsSync(diskPath)) {
         fs.unlinkSync(diskPath);
       }
@@ -866,6 +895,69 @@ app.delete('/api/stock-colors/:id', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 8c. Sync Color Stock Information to pdf_knowledge_backup.json
+app.post('/api/stock-colors/sync-knowledge', async (req, res) => {
+  try {
+    const backupPath = path.join(__dirname, '../data/pdf_knowledge_backup.json');
+    let backupData = {};
+    if (fs.existsSync(backupPath)) {
+      try {
+        backupData = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+      } catch (err) {
+        logger.error('Error parsing pdf_knowledge_backup:', err);
+      }
+    }
+
+    if (!backupData.metadata) {
+      backupData.metadata = {
+        title: "Price List Produk, Label dan Packaging Vuyama",
+        status: "Official PDF Extraction Backup"
+      };
+    }
+
+    // Fetch latest stock colors from database
+    const dbColors = await db('stock_colors').orderBy('color_name', 'asc');
+
+    // Fetch latest color stock files from directory
+    let colorStockFiles = [];
+    const colorStockDir = path.join(__dirname, '../data/media/color_stock');
+    if (fs.existsSync(colorStockDir)) {
+      const files = fs.readdirSync(colorStockDir);
+      colorStockFiles = files.filter(f => f.toLowerCase().endsWith('.jpeg') || f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png')).map(f => {
+        let baseProductName = f.replace(/\s+Color\s+Stock\.[a-zA-Z0-9]+$/i, '').trim();
+        return {
+          filename: f,
+          product_name: baseProductName,
+          path: `/media/color_stock/${f}`
+        };
+      });
+    }
+
+    // Update backupData keys
+    backupData.stock_colors = dbColors.map(c => ({
+      color_name: c.color_name,
+      category: c.category,
+      is_ready: c.is_ready,
+      image_path: c.image_path
+    }));
+    backupData.color_stock_files = colorStockFiles;
+    backupData.metadata.last_update = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    // Write updated JSON back to disk
+    fs.writeFileSync(backupPath, JSON.stringify(backupData, null, 2), 'utf8');
+
+    await db('audit_logs').insert({
+      action: 'SYNC_KNOWLEDGE_COLORS',
+      details: 'Synchronized stock colors information to pdf_knowledge_backup'
+    });
+
+    res.json({ success: true, message: 'Stock colors successfully synced to pdf_knowledge_backup.' });
+  } catch (error) {
+    logger.error('Error syncing stock colors knowledge:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

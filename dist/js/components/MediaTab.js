@@ -7,7 +7,8 @@ window.MediaTab = ({
   stockColors = [],
   handleCreateStockColor,
   handleToggleStockColorStatus,
-  handleDeleteStockColor
+  handleDeleteStockColor,
+  handleSyncKnowledge
 }) => {
   if (activeTab !== 'media') return null;
 
@@ -176,13 +177,24 @@ window.MediaTab = ({
               <span>Stock Color Swatch Board</span>
             </h3>
             
-            <button
-              onClick={() => setIsFormOpen(!isFormOpen)}
-              className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition self-end sm:self-auto"
-            >
-              <span>{isFormOpen ? 'Tutup Form' : 'Tambah Swatch Warna'}</span>
-              <Icons.Plus className={`transform transition duration-200 ${isFormOpen ? 'rotate-45' : ''}`} />
-            </button>
+            <div className="flex items-center space-x-2 self-end sm:self-auto">
+              <button
+                onClick={handleSyncKnowledge}
+                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/15 flex items-center space-x-2 transition"
+                title="Sinkronisasi Informasi Stok Warna ke Backup Wawasan AI"
+              >
+                <Icons.Refresh className="w-4 h-4" />
+                <span>Sync Knowledge</span>
+              </button>
+              
+              <button
+                onClick={() => setIsFormOpen(!isFormOpen)}
+                className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition"
+              >
+                <span>{isFormOpen ? 'Tutup Form' : 'Tambah Swatch Warna'}</span>
+                <Icons.Plus className={`transform transition duration-200 ${isFormOpen ? 'rotate-45' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {/* Form to Add Swatch Color */}

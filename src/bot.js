@@ -306,22 +306,32 @@ client.on('message_create', async (msg) => {
         if (imagePath.startsWith('/uploads/')) {
           absolutePath = path.join(__dirname, '../learn/images', path.basename(imagePath));
         } else if (imagePath.startsWith('/media/')) {
-          absolutePath = path.join(__dirname, '../data/media', path.basename(imagePath));
+          const rel = imagePath.replace(/^\/media\/?/, '');
+          absolutePath = path.join(__dirname, '../data/media', rel);
         } else {
           const p1 = path.join(__dirname, '../learn/images', path.basename(imagePath));
           const p2 = path.join(__dirname, '../data/media', path.basename(imagePath));
+          const p3 = path.join(__dirname, '../data/media/color_stock', path.basename(imagePath));
+          const p4 = path.join(__dirname, '../data/media/others', path.basename(imagePath));
           if (fs.existsSync(p1)) absolutePath = p1;
           else if (fs.existsSync(p2)) absolutePath = p2;
+          else if (fs.existsSync(p3)) absolutePath = p3;
+          else if (fs.existsSync(p4)) absolutePath = p4;
         }
 
         if (absolutePath && fs.existsSync(absolutePath)) {
           try {
             const media = MessageMedia.fromFilePath(absolutePath);
-            const mediaMsg = await client.sendMessage(phoneNumber, media);
+            let caption = '';
+            if (imagePath.includes('/color_stock/')) {
+              const productName = path.basename(imagePath).replace(/\s+Color\s+Stock\.[a-zA-Z0-9]+$/i, '').trim();
+              caption = `Pilihan stok warna harian untuk ${productName} kak... 😊`;
+            }
+            const mediaMsg = await client.sendMessage(phoneNumber, media, caption ? { caption } : undefined);
             if (!sentMsg) sentMsg = mediaMsg;
             sentImages.push(imagePath);
             sentMediaCount++;
-            logger.info(`Bot mengirim gambar "${imagePath}" ke ${phoneNumber}`);
+            logger.info(`Bot mengirim gambar "${imagePath}" dengan caption "${caption}" ke ${phoneNumber}`);
           } catch (mediaErr) {
             logger.error(`Gagal mengirim gambar dari path ${absolutePath}:`, mediaErr);
           }

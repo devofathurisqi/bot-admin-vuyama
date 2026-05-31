@@ -664,6 +664,22 @@ window.App = () => {
     } catch (e) { }
   };
 
+  const handleSyncKnowledge = async () => {
+    try {
+      const res = await fetch('/api/stock-colors/sync-knowledge', {
+        method: 'POST'
+      });
+      const d = await res.json();
+      if (d.success) {
+        showToast('Sinkronisasi wawasan stok warna kain ke AI sukses! 🎉');
+      } else {
+        showToast(d.error || 'Gagal sinkronisasi wawasan.', 'error');
+      }
+    } catch (e) {
+      showToast('Gagal sinkronisasi wawasan.', 'error');
+    }
+  };
+
   // CRM Pinned / Status Updates
   const togglePinCustomer = async (phone, isPinned) => {
     try {
@@ -952,6 +968,7 @@ window.App = () => {
             handleCreateStockColor={handleCreateStockColor}
             handleToggleStockColorStatus={handleToggleStockColorStatus}
             handleDeleteStockColor={handleDeleteStockColor}
+            handleSyncKnowledge={handleSyncKnowledge}
           />
           <LogsTab
             activeTab={activeTab}
