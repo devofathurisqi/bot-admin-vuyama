@@ -167,6 +167,18 @@ const initDb = async () => {
     });
     logger.info('Table "media_gallery" created');
 
+    // 11b. Stock Colors Table
+    await db.schema.createTable('stock_colors', (table) => {
+      table.increments('id').primary();
+      table.string('color_name').notNullable();
+      table.string('category').nullable();
+      table.string('image_path').notNullable();
+      table.boolean('is_ready').defaultTo(true);
+      table.timestamp('created_at').defaultTo(db.fn.now());
+      table.timestamp('updated_at').defaultTo(db.fn.now());
+    });
+    logger.info('Table "stock_colors" created');
+
     // 12. Bot Logs Table
     await db.schema.createTable('bot_logs', (table) => {
       table.increments('id').primary();

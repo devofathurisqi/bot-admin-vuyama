@@ -28,6 +28,7 @@ window.App = () => {
   const [complaints, setComplaints] = useState([]);
   const [blockedNumbers, setBlockedNumbers] = useState([]);
   const [media, setMedia] = useState([]);
+  const [stockColors, setStockColors] = useState([]);
   const [logs, setLogs] = useState([]);
   const [settings, setSettings] = useState({ company: [], reseller: [], services: [], escalationKeywords: '' });
 
@@ -184,6 +185,14 @@ window.App = () => {
     } catch (e) { }
   };
 
+  const fetchStockColors = async () => {
+    try {
+      const res = await fetch('/api/stock-colors');
+      const d = await res.json();
+      if (d.success) setStockColors(d.data);
+    } catch (e) { }
+  };
+
   const fetchLogs = async () => {
     try {
       const res = await fetch('/api/logs');
@@ -229,6 +238,7 @@ window.App = () => {
     fetchComplaints();
     fetchBlockedNumbers();
     fetchMedia();
+    fetchStockColors();
     fetchLogs();
     fetchSettings();
 
@@ -607,6 +617,53 @@ window.App = () => {
     } catch (e) { }
   };
 
+  const handleCreateStockColor = async (formData) => {
+    try {
+      const res = await fetch('/api/stock-colors', {
+        method: 'POST',
+        body: formData
+      });
+      const d = await res.json();
+      if (d.success) {
+        showToast('Warna stok berhasil ditambahkan!');
+        fetchStockColors();
+      } else {
+        showToast(d.error || 'Gagal menambahkan warna stok.', 'error');
+      }
+    } catch (e) {
+      showToast('Gagal menambahkan warna stok.', 'error');
+    }
+  };
+
+  const handleToggleStockColorStatus = async (id, currentReady) => {
+    try {
+      const res = await fetch(`/api/stock-colors/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_ready: !currentReady })
+      });
+      const d = await res.json();
+      if (d.success) {
+        showToast('Status warna stok berhasil diperbarui!');
+        fetchStockColors();
+      }
+    } catch (e) { }
+  };
+
+  const handleDeleteStockColor = async (id) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus warna stok ini?')) return;
+    try {
+      const res = await fetch(`/api/stock-colors/${id}`, {
+        method: 'DELETE'
+      });
+      const d = await res.json();
+      if (d.success) {
+        showToast('Warna stok berhasil dihapus.');
+        fetchStockColors();
+      }
+    } catch (e) { }
+  };
+
   // CRM Pinned / Status Updates
   const togglePinCustomer = async (phone, isPinned) => {
     try {
@@ -891,6 +948,10 @@ window.App = () => {
             galleryInputRef={galleryInputRef}
             handleMediaUpload={handleMediaUpload}
             handleDeleteMedia={handleDeleteMedia}
+            stockColors={stockColors}
+            handleCreateStockColor={handleCreateStockColor}
+            handleToggleStockColorStatus={handleToggleStockColorStatus}
+            handleDeleteStockColor={handleDeleteStockColor}
           />
           <LogsTab
             activeTab={activeTab}

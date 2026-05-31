@@ -759,6 +759,117 @@ app.delete('/api/media/:id', async (req, res) => {
   }
 });
 
+// 8b. Stock Colors Swatch Board API
+app.get('/api/stock-colors', async (req, res) => {
+  try {
+    const { category } = req.query;
+    let query = db('stock_colors');
+    if (category) {
+      query = query.whereILike('category', `%${category}%`);
+    }
+    const colors = await query.orderBy('created_at', 'desc');
+    res.json({ success: true, data: colors });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/stock-colors', uploadGalleryFile.single('file'), async (req, res) => {
+  try {
+    const { color_name, category, is_ready } = req.body;
+    let image_path = '';
+
+    if (req.file) {
+      image_path = `/media/${req.file.filename}`;
+    } else if (req.body.image_path) {
+      image_path = req.body.image_path;
+    } else {
+      return res.status(400).json({ success: false, error: 'File gambar warna wajib diunggah!' });
+    }
+
+    const payload = {
+      color_name: color_name || 'Tanpa Nama',
+      category: category || 'General',
+      image_path,
+      is_ready: is_ready === 'false' || is_ready === false ? false : true,
+      created_at: new Date(),
+      updated_at: new Date()
+    };
+
+    const [inserted] = await db('stock_colors').insert(payload).returning('*');
+
+    await db('audit_logs').insert({
+      action: 'ADD_STOCK_COLOR',
+      details: `Added stock color swatch: ${color_name} for category ${category}`
+    });
+
+    res.json({ success: true, data: inserted });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/stock-colors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { color_name, category, is_ready } = req.body;
+    
+    const original = await db('stock_colors').where('id', id).first();
+    if (!original) {
+      return res.status(404).json({ success: false, error: 'Color not found.' });
+    }
+
+    const updatePayload = {
+      updated_at: new Date()
+    };
+    if (color_name !== undefined) updatePayload.color_name = color_name;
+    if (category !== undefined) updatePayload.category = category;
+    if (is_ready !== undefined) {
+      updatePayload.is_ready = is_ready === 'false' || is_ready === false ? false : true;
+    }
+
+    const [updated] = await db('stock_colors')
+      .where('id', id)
+      .update(updatePayload)
+      .returning('*');
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/stock-colors/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const original = await db('stock_colors').where('id', id).first();
+    if (!original) {
+      return res.status(404).json({ success: false, error: 'Color not found.' });
+    }
+
+    // Delete file from disk if it was uploaded
+    if (original.image_path.startsWith('/media/')) {
+      const filename = path.basename(original.image_path);
+      const diskPath = path.join(__dirname, '../data/media', filename);
+      if (fs.existsSync(diskPath)) {
+        fs.unlinkSync(diskPath);
+      }
+    }
+
+    await db('stock_colors').where('id', id).del();
+    
+    await db('audit_logs').insert({
+      action: 'DELETE_STOCK_COLOR',
+      details: `Deleted stock color swatch: ${original.color_name} for category ${original.category}`
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 9. Bot Logs API
 app.get('/api/logs', async (req, res) => {
   try {
