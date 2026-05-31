@@ -37,6 +37,92 @@ const logToDb = async (level, message) => {
   }
 };
 
+/**
+ * Asynchronously generates a custom comparison infographic using Gemini and Puppeteer,
+ * and sends it to the customer when ready.
+ */
+const asyncGenerateAndSendComparison = async (client, phoneNumber, comparisonText) => {
+  try {
+    logger.info(`Starting background comparison image generation for ${phoneNumber}...`);
+    
+    if (!client.pupBrowser) {
+      logger.warn('Puppeteer browser instance not found in WhatsApp client. Skipping dynamic image generation.');
+      return;
+    }
+
+    // 1. Ask Gemini to generate a clean HTML table
+    const prompt = `You are a professional graphic designer for Vuyama (premium hijab and label brand). 
+Based on the following comparison explanation:
+"""
+${comparisonText}
+"""
+
+Create an extremely clean, beautiful, minimalist HTML comparison table.
+Design Guidelines (Strict):
+1. Background MUST be solid white (#ffffff).
+2. Use clean, elegant modern typography (e.g. from Google Fonts, import Inter or Montserrat).
+3. At the very top, place a simple, elegant centered dark logo "V" with a small sub-text "VUYAMA CS".
+4. Below the logo, create a clean comparison table with elegant light-gray borders (#e2e8f0), beautiful cell padding, and centered headers.
+5. Under the table, write a very brief 1-2 sentence clean summary or tips.
+6. The entire design must look premium, modern, clean, and not over-the-top (no colorful backgrounds, gradients, or dark modes).
+7. Return ONLY the complete HTML code starting with <!DOCTYPE html>. Do NOT wrap it in markdown code blocks like \`\`\`html.`;
+
+    const htmlCode = await gemini.callGemini(prompt);
+    
+    let cleanHtml = htmlCode.trim();
+    if (cleanHtml.startsWith('```html')) cleanHtml = cleanHtml.replace(/^```html/, '');
+    if (cleanHtml.startsWith('```')) cleanHtml = cleanHtml.replace(/^```/, '');
+    if (cleanHtml.endsWith('```')) cleanHtml = cleanHtml.replace(/```$/, '');
+    cleanHtml = cleanHtml.trim();
+
+    // 2. Render screenshot via Puppeteer
+    const page = await client.pupBrowser.newPage();
+    try {
+      await page.setContent(cleanHtml, { waitUntil: 'networkidle0' });
+      await page.setViewport({ width: 800, height: 600, deviceScaleFactor: 2 });
+      
+      const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
+      const bodyHeight = await page.evaluate(() => document.body.scrollHeight);
+      
+      await page.setViewport({ 
+        width: Math.max(bodyWidth + 40, 800), 
+        height: Math.max(bodyHeight + 40, 400), 
+        deviceScaleFactor: 2 
+      });
+
+      const filename = `dynamic_comparison_${Date.now()}.png`;
+      const outputPath = path.join(__dirname, '../data/media/others', filename);
+      
+      const dir = path.dirname(outputPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      await page.screenshot({ path: outputPath, fullPage: true });
+      logger.info(`Successfully generated dynamic comparison image at ${outputPath}`);
+
+      // 3. Send the image to the customer via WhatsApp
+      if (fs.existsSync(outputPath)) {
+        const media = MessageMedia.fromFilePath(outputPath);
+        await client.sendMessage(phoneNumber, media);
+        logger.info(`Successfully sent dynamic comparison image to ${phoneNumber}`);
+        
+        // Clean up the temporary file
+        setTimeout(() => {
+          try {
+            fs.unlinkSync(outputPath);
+            logger.info(`Cleaned up temporary dynamic image: ${filename}`);
+          } catch (e) {}
+        }, 15000);
+      }
+    } finally {
+      await page.close();
+    }
+  } catch (error) {
+    logger.error('Failed to generate or send dynamic comparison image:', error);
+  }
+};
+
 // QR Code handler
 client.on('qr', (qr) => {
   logger.info('WhatsApp QR code generated. Scan to connect...');
@@ -305,44 +391,63 @@ client.on('message_create', async (msg) => {
         logger.info(`Bot merespons teks ke ${phoneNumber}: "${replyText.substring(0, 50)}..."`);
       }
 
-      // Step B: Send all matching images back-to-back
-      for (const imagePath of imgMatches) {
-        let absolutePath = null;
-        if (imagePath.startsWith('/uploads/')) {
-          absolutePath = path.join(__dirname, '../learn/images', path.basename(imagePath));
-        } else if (imagePath.startsWith('/media/')) {
-          const rel = imagePath.replace(/^\/media\/?/, '');
-          absolutePath = path.join(__dirname, '../data/media', rel);
-        } else {
-          const p1 = path.join(__dirname, '../learn/images', path.basename(imagePath));
-          const p2 = path.join(__dirname, '../data/media', path.basename(imagePath));
-          const p3 = path.join(__dirname, '../data/media/color_stock', path.basename(imagePath));
-          const p4 = path.join(__dirname, '../data/media/others', path.basename(imagePath));
-          if (fs.existsSync(p1)) absolutePath = p1;
-          else if (fs.existsSync(p2)) absolutePath = p2;
-          else if (fs.existsSync(p3)) absolutePath = p3;
-          else if (fs.existsSync(p4)) absolutePath = p4;
-        }
-
-        if (absolutePath && fs.existsSync(absolutePath)) {
-          try {
-            const media = MessageMedia.fromFilePath(absolutePath);
-            let caption = '';
-            if (imagePath.includes('/color_stock/')) {
-              const productName = path.basename(imagePath).replace(/\s+Color\s+Stock\.[a-zA-Z0-9]+$/i, '').trim();
-              caption = `Pilihan stok warna harian untuk ${productName} kak... 😊`;
+      // Step B: Send all matching images back-to-back asynchronously in background
+      if (imgMatches.length > 0) {
+        (async () => {
+          // Wait 2.5 seconds to simulate separate loading status
+          await new Promise(resolve => setTimeout(resolve, 2500));
+          
+          for (const imagePath of imgMatches) {
+            let absolutePath = null;
+            if (imagePath.startsWith('/uploads/')) {
+              absolutePath = path.join(__dirname, '../learn/images', path.basename(imagePath));
+            } else if (imagePath.startsWith('/media/')) {
+              const rel = imagePath.replace(/^\/media\/?/, '');
+              absolutePath = path.join(__dirname, '../data/media', rel);
+            } else {
+              const p1 = path.join(__dirname, '../learn/images', path.basename(imagePath));
+              const p2 = path.join(__dirname, '../data/media', path.basename(imagePath));
+              const p3 = path.join(__dirname, '../data/media/color_stock', path.basename(imagePath));
+              const p4 = path.join(__dirname, '../data/media/others', path.basename(imagePath));
+              if (fs.existsSync(p1)) absolutePath = p1;
+              else if (fs.existsSync(p2)) absolutePath = p2;
+              else if (fs.existsSync(p3)) absolutePath = p3;
+              else if (fs.existsSync(p4)) absolutePath = p4;
             }
-            const mediaMsg = await client.sendMessage(phoneNumber, media, caption ? { caption } : undefined);
-            if (!sentMsg) sentMsg = mediaMsg;
-            sentImages.push(imagePath);
-            sentMediaCount++;
-            logger.info(`Bot mengirim gambar "${imagePath}" dengan caption "${caption}" ke ${phoneNumber}`);
-          } catch (mediaErr) {
-            logger.error(`Gagal mengirim gambar dari path ${absolutePath}:`, mediaErr);
+
+            if (absolutePath && fs.existsSync(absolutePath)) {
+              try {
+                // Simulate typing/uploading status for image
+                const chat = await msg.getChat();
+                await chat.sendStateTyping();
+                
+                const media = MessageMedia.fromFilePath(absolutePath);
+                let caption = '';
+                if (imagePath.includes('/color_stock/')) {
+                  const productName = path.basename(imagePath).replace(/\s+Color\s+Stock\.[a-zA-Z0-9]+$/i, '').trim();
+                  caption = `Pilihan stok warna harian untuk ${productName} kak... 😊`;
+                }
+                await client.sendMessage(phoneNumber, media, caption ? { caption } : undefined);
+                logger.info(`Bot mengirim gambar "${imagePath}" ke ${phoneNumber} secara asynchronous`);
+              } catch (mediaErr) {
+                logger.error(`Gagal mengirim gambar dari path ${absolutePath}:`, mediaErr);
+              }
+            } else {
+              logger.warn(`Gambar "${imagePath}" tidak ditemukan di disk pada path ${absolutePath || 'unknown'}`);
+            }
           }
-        } else {
-          logger.warn(`Gambar "${imagePath}" tidak ditemukan di disk pada path ${absolutePath || 'unknown'}`);
-        }
+        })().catch(err => logger.error('Error in async static image sending:', err));
+      }
+
+      // Step B2: If no static images matched, but it's a comparison query, dynamically generate and send comparison infographic
+      const isCompQuery = /(beda|banding|vs|lawan|lebih|bagus|laku|mending|pilih|mana|kelebihan|kekurangan|perbedaan|selisih)/i.test(messageText);
+      const isComp = response.intent === 'comparison_match' || 
+                     response.intent === 'faq_match' || 
+                     response.intent === 'ai_reply';
+      
+      if (imgMatches.length === 0 && isCompQuery && isComp && replyText.length > 0) {
+        asyncGenerateAndSendComparison(client, phoneNumber, replyText)
+          .catch(err => logger.error('Error in dynamic comparison image generation:', err));
       }
 
       // Step C: Send all matching documents back-to-back
