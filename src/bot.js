@@ -272,14 +272,23 @@ client.on('message_create', async (msg) => {
     }
 
     // 4. SEND BOT RESPONSE
-    const regex = /\[SEND_IMAGE:\s*([^\]]+)\]/i;
-    const match = response.response.match(regex);
+    const imgRegex = /\[SEND_IMAGE:\s*([^\]]+)\]/i;
+    const docRegex = /\[SEND_DOCUMENT:\s*([^\]]+)\]/i;
+    
     let replyText = response.response;
+    const imgMatch = replyText.match(imgRegex);
+    const docMatch = replyText.match(docRegex);
+    
     let imagePath = null;
+    let docPath = null;
 
-    if (match) {
-      imagePath = match[1].trim();
-      replyText = response.response.replace(regex, '').trim();
+    if (imgMatch) {
+      imagePath = imgMatch[1].trim();
+      replyText = replyText.replace(imgRegex, '').trim();
+    }
+    if (docMatch) {
+      docPath = docMatch[1].trim();
+      replyText = replyText.replace(docRegex, '').trim();
     }
 
     const key = `${phoneNumber}:${response.response}`;
@@ -287,6 +296,7 @@ client.on('message_create', async (msg) => {
     
     let sentMsg = null;
     let mediaSent = false;
+    let mediaType = null; // 'image' or 'document'
 
     try {
       if (imagePath) {
@@ -307,12 +317,35 @@ client.on('message_create', async (msg) => {
             const media = MessageMedia.fromFilePath(absolutePath);
             sentMsg = await client.sendMessage(phoneNumber, media, { caption: replyText });
             mediaSent = true;
+            mediaType = 'image';
             logger.info(`Bot merespons ke ${phoneNumber} dengan gambar "${imagePath}"`);
           } catch (mediaErr) {
             logger.error(`Gagal membuat/mengirim media dari path ${absolutePath}:`, mediaErr);
           }
         } else {
           logger.warn(`Gambar "${imagePath}" tidak ditemukan di disk pada path ${absolutePath || 'unknown'}`);
+        }
+      } else if (docPath) {
+        let absoluteDocPath = null;
+        if (docPath.startsWith('/pdf/')) {
+          absoluteDocPath = path.join(__dirname, '../data/pdf', path.basename(docPath));
+        } else {
+          const p1 = path.join(__dirname, '../data/pdf', path.basename(docPath));
+          if (fs.existsSync(p1)) absoluteDocPath = p1;
+        }
+
+        if (absoluteDocPath && fs.existsSync(absoluteDocPath)) {
+          try {
+            const media = MessageMedia.fromFilePath(absoluteDocPath);
+            sentMsg = await client.sendMessage(phoneNumber, media, { caption: replyText });
+            mediaSent = true;
+            mediaType = 'document';
+            logger.info(`Bot merespons ke ${phoneNumber} dengan dokumen "${docPath}"`);
+          } catch (docErr) {
+            logger.error(`Gagal membuat/mengirim dokumen dari path ${absoluteDocPath}:`, docErr);
+          }
+        } else {
+          logger.warn(`Dokumen "${docPath}" tidak ditemukan di disk pada path ${absoluteDocPath || 'unknown'}`);
         }
       }
 
@@ -326,8 +359,15 @@ client.on('message_create', async (msg) => {
       setTimeout(() => pendingOutgoingMessages.delete(key), 5000);
     }
 
-    // Save bot reply to database (use [Gambar: <path>] if media was successfully sent)
-    const dbMessage = mediaSent ? `${replyText}\n[Gambar: ${imagePath}]` : replyText;
+    // Save bot reply to database (use [Gambar: <path>] or [Dokumen: <path>] if media was successfully sent)
+    let dbMessage = replyText;
+    if (mediaSent) {
+      if (mediaType === 'image') {
+        dbMessage = `${replyText}\n[Gambar: ${imagePath}]`;
+      } else if (mediaType === 'document') {
+        dbMessage = `${replyText}\n[Dokumen: ${docPath}]`;
+      }
+    }
     const dbMessageType = mediaSent ? 'image' : 'text';
 
     await db('conversations').insert({

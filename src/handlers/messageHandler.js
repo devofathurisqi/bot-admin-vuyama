@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const knowledge = require('../services/knowledge');
 const history = require('../services/history');
 const gemini = require('../services/gemini');
@@ -313,12 +315,35 @@ const classifyIntentAndRetrieveContext = async (userMessage) => {
     return acc;
   }, {});
 
+  // Dynamically scan the data/pdf directory for uploaded documents
+  let availableDocs = [];
+  const pdfDir = path.join(__dirname, '../../data/pdf');
+  if (fs.existsSync(pdfDir)) {
+    try {
+      const files = fs.readdirSync(pdfDir);
+      availableDocs = files.filter(f => f.toLowerCase().endsWith('.pdf')).map(f => {
+        let name = f.replace('.pdf', '');
+        if (name.includes('PRICELIST')) {
+          name = 'Daftar Harga Pricelist Reseller Update Mei 2026';
+        }
+        return {
+          name: name,
+          path: `/pdf/${f}`,
+          filename: f
+        };
+      });
+    } catch (e) {
+      logger.error('Error scanning data/pdf directory:', e);
+    }
+  }
+
   return {
     company: cleanCompanyInfo,
     products: cleanProducts,
     services: cleanServices,
     faq: cleanFaqs,
     reseller_program: reseller,
+    documents: availableDocs, // Dynamically registered PDF catalogs
     selectedTables: Object.keys(triggers).filter(k => triggers[k])
   };
 };
@@ -363,6 +388,13 @@ Pilih salah satu path gambar yang valid dari array \`images\` milik produk bersa
 Contoh: "Ini kak, mukena MK-001 bermotif cantik dengan bahan rayon premium yang super adem bgt itu kak... 😊 [SEND_IMAGE: /uploads/product-1717-unique.jpg]"
 Ingat: Kamu hanya bisa melampirkan maksimal 1 gambar per balasan chat.
 
+INFORMASI KHUSUS PENGIRIMAN DOKUMEN PDF (PENTING):
+Jika customer meminta katalog, pricelist, daftar harga reseller, brosur, atau Kakak merasa customer sedang membutuhkan berkas PDF yang kita miliki di KNOWLEDGE BASE di bawah, kamu WAJIB melampirkan berkas dokumen tersebut!
+Caranya: Tambahkan tag khusus \`[SEND_DOCUMENT: <path_dokumen>]\` di bagian paling akhir balasan kamu.
+Pilih salah satu path berkas yang valid dari list \`documents\` di KNOWLEDGE BASE di bawah. Jangan mengarang path berkas!
+Contoh: "Ini kak, silakan diunduh daftar harga pricelist reseller Vuyama terbaru ya kak... 😊 [SEND_DOCUMENT: /pdf/PRICELIST (KHUSUS RESELLER) Update Mei 2026.pdf]"
+Ingat: Kamu hanya bisa melampirkan maksimal 1 dokumen per balasan chat.
+
 INFORMASI KHUSUS MULTI-VARIAN & TIERED PRICING / GROSIR (PENTING):
 Setiap produk memiliki array \`variants\` (varian/jenis) dan array \`wholesale_tiers\` (aturan kuantitas grosir).
 - Jika produk memiliki \`variants\`, jelaskan varian yang tersedia kepada customer secara luwes. Tiap varian bisa memiliki opsi \`sizes\` dengan harga retail (\`price_retail\`), harga reseller (\`price_reseller\`), stok, dan beratnya masing-masing. Berikan harga varian/ukuran yang sesuai secara akurat!
@@ -374,7 +406,8 @@ ${JSON.stringify({
       products: context.products,
       services: context.services,
       faq: context.faq,
-      reseller_program: context.reseller_program
+      reseller_program: context.reseller_program,
+      documents: context.documents // List of dynamically scanned PDF documents!
     }, null, 2)}
 
 Gunakan database kontekstual di atas untuk memberikan jawaban yang ramah, ringkas, akurat, dan SEPENUHNYA BEBAS DARI IMPROVISASI/REKAYASA INFORMASI.`;

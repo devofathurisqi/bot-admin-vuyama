@@ -21,15 +21,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Ensure upload & media directories exist
+// Ensure upload, media & pdf directories exist
 const uploadDir = path.join(__dirname, '../learn/images');
 const mediaDir = path.join(__dirname, '../data/media');
+const pdfDir = path.join(__dirname, '../data/pdf');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true });
+if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
 
-// Serve Static Uploads
+// Serve Static Uploads & PDFs
 app.use('/uploads', express.static(uploadDir));
 app.use('/media', express.static(mediaDir));
+app.use('/pdf', express.static(pdfDir));
 
 // Multer Storage Configuration
 const excelStorage = multer.diskStorage({
