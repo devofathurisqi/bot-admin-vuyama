@@ -289,6 +289,9 @@ client.on('message_create', async (msg) => {
     // Extract all documents
     const docMatches = [...replyText.matchAll(docRegex)].map(m => m[1].trim());
     replyText = replyText.replace(docRegex, '').trim();
+    
+    // Safety net: Format the reply text one more time to clear any spacing/newline artifacts left by RAG tags removal
+    replyText = messageHandler.formatWhatsAppText(replyText);
 
     const key = `${phoneNumber}:${response.response}`;
     pendingOutgoingMessages.add(key);

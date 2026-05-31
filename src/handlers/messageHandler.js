@@ -61,6 +61,46 @@ const getStaticGreetingReply = (userMessage) => {
 };
 
 /**
+ * Programmatic WhatsApp text formatter and clean-up engine
+ * Ensures 100% clean spacing, emoji padding, list separation, and decompresses squished AI words.
+ */
+const formatWhatsAppText = (text) => {
+  if (!text) return '';
+
+  let cleaned = text;
+
+  // 1. Decompress lowercase letter directly followed by uppercase letter (e.g. "JadulBahan:" -> "Jadul\nBahan:")
+  cleaned = cleaned.replace(/([a-z])([A-Z])/g, '$1\n$2');
+
+  // 2. Insert double newline before list items that are attached to the end of a sentence (e.g. "Jadul.2. Paris" -> "Jadul.\n\n2. Paris")
+  cleaned = cleaned.replace(/([a-zA-Z0-9])\.(\d+\.)/g, '$1.\n\n$2');
+
+  // 3. Add space after colon `:` when followed directly by letters, emojis, or list numbering without a space
+  // e.g. "banget:1. Paris" -> "banget: 1. Paris"
+  cleaned = cleaned.replace(/:([a-zA-Z😊🙏✕✓●])/g, ': $1');
+  cleaned = cleaned.replace(/:(\d+\.)/g, ': $1');
+
+  // 4. Ensure spacing around emojis if they are squished next to alphanumeric characters
+  // e.g. "kak😊" -> "kak 😊", "😊Silakan" -> "😊 Silakan"
+  cleaned = cleaned.replace(/([a-zA-Z0-9])([😊🙏✕✓●👍🎉🔥🛍🚀❤️✨⭐👇ℹ️💡])/g, '$1 $2');
+  cleaned = cleaned.replace(/([😊🙏✕✓●👍🎉🔥🛍🚀❤️✨⭐👇ℹ️💡])([a-zA-Z0-9])/g, '$1 $2');
+
+  // 5. Ensure space after list numbering dot (e.g. "1.Paris" -> "1. Paris")
+  cleaned = cleaned.replace(/(\d+\.)([a-zA-Z])/g, '$1 $2');
+
+  // 6. Ensure list items have clean double linebreaks in WhatsApp
+  cleaned = cleaned.replace(/([^\n])\n(\d+\.\s+)/g, '$1\n\n$2');
+  
+  // 7. Ensure bullet items (starting with emoji or dashes) are cleanly separated
+  cleaned = cleaned.replace(/([^\n])\n([-\*•]\s+)/g, '$1\n\n$2');
+
+  // 8. Clean up any unintended 3+ consecutive newlines down to exactly 2 newlines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  return cleaned.trim();
+};
+
+/**
  * Clean and match user message against Database FAQs using Jaccard string similarity
  * acting as a local micro-machine learning matcher.
  */
@@ -828,9 +868,10 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       cleanedResponse = cleanedResponse.substring(6).trim();
     }
 
+    const formatted = formatWhatsAppText(cleanedResponse);
     return {
       intent: 'ai_reply',
-      response: cleanedResponse || 'Boleh kak, ada yang bisa dibantu? 😊'
+      response: formatted || 'Boleh kak, ada yang bisa dibantu? 😊'
     };
   } catch (error) {
     logger.error('Error generating response:', error);
@@ -847,5 +888,6 @@ module.exports = {
   isComplaintMessage,
   isOrderIntentMessage,
   isFilledOrderFormat,
-  parseOrderFormatWithGemini
+  parseOrderFormatWithGemini,
+  formatWhatsAppText
 };
