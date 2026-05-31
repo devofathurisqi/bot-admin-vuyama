@@ -130,103 +130,187 @@ const findMatchingLocalFAQ = (userMessage, faqs) => {
 };
 
 /**
- * Build dynamic system prompt containing the latest database context using Retrieval-Augmented Generation (RAG)
- * to only fetch relevant products, FAQs, and reseller details to save up to 95% of tokens.
+ * Smart Machine Learning - Style Intent Classifier and Database Table Selector (RAG Router)
+ * Dynamically analyzes the user message to select the precise tables and records to retrieve.
  */
-const buildDynamicSystemPrompt = async (userMessage = "") => {
-  try {
-    const companyInfo = await knowledge.getCompanyInfo();
-    const lowerMsg = userMessage.toLowerCase();
-    
-    // Dynamic RAG retrieval parameters
-    let products = [];
-    let faq = [];
-    let services = [];
-    let reseller = [];
+const classifyIntentAndRetrieveContext = async (userMessage) => {
+  const STOPWORDS = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok', 'mau', 'nanya', 'untuk', 'ada', 'saja', 'ya', 'halo', 'tanya', 'dong', 'sih', 'kok', 'apa', 'ada', 'aja']);
+  
+  const cleanMessage = userMessage.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").trim();
+  const tokens = cleanMessage.split(/\s+/).filter(w => w.length > 1 && !STOPWORDS.has(w));
+  
+  // Table routing similarity score keyword models
+  const routingKeywords = {
+    products: ['mukena', 'hijab', 'label', 'rukuh', 'kerudung', 'jilbab', 'khimar', 'pashmina', 'bawal', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'besi', 'kertas', 'hangtag', 'hang tag', 'ready', 'stok', 'harga', 'bahan', 'material', 'ukuran', 'size'],
+    services: ['jasa', 'layanan', 'custom', 'cetak', 'desain', 'design', 'buat brand', 'merek sendiri', 'dropship', 'dropshiper', 'dropshiping'],
+    reseller: ['reseller', 'agen', 'grosir', 'diskon', 'potongan', 'tingkat', 'level', 'syarat', 'join', 'gabung', 'kemitraan', 'minimal beli', 'beli berapa'],
+    shipping: ['kirim', 'ongkir', 'pos', 'jne', 'j&t', 'sicepat', 'ekspedisi', 'kargo', 'cargo', 'tarif', 'ongkos'],
+    company: ['vuyama', 'toko', 'lokasi', 'alamat', 'owner', 'kontak', 'hubungi', 'nomor', 'cs', 'admin', 'profile', 'profil']
+  };
 
-    // 1. RAG Products Retrieval
-    const isMukenaQuery = ['mukena', 'rukuh', 'shalat', 'solat'].some(k => lowerMsg.includes(k));
-    const isHijabQuery = ['hijab', 'jilbab', 'kerudung', 'khimar', 'pashmina', 'bawal'].some(k => lowerMsg.includes(k));
-    const isLabelQuery = ['label', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'besi', 'kertas', 'hangtag', 'hang tag'].some(k => lowerMsg.includes(k));
+  const scores = {
+    products: 0,
+    services: 0,
+    reseller: 0,
+    shipping: 0,
+    company: 0
+  };
 
-    if (isMukenaQuery || isHijabQuery || isLabelQuery) {
-      let category = '';
-      if (isMukenaQuery) category = 'Mukena';
-      else if (isHijabQuery) category = 'Hijab';
-      else if (isLabelQuery) category = 'Label';
+  // Compute keyword matching scores
+  tokens.forEach(token => {
+    Object.keys(routingKeywords).forEach(table => {
+      if (routingKeywords[table].some(keyword => keyword.includes(token) || token.includes(keyword))) {
+        scores[table] += 1.5; // High weight overlap
+      }
+    });
+  });
 
-      products = await db('products')
-        .whereILike('category', `%${category}%`)
-        .andWhere('status', 'Tersedia')
-        .orderBy('id', 'asc')
-        .limit(5); // Limit to max 5 items for token savings
-    } else {
-      // Split user message into keywords to search specific product attributes
-      const keywords = lowerMsg.split(/\s+/).filter(w => w.length > 2);
-      if (keywords.length > 0) {
+  // Intent triggers
+  const triggers = {
+    products: scores.products > 0 || tokens.length === 0, // Default true if empty query
+    services: scores.services > 0,
+    reseller: scores.reseller > 0,
+    shipping: scores.shipping > 0,
+    company: scores.company > 0 || tokens.length === 0
+  };
+
+  let products = [];
+  let faq = [];
+  let services = [];
+  let reseller = [];
+  let companyInfo = [];
+
+  // Query 1: Products table selector
+  if (triggers.products) {
+    if (tokens.length > 0) {
+      // Find direct product category matches to pull complete category inventory
+      const categoryMatch = ['mukena', 'hijab', 'label'].find(cat => 
+        tokens.some(token => cat.includes(token) || token.includes(cat))
+      );
+
+      if (categoryMatch) {
+        const categoryName = categoryMatch.charAt(0).toUpperCase() + categoryMatch.slice(1);
+        products = await db('products')
+          .whereILike('category', `%${categoryName}%`)
+          .andWhere('status', 'Tersedia')
+          .orderBy('id', 'asc')
+          .limit(8);
+      } else {
+        // Perform broad fuzzy keyword search across product fields
         let query = db('products').where('status', 'Tersedia');
         query = query.where((q) => {
-          keywords.forEach((word) => {
-            q.orWhereILike('name', `%${word}%`)
-             .orWhereILike('description', `%${word}%`)
-             .orWhereILike('material', `%${word}%`)
-             .orWhereILike('id', `%${word}%`);
+          tokens.forEach((token) => {
+            q.orWhereILike('name', `%${token}%`)
+             .orWhereILike('category', `%${token}%`)
+             .orWhereILike('sub_category', `%${token}%`)
+             .orWhereILike('material', `%${token}%`)
+             .orWhereILike('id', `%${token}%`);
           });
         });
-        products = await query.orderBy('id', 'asc').limit(5);
+        products = await query.orderBy('id', 'asc').limit(8);
       }
     }
 
-    // Default: if no product search keywords matched, load only 1 sample product context to save tokens
+    // Fallback if no matching active products found
     if (products.length === 0) {
-      products = await db('products').where('status', 'Tersedia').orderBy('id', 'asc').limit(1);
+      products = await db('products').where('status', 'Tersedia').orderBy('id', 'asc').limit(3);
     }
+  }
 
-    // 2. RAG FAQ & Reseller & Services Retrieval
-    const hasResellerKeywords = ['reseller', 'agen', 'grosir', 'diskon', 'potongan', 'tingkat', 'level', 'syarat', 'join'].some(k => lowerMsg.includes(k));
-    const hasServiceKeywords = ['dropship', 'dropshiper', 'dropshiping', 'jasa', 'layanan', 'buat brand', 'merek sendiri', 'cetak', 'desain'].some(k => lowerMsg.includes(k));
-    const hasShippingKeywords = ['kirim', 'ongkir', 'pos', 'jne', 'j&t', 'sicepat', 'ekspedisi', 'kargo', 'cargo'].some(k => lowerMsg.includes(k));
+  // Query 2: Services table selector
+  if (triggers.services) {
+    services = await db('services').orderBy('id', 'asc');
+    const matchedFaqs = await db('faq')
+      .whereILike('category', '%layanan%')
+      .orWhereILike('question', '%dropship%')
+      .limit(3);
+    faq = [...faq, ...matchedFaqs];
+  }
 
-    if (hasResellerKeywords) {
-      reseller = await db('reseller_program').orderBy('id', 'asc');
-      faq = await db('faq')
-        .whereILike('category', '%reseller%')
-        .orWhereILike('question', '%reseller%')
-        .limit(3);
-    }
+  // Query 3: Reseller table selector
+  if (triggers.reseller) {
+    reseller = await db('reseller_program').orderBy('id', 'asc');
+    const matchedFaqs = await db('faq')
+      .whereILike('category', '%reseller%')
+      .orWhereILike('question', '%reseller%')
+      .limit(3);
+    faq = [...faq, ...matchedFaqs];
+  }
 
-    if (hasServiceKeywords) {
-      services = await db('services').orderBy('id', 'asc');
-      faq = [
-        ...faq,
-        ...(await db('faq').whereILike('category', '%layanan%').orWhereILike('question', '%dropship%').limit(3))
-      ];
-    }
+  // Query 4: Shipping table selector
+  if (triggers.shipping) {
+    const matchedFaqs = await db('faq')
+      .whereILike('question', '%kirim%')
+      .orWhereILike('answer', '%ongkir%')
+      .limit(3);
+    faq = [...faq, ...matchedFaqs];
+  }
 
-    if (hasShippingKeywords) {
-      faq = [
-        ...faq,
-        ...(await db('faq').whereILike('question', '%kirim%').orWhereILike('answer', '%ongkir%').limit(3))
-      ];
-    }
+  // Query 5: Company Info table selector
+  companyInfo = await db('company_info').orderBy('id', 'asc');
+  if (triggers.company) {
+    const matchedFaqs = await db('faq')
+      .whereILike('category', '%umum%')
+      .limit(3);
+    faq = [...faq, ...matchedFaqs];
+  }
 
-    // Default: if no specific FAQ requested, load only 1 general FAQ to save tokens
-    if (faq.length === 0) {
-      faq = await db('faq').whereILike('category', '%umum%').limit(1);
-    }
+  // Default baseline FAQs
+  if (faq.length === 0) {
+    faq = await db('faq').limit(2);
+  }
 
-    // Map properties to minimize JSON context size
-    const mappedProducts = products.map(p => ({
-      id: p.id,
-      name: p.name,
-      category: p.category,
-      price_retail: p.price_retail,
-      price_reseller: p.price_reseller,
-      stock: p.stock,
-      images: p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [],
-      variants: typeof p.variants === 'string' ? JSON.parse(p.variants) : (p.variants || []),
-      wholesale_tiers: typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers) : (p.wholesale_tiers || [])
-    }));
+  // Clean data structures to optimize prompt token size
+  const cleanProducts = products.map(p => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    sub_category: p.sub_category,
+    description: p.description,
+    price_retail: p.price_retail,
+    price_reseller: p.price_reseller,
+    material: p.material,
+    stock: p.stock,
+    images: p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [],
+    variants: typeof p.variants === 'string' ? JSON.parse(p.variants) : (p.variants || []),
+    wholesale_tiers: typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers) : (p.wholesale_tiers || [])
+  }));
+
+  const cleanServices = services.map(s => ({
+    name: s.name,
+    description: s.description,
+    terms: s.terms
+  }));
+
+  const cleanFaqs = faq.map(f => ({
+    q: f.question,
+    a: f.answer
+  }));
+
+  const cleanCompanyInfo = companyInfo.reduce((acc, c) => {
+    acc[c.key] = c.value;
+    return acc;
+  }, {});
+
+  return {
+    company: cleanCompanyInfo,
+    products: cleanProducts,
+    services: cleanServices,
+    faq: cleanFaqs,
+    reseller_program: reseller,
+    selectedTables: Object.keys(triggers).filter(k => triggers[k])
+  };
+};
+
+/**
+ * Build dynamic system prompt containing the latest database context
+ */
+const buildDynamicSystemPrompt = async (userMessage = "") => {
+  try {
+    // Smart RAG selector retrieval
+    const context = await classifyIntentAndRetrieveContext(userMessage);
+    
+    logger.info(`Smart RAG Classifier classified intent. Querying tables: [${context.selectedTables.join(', ')}]`);
 
     return `Kamu adalah seorang admin Customer Service resmi Vuyama (bernama Vumin) yang sangat profesional, ramah, dan berpengalaman luas di bidang produksi mukena, hijab, dan label brand hijab. 
 
@@ -264,12 +348,12 @@ Setiap produk memiliki array \`variants\` (varian/jenis) dan array \`wholesale_t
 - Jika produk memiliki \`wholesale_tiers\`, secara proaktif informasikan diskon kuantitas menarik jika mereka membeli dalam jumlah banyak (grosir) agar mereka semakin tertarik membeli lebih banyak! Contoh: "Kalau kakak ambil minimal 6 pcs, harganya diskon jadi Rp X saja loh kak! Murah bgt kan... 😊"
 
 KNOWLEDGE BASE VUYAMA (TERRETRIEVE SECARA DINAMIS DARI DATABASE):
-\${JSON.stringify({
-      company: companyInfo,
-      products: mappedProducts,
-      services: services.map(s => ({ name: s.name, description: s.description })),
-      faq: faq.map(f => ({ q: f.question, a: f.answer })),
-      reseller_program: reseller
+${JSON.stringify({
+      company: context.company,
+      products: context.products,
+      services: context.services,
+      faq: context.faq,
+      reseller_program: context.reseller_program
     }, null, 2)}
 
 Gunakan database kontekstual di atas untuk memberikan jawaban yang ramah, ringkas, akurat, dan SEPENUHNYA BEBAS DARI IMPROVISASI/REKAYASA INFORMASI.`;
