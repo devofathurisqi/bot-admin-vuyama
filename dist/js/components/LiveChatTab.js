@@ -19,15 +19,84 @@ window.LiveChatTab = ({
   handleUnblock,
   fetchBlockedNumbers,
   fetchCustomers,
-  chatEndRef
+  chatEndRef,
+  handleChatMediaUpload // New Prop!
 }) => {
   if (activeTab !== 'customers') return null;
 
+  // Local state for sidebar visibility on tablet/mobile
+  const [showSidebar, setShowSidebar] = React.useState(false);
+  const fileInputRef = React.useRef(null);
+
+  // Parse message content to render images and document links nicely
+  const renderMessageContent = (msgText) => {
+    if (!msgText) return null;
+
+    let text = msgText;
+    let images = [];
+    let documents = [];
+
+    // Parse [Gambar: ...]
+    const imgRegex = /\[Gambar:\s*(.+?)\]/g;
+    let imgMatch;
+    while ((imgMatch = imgRegex.exec(msgText)) !== null) {
+      const paths = imgMatch[1].split(',').map(p => p.trim()).filter(Boolean);
+      images.push(...paths);
+      text = text.replace(imgMatch[0], '');
+    }
+
+    // Parse [Dokumen: ...]
+    const docRegex = /\[Dokumen:\s*(.+?)\]/g;
+    let docMatch;
+    while ((docMatch = docRegex.exec(msgText)) !== null) {
+      const paths = docMatch[1].split(',').map(p => p.trim()).filter(Boolean);
+      documents.push(...paths);
+      text = text.replace(docMatch[0], '');
+    }
+
+    // Clean up extra spacing
+    text = text.trim();
+
+    return (
+      <div className="space-y-2">
+        {images.length > 0 && (
+          <div className="grid grid-cols-2 gap-1.5 max-w-xs">
+            {images.map((img, idx) => (
+              <a key={idx} href={img} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-black/10 dark:border-white/10 bg-gray-100 dark:bg-gray-800 hover:opacity-90 transition">
+                <img src={img} alt="Sent image" className="max-h-36 w-full object-cover" />
+              </a>
+            ))}
+          </div>
+        )}
+        {documents.length > 0 && (
+          <div className="space-y-1.5 max-w-xs">
+            {documents.map((doc, idx) => {
+              const filename = doc.split('/').pop();
+              return (
+                <a
+                  key={idx}
+                  href={doc}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center space-x-2 p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-750 text-brand-600 dark:text-brand-400 font-bold transition break-all text-[11px]"
+                >
+                  <span className="text-sm">📄</span>
+                  <span className="underline truncate">{filename}</span>
+                </a>
+              );
+            })}
+          </div>
+        )}
+        {text.length > 0 && <p className="whitespace-pre-wrap">{text}</p>}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex-1 min-h-0 border border-darkbg-border rounded-2xl bg-white dark:bg-darkbg-card overflow-hidden flex shadow-sm text-xs text-gray-800 dark:text-gray-200">
+    <div className="flex-1 min-h-0 border border-darkbg-border rounded-2xl bg-white dark:bg-darkbg-card overflow-hidden flex shadow-sm text-xs text-gray-800 dark:text-gray-250 relative">
       
-      {/* CRM CHAT ROOM: LEFT COLUMN LIST */}
-      <div className="w-80 border-r border-darkbg-border flex flex-col shrink-0 overflow-hidden">
+      {/* ==================== LEFT COLUMN: CONTACTS LIST ==================== */}
+      <div className={`w-full md:w-80 border-r border-darkbg-border flex flex-col shrink-0 overflow-hidden ${activeChat ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 border-b border-darkbg-border space-y-3.5 bg-gray-50 dark:bg-gray-800/20">
           <h3 className="font-extrabold text-base text-gray-800 dark:text-white">WhatsApp Chats</h3>
           <div className="relative">
@@ -49,6 +118,7 @@ window.LiveChatTab = ({
               onClick={() => {
                 setActiveChat(c.phone_number);
                 loadChatMessages(c.phone_number);
+                setShowSidebar(false); // Hide sidebar drawer when changing chats
               }}
               className={`p-4 flex items-start space-x-3.5 hover:bg-gray-800/10 dark:hover:bg-gray-800/30 cursor-pointer transition duration-150 relative ${activeChat === c.phone_number ? 'bg-gray-100 dark:bg-gray-800/40 border-l-4 border-brand-500' : ''}`}
             >
@@ -92,28 +162,46 @@ window.LiveChatTab = ({
         </div>
       </div>
 
-      {/* CRM CHAT ROOM: MIDDLE CHAT SCREEN */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900/10">
+      {/* ==================== MIDDLE COLUMN: CHAT STREAM ==================== */}
+      <div className={`flex-1 flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900/10 ${activeChat ? 'flex' : 'hidden md:flex'}`}>
         {activeChat ? (
           <React.Fragment>
             {/* CHAT HEADER */}
             <div className="px-6 py-4 border-b border-darkbg-border flex items-center justify-between bg-white dark:bg-darkbg-card">
-              <div>
-                <h3 className="font-extrabold text-sm">{customers.find(c => c.phone_number === activeChat)?.name || activeChat}</h3>
-                <p className="text-[10px] text-gray-500 font-semibold">{activeChat}</p>
+              <div className="flex items-center min-w-0">
+                {/* Mobile Back Button */}
+                <button
+                  onClick={() => setActiveChat(null)}
+                  className="mr-3 p-2.5 rounded-xl border border-darkbg-border text-gray-500 dark:text-gray-400 hover:bg-gray-150 dark:hover:bg-gray-800 md:hidden"
+                  title="Kembali ke Kontak"
+                >
+                  ←
+                </button>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-sm truncate">{customers.find(c => c.phone_number === activeChat)?.name || activeChat}</h3>
+                  <p className="text-[10px] text-gray-500 font-semibold truncate">{activeChat}</p>
+                </div>
               </div>
 
               <div className="flex items-center space-x-2">
+                {/* Mobile Info toggle */}
+                <button
+                  onClick={() => setShowSidebar(!showSidebar)}
+                  className={`p-2.5 rounded-xl border lg:hidden ${showSidebar ? 'border-brand-500 bg-brand-500/10 text-brand-400' : 'border-darkbg-border text-gray-500 dark:text-gray-400'}`}
+                  title="Detail Info Pelanggan"
+                >
+                  ℹ
+                </button>
                 <button
                   onClick={() => togglePinCustomer(activeChat, customers.find(c => c.phone_number === activeChat)?.is_pinned)}
-                  className={`p-2 rounded-xl border ${customers.find(c => c.phone_number === activeChat)?.is_pinned ? 'border-brand-500 bg-brand-500/5 text-brand-400' : 'border-darkbg-border text-gray-400 hover:text-white'} transition`}
+                  className={`p-2.5 rounded-xl border ${customers.find(c => c.phone_number === activeChat)?.is_pinned ? 'border-brand-500 bg-brand-500/5 text-brand-400' : 'border-darkbg-border text-gray-400 hover:text-white'} transition`}
                   title="Pin/Unpin Chat"
                 >
                   <Icons.Pin />
                 </button>
                 <button
                   onClick={() => handleClearChatHistory(activeChat)}
-                  className="p-2 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-400 hover:text-white transition"
+                  className="p-2.5 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-450 hover:text-white transition"
                   title="Hapus Riwayat Obrolan"
                 >
                   <Icons.Trash />
@@ -121,39 +209,46 @@ window.LiveChatTab = ({
               </div>
             </div>
 
-            {/* CHAT HISTORY STREAM */}
+            {/* CHAT BUBBLES */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {chatMessages.map(msg => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender === 'customer' ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div className={`p-4 rounded-2xl max-w-sm space-y-1.5 shadow-sm leading-relaxed text-xs border ${msg.sender === 'customer' ? 'bg-white dark:bg-darkbg-card border-gray-100 dark:border-darkbg-border text-gray-800 dark:text-gray-200 rounded-tl-none' : 'bg-brand-600 text-white border-brand-700 rounded-tr-none'}`}>
-                    {(() => {
-                      const imgMatch = msg.message && msg.message.match(/\[Gambar:\s*(.+?)\]/);
-                      const cleanMessage = imgMatch ? msg.message.replace(imgMatch[0], '').trim() : msg.message;
-                      return (
-                        <React.Fragment>
-                          {imgMatch && (
-                            <div className="mb-2.5 rounded-lg overflow-hidden border border-black/10 dark:border-white/10 max-h-48 bg-gray-100 flex items-center justify-center">
-                              <img src={imgMatch[1].trim()} alt="Sent media" className="object-contain max-h-48 p-1" />
-                            </div>
-                          )}
-                          <p className="whitespace-pre-wrap">{cleanMessage}</p>
-                        </React.Fragment>
-                      );
-                    })()}
-                    <div className="text-[9px] font-semibold opacity-60 text-right">
-                      {new Date(msg.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+              {chatMessages.map(msg => {
+                const isCust = msg.sender === 'customer';
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex ${isCust ? 'justify-start' : 'justify-end'}`}
+                  >
+                    <div className={`p-4 rounded-2xl max-w-[85%] md:max-w-md space-y-1.5 shadow-sm leading-relaxed text-xs border ${isCust ? 'bg-white dark:bg-darkbg-card border-gray-100 dark:border-darkbg-border text-gray-800 dark:text-gray-200 rounded-tl-none' : 'bg-brand-600 text-white border-brand-700 rounded-tr-none'}`}>
+                      {renderMessageContent(msg.message)}
+                      <div className="text-[9px] font-semibold opacity-60 text-right">
+                        {new Date(msg.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <div ref={chatEndRef} />
             </div>
 
-            {/* MESSAGE INPUT BOX */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-darkbg-border bg-white dark:bg-darkbg-card flex items-center space-x-3.5">
+            {/* CHAT INPUT FORM */}
+            <form onSubmit={handleSendMessage} className="p-4 border-t border-darkbg-border bg-white dark:bg-darkbg-card flex items-center space-x-2.5">
+              {/* Attachment Button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                className="p-3 rounded-xl border border-darkbg-border text-gray-500 dark:text-gray-400 hover:bg-gray-150 dark:hover:bg-gray-800 transition flex items-center justify-center shrink-0"
+                title="Kirim Gambar / PDF"
+              >
+                📎
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleChatMediaUpload}
+                className="hidden"
+                accept="image/*,application/pdf"
+              />
+
               <input
                 type="text"
                 value={typedMessage}
@@ -163,7 +258,7 @@ window.LiveChatTab = ({
               />
               <button
                 type="submit"
-                className="px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition flex items-center justify-center"
+                className="px-4 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition flex items-center justify-center shrink-0"
               >
                 <Icons.Send />
               </button>
@@ -178,20 +273,43 @@ window.LiveChatTab = ({
         )}
       </div>
 
-      {/* CRM CHAT ROOM: RIGHT COLUMN CRM SIDEBAR */}
+      {/* ==================== BACKDROP OVERLAY FOR SIDEBAR IN MOBILE ==================== */}
+      {showSidebar && (
+        <div
+          onClick={() => setShowSidebar(false)}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+        />
+      )}
+
+      {/* ==================== RIGHT COLUMN: CUSTOMER CRM INFO ==================== */}
       {activeChat && (
-        <div className="w-72 border-l border-darkbg-border p-5 flex flex-col justify-between shrink-0 overflow-y-auto bg-gray-50 dark:bg-darkbg-card/30">
+        <div className={`
+          w-72 shrink-0 flex-col justify-between overflow-y-auto border-l border-darkbg-border bg-gray-50 dark:bg-darkbg-card p-5
+          ${showSidebar ? 'fixed inset-y-0 right-0 z-50 w-80 bg-white dark:bg-darkbg-card shadow-2xl flex animate-slide-in' : 'hidden lg:flex'}
+        `}>
           <div className="space-y-6">
-            {/* PROFILE */}
+            {/* Drawer Close Button on mobile */}
+            {showSidebar && (
+              <div className="flex justify-end lg:hidden">
+                <button
+                  onClick={() => setShowSidebar(false)}
+                  className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* PROFILE DETAILS */}
             <div className="text-center space-y-2 border-b border-darkbg-border pb-5">
               <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center font-bold text-white text-xl shadow mx-auto">
                 {customers.find(c => c.phone_number === activeChat)?.name ? customers.find(c => c.phone_number === activeChat).name[0].toUpperCase() : 'W'}
               </div>
-              <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white">{customers.find(c => c.phone_number === activeChat)?.name || 'WhatsApp Customer'}</h3>
-              <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-gray-800 text-gray-400 tracking-wider">CRM PROFILE</span>
+              <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white truncate">{customers.find(c => c.phone_number === activeChat)?.name || 'WhatsApp Customer'}</h3>
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 tracking-wider">CRM PROFILE</span>
             </div>
 
-            {/* CRM ACTIONS */}
+            {/* ASSIGNMENTS */}
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Assign Admin</span>
@@ -222,12 +340,12 @@ window.LiveChatTab = ({
               </div>
             </div>
 
-            {/* QUICK BOT AUTO REPLY BLOCK BUTTON */}
+            {/* BLOCK / PAUSE BOT ACTION */}
             <div className="pt-4 border-t border-darkbg-border">
               {blockedNumbers.some(b => b.phone_number === activeChat) ? (
                 <button
                   onClick={() => handleUnblock(activeChat)}
-                  className="w-full py-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-400 hover:text-white font-extrabold text-xs transition duration-150"
+                  className="w-full py-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-450 hover:text-white font-extrabold text-xs transition duration-150"
                 >
                   Resume Bot Replies (Unblock)
                 </button>
@@ -246,7 +364,7 @@ window.LiveChatTab = ({
                       });
                     }
                   }}
-                  className="w-full py-2.5 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-400 hover:text-white font-extrabold text-xs transition duration-150"
+                  className="w-full py-2.5 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-450 hover:text-white font-extrabold text-xs transition duration-150"
                 >
                   Pause Bot Replies (Block)
                 </button>

@@ -424,6 +424,10 @@ client.on('message_create', async (msg) => {
     
     let replyText = response.response;
     
+    // Detect comparison PDF trigger
+    const isComp = replyText.includes('[COMPARISON_SHEET]');
+    replyText = replyText.replace(/\[COMPARISON_SHEET\]/gi, '').trim();
+
     // Extract all images
     let imgMatches = [...replyText.matchAll(imgRegex)].map(m => m[1].trim());
     replyText = replyText.replace(imgRegex, '').trim();
@@ -499,12 +503,7 @@ client.on('message_create', async (msg) => {
       }
 
       // Step B2: If it's a comparison query, dynamically generate/retrieve and send comparison PDF in background
-      const isCompQuery = /(beda|banding|vs|lawan|lebih|bagus|laku|mending|pilih|mana|kelebihan|kekurangan|perbedaan|selisih)/i.test(messageText);
-      const isComp = response.intent === 'comparison_match' || 
-                     response.intent === 'faq_match' || 
-                     response.intent === 'ai_reply';
-      
-      if (isCompQuery && isComp && replyText.length > 0) {
+      if (isComp && replyText.length > 0) {
         asyncGenerateAndSendPdfComparison(client, phoneNumber, messageText, replyText)
           .catch(err => logger.error('Error in dynamic PDF comparison generation:', err));
       }

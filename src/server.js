@@ -396,6 +396,72 @@ app.post('/api/whatsapp/send', async (req, res) => {
   }
 });
 
+app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded.' });
+    }
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) {
+      return res.status(400).json({ success: false, error: 'phoneNumber is required.' });
+    }
+    
+    const { client } = require('./bot');
+    const { MessageMedia } = require('whatsapp-web.js');
+
+    const isImage = req.file.mimetype.startsWith('image/');
+    const isColorStock = req.file.destination.includes('color_stock');
+    const filepath = isColorStock 
+      ? `/media/color_stock/${req.file.filename}` 
+      : `/media/others/${req.file.filename}`;
+
+    const absolutePath = path.join(__dirname, '..', filepath);
+
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(400).json({ success: false, error: 'Saved file path not found on disk.' });
+    }
+
+    // Send via WhatsApp client
+    const media = MessageMedia.fromFilePath(absolutePath);
+    await client.sendMessage(phoneNumber, media);
+
+    // Save to CRM Database Conversations
+    const tag = isImage ? 'Gambar' : 'Dokumen';
+    const dbMessage = `[${tag}: ${filepath}]`;
+    const dbMessageType = isImage ? 'image' : 'document';
+    const timestamp = new Date();
+
+    await db('conversations').insert({
+      phone_number: phoneNumber,
+      message: dbMessage,
+      sender: 'agent',
+      message_type: dbMessageType,
+      status: 'sent',
+      timestamp
+    });
+
+    // Update customer last message time
+    await db('customers').where('phone_number', phoneNumber).update({
+      last_message_at: timestamp
+    });
+
+    // Broadcast manually sent message
+    emitEvent('incoming_message', {
+      phone_number: phoneNumber,
+      message: dbMessage,
+      sender: 'agent',
+      message_type: dbMessageType,
+      status: 'sent',
+      timestamp
+    });
+
+    res.json({ success: true, filepath });
+  } catch (error) {
+    logger.error('Error sending media via WhatsApp:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.put('/api/customers/:phoneNumber', async (req, res) => {
   try {
     const { phoneNumber } = req.params;

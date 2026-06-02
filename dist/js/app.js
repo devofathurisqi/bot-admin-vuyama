@@ -329,6 +329,34 @@ window.App = () => {
     } catch (e) { }
   };
 
+  // Upload live chat media (image or PDF)
+  const handleChatMediaUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !activeChat) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('phoneNumber', activeChat);
+
+    try {
+      showToast('Mengirim media...', 'info');
+      const res = await fetch('/api/whatsapp/send-media', {
+        method: 'POST',
+        body: formData
+      });
+      const d = await res.json();
+      if (d.success) {
+        showToast('Media berhasil terkirim!', 'success');
+        if (e.target) e.target.value = ''; // Reset file input
+        loadChatMessages(activeChat);
+      } else {
+        showToast(`Gagal mengirim media: ${d.error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Error mengirim media: ${err.message}`, 'error');
+    }
+  };
+
   // In-line settings editor
   const handleSaveSetting = async () => {
     if (!editingSetting) return;
@@ -923,6 +951,7 @@ window.App = () => {
             typedMessage={typedMessage}
             setTypedMessage={setTypedMessage}
             handleSendMessage={handleSendMessage}
+            handleChatMediaUpload={handleChatMediaUpload}
             handleClearChatHistory={handleClearChatHistory}
             togglePinCustomer={togglePinCustomer}
             handleAssignAdmin={handleAssignAdmin}
