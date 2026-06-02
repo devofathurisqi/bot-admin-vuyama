@@ -237,6 +237,13 @@ window.ProductsTab = ({
 }) => {
   if (activeTab !== 'products') return null;
 
+  // Safe pagination calculations to prevent crashes or infinite loops
+  const totalItems = (productPagination && typeof productPagination.total === 'number') ? productPagination.total : 0;
+  const paginationLimit = (productPagination && typeof productPagination.limit === 'number' && productPagination.limit > 0) ? productPagination.limit : 9;
+  const currentPage = (productPagination && typeof productPagination.page === 'number') ? productPagination.page : 1;
+  const totalPages = Math.ceil(totalItems / paginationLimit);
+  const safePages = isFinite(totalPages) && totalPages > 0 ? totalPages : 1;
+
   return (
     <div className="space-y-6 text-xs text-slate-300">
       {/* BAR CONTROL HEADER */}
@@ -325,10 +332,10 @@ window.ProductsTab = ({
       </div>
 
       {/* PAGINATION CONTROLS */}
-      {productPagination && productPagination.total > productPagination.limit && (
+      {totalItems > paginationLimit && (
         <div className="flex flex-col sm:flex-row items-center justify-between border-t border-darkbg-border pt-6 mt-8 gap-4 select-none">
           <span className="text-xs text-gray-500 font-medium">
-            Showing <strong className="text-gray-800 dark:text-white font-extrabold">{((productPagination.page - 1) * productPagination.limit) + 1}</strong> to <strong className="text-gray-800 dark:text-white font-extrabold">{Math.min(productPagination.page * productPagination.limit, productPagination.total)}</strong> of <strong className="text-gray-800 dark:text-white font-extrabold">{productPagination.total}</strong> products
+            Showing <strong className="text-gray-800 dark:text-white font-extrabold">{((currentPage - 1) * paginationLimit) + 1}</strong> to <strong className="text-gray-800 dark:text-white font-extrabold">{Math.min(currentPage * paginationLimit, totalItems)}</strong> of <strong className="text-gray-800 dark:text-white font-extrabold">{totalItems}</strong> products
           </span>
 
           <div className="flex items-center space-x-2">
@@ -336,14 +343,14 @@ window.ProductsTab = ({
             <button
               type="button"
               onClick={() => setProductPage(prev => Math.max(prev - 1, 1))}
-              disabled={productPagination.page <= 1}
+              disabled={currentPage <= 1}
               className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
             >
               Previous
             </button>
 
             {/* Page Numbers */}
-            {Array.from({ length: Math.ceil(productPagination.total / productPagination.limit) }).map((_, idx) => {
+            {Array.from({ length: safePages }).map((_, idx) => {
               const pNum = idx + 1;
               return (
                 <button
@@ -351,7 +358,7 @@ window.ProductsTab = ({
                   type="button"
                   onClick={() => setProductPage(pNum)}
                   className={`w-9 h-9 rounded-xl font-bold text-xs transition flex items-center justify-center ${
-                    productPagination.page === pNum
+                    currentPage === pNum
                       ? 'bg-brand-600 text-white shadow-md shadow-brand-500/15'
                       : 'bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
@@ -364,8 +371,8 @@ window.ProductsTab = ({
             {/* Next Button */}
             <button
               type="button"
-              onClick={() => setProductPage(prev => Math.min(prev + 1, Math.ceil(productPagination.total / productPagination.limit)))}
-              disabled={productPagination.page >= Math.ceil(productPagination.total / productPagination.limit)}
+              onClick={() => setProductPage(prev => Math.min(prev + 1, safePages))}
+              disabled={currentPage >= safePages}
               className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-850 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
             >
               Next
