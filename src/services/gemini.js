@@ -2,7 +2,6 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const logger = require('../utils/logger');
 
 // Last updated: 2026-05-31 - Trigger for CI/CD Auto-Deployment Validation
-
 const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
@@ -41,14 +40,14 @@ const callGemini = async (prompt) => {
         const result = await activeModel.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
-        
+
         if (text) {
           return text;
         }
       } catch (error) {
         lastError = error;
         logger.warn(`Gemini call failed with model ${modelName} on attempt ${attempt}: ${error.message}`);
-        
+
         // If it's an authorization/API key invalidation error, do not retry
         if (error.message && (error.message.includes('API key not valid') || error.message.includes('400'))) {
           break;
@@ -69,11 +68,11 @@ const callGemini = async (prompt) => {
 const healthCheck = async () => {
   try {
     if (!API_KEY) return false;
-    
+
     // Add a 5-second timeout wrapper to prevent indefinite hanging
     const activeModel = genAI.getGenerativeModel({ model: MODEL_NAME });
     const apiCall = activeModel.generateContent("hi");
-    const timeout = new Promise((_, reject) => 
+    const timeout = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Timeout')), 5000)
     );
 
