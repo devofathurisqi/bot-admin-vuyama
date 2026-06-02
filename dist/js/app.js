@@ -40,6 +40,7 @@ window.App = () => {
 
   // Filter & Loaders
   const [productSearch, setProductSearch] = useState('');
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
   const [productCategory, setProductCategory] = useState('');
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -135,7 +136,7 @@ window.App = () => {
     setProductsLoading(true);
     try {
       const catQuery = productCategory ? `&category=${productCategory}` : '';
-      const res = await fetch(`/api/products?search=${productSearch}${catQuery}`);
+      const res = await fetch(`/api/products?search=${debouncedProductSearch}${catQuery}`);
       const d = await res.json();
       if (d.success) setProducts(d.data);
     } catch (e) { 
@@ -232,7 +233,6 @@ window.App = () => {
   // On Initial Mount and tab switching
   useEffect(() => {
     fetchBotStatus();
-    fetchProducts();
     fetchCustomers();
     fetchOrders();
     fetchComplaints();
@@ -289,10 +289,18 @@ window.App = () => {
     };
   }, [activeChat]);
 
-  // Triggers products fetch when search or category filter updates
+  // Debounce search input to prevent firing rapid network requests
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedProductSearch(productSearch);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [productSearch]);
+
+  // Triggers products fetch when debounced search or category filter updates
   useEffect(() => {
     fetchProducts();
-  }, [productSearch, productCategory]);
+  }, [debouncedProductSearch, productCategory]);
 
   // Scroll to bottom of chat window
   useEffect(() => {

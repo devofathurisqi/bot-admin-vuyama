@@ -301,8 +301,8 @@ window.ProductsTab = ({
       </div>
 
       {/* PRODUCTS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-8">
-        {productsLoading ? (
+      <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-8 transition-opacity duration-200 ${productsLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+        {productsLoading && products.length === 0 ? (
           <SkeletonGrid />
         ) : (
           <React.Fragment>
