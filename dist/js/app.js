@@ -42,6 +42,8 @@ window.App = () => {
   const [productSearch, setProductSearch] = useState('');
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
   const [productCategory, setProductCategory] = useState('');
+  const [productPage, setProductPage] = useState(1);
+  const [productPagination, setProductPagination] = useState({ total: 0, page: 1, limit: 9 });
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   
@@ -132,13 +134,18 @@ window.App = () => {
     } catch (e) { }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (pageToFetch = productPage) => {
     setProductsLoading(true);
     try {
       const catQuery = productCategory ? `&category=${productCategory}` : '';
-      const res = await fetch(`/api/products?search=${debouncedProductSearch}${catQuery}`);
+      const res = await fetch(`/api/products?search=${debouncedProductSearch}${catQuery}&page=${pageToFetch}&limit=9`);
       const d = await res.json();
-      if (d.success) setProducts(d.data);
+      if (d.success) {
+        setProducts(d.data);
+        if (d.pagination) {
+          setProductPagination(d.pagination);
+        }
+      }
     } catch (e) { 
     } finally {
       // Small timeout to give smooth skeleton experience
@@ -297,10 +304,15 @@ window.App = () => {
     return () => clearTimeout(handler);
   }, [productSearch]);
 
-  // Triggers products fetch when debounced search or category filter updates
+  // Reset page to 1 when search or category filter updates
   useEffect(() => {
-    fetchProducts();
+    setProductPage(1);
   }, [debouncedProductSearch, productCategory]);
+
+  // Triggers products fetch when page, debounced search, or category filter updates
+  useEffect(() => {
+    fetchProducts(productPage);
+  }, [productPage, debouncedProductSearch, productCategory]);
 
   // Scroll to bottom of chat window
   useEffect(() => {
@@ -940,6 +952,9 @@ window.App = () => {
             setProductSearch={setProductSearch}
             productCategory={productCategory}
             setProductCategory={setProductCategory}
+            productPage={productPage}
+            setProductPage={setProductPage}
+            productPagination={productPagination}
             setEditingProduct={setEditingProduct}
             setProductForm={setProductForm}
             setProductModalOpen={setProductModalOpen}

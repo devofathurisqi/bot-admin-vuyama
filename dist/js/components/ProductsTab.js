@@ -226,6 +226,9 @@ window.ProductsTab = ({
   setProductSearch,
   productCategory,
   setProductCategory,
+  productPage,
+  setProductPage,
+  productPagination,
   setEditingProduct,
   setProductForm,
   setProductModalOpen,
@@ -320,6 +323,56 @@ window.ProductsTab = ({
           </React.Fragment>
         )}
       </div>
+
+      {/* PAGINATION CONTROLS */}
+      {productPagination && productPagination.total > productPagination.limit && (
+        <div className="flex flex-col sm:flex-row items-center justify-between border-t border-darkbg-border pt-6 mt-8 gap-4 select-none">
+          <span className="text-xs text-gray-500 font-medium">
+            Showing <strong className="text-gray-800 dark:text-white font-extrabold">{((productPagination.page - 1) * productPagination.limit) + 1}</strong> to <strong className="text-gray-800 dark:text-white font-extrabold">{Math.min(productPagination.page * productPagination.limit, productPagination.total)}</strong> of <strong className="text-gray-800 dark:text-white font-extrabold">{productPagination.total}</strong> products
+          </span>
+
+          <div className="flex items-center space-x-2">
+            {/* Prev Button */}
+            <button
+              type="button"
+              onClick={() => setProductPage(prev => Math.max(prev - 1, 1))}
+              disabled={productPagination.page <= 1}
+              className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
+            >
+              Previous
+            </button>
+
+            {/* Page Numbers */}
+            {Array.from({ length: Math.ceil(productPagination.total / productPagination.limit) }).map((_, idx) => {
+              const pNum = idx + 1;
+              return (
+                <button
+                  key={pNum}
+                  type="button"
+                  onClick={() => setProductPage(pNum)}
+                  className={`w-9 h-9 rounded-xl font-bold text-xs transition flex items-center justify-center ${
+                    productPagination.page === pNum
+                      ? 'bg-brand-600 text-white shadow-md shadow-brand-500/15'
+                      : 'bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {pNum}
+                </button>
+              );
+            })}
+
+            {/* Next Button */}
+            <button
+              type="button"
+              onClick={() => setProductPage(prev => Math.min(prev + 1, Math.ceil(productPagination.total / productPagination.limit)))}
+              disabled={productPagination.page >= Math.ceil(productPagination.total / productPagination.limit)}
+              className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-850 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
