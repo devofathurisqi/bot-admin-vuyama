@@ -74,6 +74,9 @@ const syncExcelToDatabase = async () => {
           ? String(getVal(p, 'Ukuran')).split(',').map(s => s.trim()) 
           : [];
 
+        const existing = await db('products').where('id', String(id).trim()).first();
+        const excelImage = getVal(p, 'Link Gambar') ? String(getVal(p, 'Link Gambar')).trim() : null;
+
         const productPayload = {
           name: String(name).trim(),
           category: getVal(p, 'Kategori') ? String(getVal(p, 'Kategori')).trim() : null,
@@ -86,11 +89,10 @@ const syncExcelToDatabase = async () => {
           material: getVal(p, 'Material/Bahan') ? String(getVal(p, 'Material/Bahan')).trim() : null,
           weight: parseInt(getVal(p, 'Berat (Gram)')) || 0,
           stock: getVal(p, 'Stok Ready') ? parseInt(getVal(p, 'Stok Ready')) : 50, // default 50 if missing
-          image: getVal(p, 'Link Gambar') ? String(getVal(p, 'Link Gambar')).trim() : null,
+          image: excelImage || (existing ? existing.image : null),
           status: getVal(p, 'Status') ? String(getVal(p, 'Status')).trim() : 'Tersedia'
         };
 
-        const existing = await db('products').where('id', String(id).trim()).first();
         if (existing) {
           await db('products').where('id', String(id).trim()).update({
             ...productPayload,
