@@ -70,10 +70,9 @@ const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct }) => {
         {images.length > 0 ? (
           <React.Fragment>
             {/* Active Image with Lazy Load and smooth transitions */}
-             <img 
+             <window.ImageWithSkeleton 
               src={images[currentImgIndex]} 
               alt={`${p.name} - ${currentImgIndex + 1}`} 
-              loading="lazy"
               className="w-full h-full object-contain p-4 transition-all duration-500 scale-100 group-hover:scale-[1.02]" 
             />
 

@@ -1,22 +1,12 @@
-// Premium Image Lazy Loader with Pulsing Skeleton State & Blur-in transition
+// Delegate to global Premium Image with Skeleton Loader component
 const ImageWithSkeleton = ({ src, alt }) => {
-  const [loaded, setLoaded] = React.useState(false);
   return (
-    <div className="relative w-full h-32 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden border border-black/5 dark:border-white/5 flex items-center justify-center">
-      {!loaded && (
-        <div className="absolute inset-0 bg-gray-150 dark:bg-gray-850 flex flex-col items-center justify-center space-y-1.5 animate-pulse">
-          <div className="w-5 h-5 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
-          <span className="text-[8px] text-gray-500 font-bold tracking-wider uppercase">Loading...</span>
-        </div>
-      )}
-      <img
-        src={src}
-        alt={alt}
-        loading="lazy"
-        onLoad={() => setLoaded(true)}
-        className={`w-full h-full object-cover transition-all duration-300 ${loaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-95 blur-sm'}`}
-      />
-    </div>
+    <window.ImageWithSkeleton
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover"
+      containerClassName="h-32 rounded-xl border border-black/5 dark:border-white/5"
+    />
   );
 };
 

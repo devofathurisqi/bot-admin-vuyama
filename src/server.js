@@ -34,10 +34,19 @@ if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
 if (!fs.existsSync(colorStockMediaDir)) fs.mkdirSync(colorStockMediaDir, { recursive: true });
 if (!fs.existsSync(othersMediaDir)) fs.mkdirSync(othersMediaDir, { recursive: true });
 
-// Serve Static Uploads & PDFs
-app.use('/uploads', express.static(uploadDir));
-app.use('/media', express.static(mediaDir));
-app.use('/pdf', express.static(pdfDir));
+// Serve Static Uploads & PDFs with optimized Cache-Control headers
+app.use('/uploads', express.static(uploadDir, {
+  maxAge: '7d',
+  immutable: true
+}));
+app.use('/media', express.static(mediaDir, {
+  maxAge: '7d',
+  immutable: true
+}));
+app.use('/pdf', express.static(pdfDir, {
+  maxAge: '1d',
+  immutable: true
+}));
 
 // Multer Storage Configuration
 const excelStorage = multer.diskStorage({

@@ -25,3 +25,38 @@ window.Icons = {
   Palette: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>,
   Copy: (props) => <svg className={props.className || "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
 };
+
+// Global Premium Image with Skeleton Loader & Blur-in Transition
+window.ImageWithSkeleton = ({ src, alt, className = "", containerClassName = "", ...props }) => {
+  const [loaded, setLoaded] = React.useState(false);
+  const [error, setError] = React.useState(false);
+
+  return (
+    <div className={`relative w-full h-full bg-gray-100 dark:bg-gray-800/50 overflow-hidden flex items-center justify-center ${containerClassName}`}>
+      {!loaded && !error && (
+        <div className="absolute inset-0 bg-gray-200 dark:bg-gray-800 flex flex-col items-center justify-center space-y-1.5 animate-pulse">
+          <div className="w-5 h-5 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
+          <span className="text-[8px] text-gray-500 dark:text-gray-400 font-bold tracking-wider uppercase">Loading...</span>
+        </div>
+      )}
+      {error ? (
+        <div className="absolute inset-0 bg-gray-150 dark:bg-gray-850 flex flex-col items-center justify-center space-y-1">
+          <svg className="w-6 h-6 text-gray-450 dark:text-gray-550" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
+          </svg>
+          <span className="text-[8px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider">Error</span>
+        </div>
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+          className={`${className} transition-all duration-500 ${loaded ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-95 blur-sm'}`}
+          {...props}
+        />
+      )}
+    </div>
+  );
+};

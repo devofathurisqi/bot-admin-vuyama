@@ -130,7 +130,7 @@ window.MediaTab = ({
                 
                 {/* File Preview */}
                 <div className="h-32 bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
-                  <img src={item.filepath} alt={item.original_name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                  <window.ImageWithSkeleton src={item.filepath} alt={item.original_name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                   <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] font-extrabold bg-indigo-600/90 text-white uppercase tracking-wide">
                     Color Stock
                   </span>
@@ -198,7 +198,7 @@ window.MediaTab = ({
                 {/* File Preview */}
                 <div className="h-32 bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative">
                   {item.mime_type.startsWith('image') ? (
-                    <img src={item.filepath} alt={item.original_name} className="w-full h-full object-cover" />
+                    <window.ImageWithSkeleton src={item.filepath} alt={item.original_name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="text-brand-400 font-extrabold uppercase text-[10px] tracking-widest leading-none">PDF / DOC</div>
                   )}
@@ -353,7 +353,7 @@ window.MediaTab = ({
                 
                 {/* Swatch fabric photo box container */}
                 <div className="h-44 bg-slate-900 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative select-none">
-                  <img
+                  <window.ImageWithSkeleton
                     src={color.image_path}
                     alt={color.color_name}
                     className="w-full h-full object-cover transition duration-300 group-hover:scale-105"

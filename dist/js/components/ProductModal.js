@@ -613,7 +613,7 @@ window.ProductModal = ({
                       if (!cleanUrl) return null;
                       return (
                         <div key={idx} className="relative h-16 rounded-lg overflow-hidden bg-gray-900 border border-darkbg-border group">
-                          <img src={cleanUrl} alt="Preview" className="w-full h-full object-contain p-1 bg-gray-900" />
+                          <window.ImageWithSkeleton src={cleanUrl} alt="Preview" className="w-full h-full object-contain p-1 bg-gray-900" />
                           <button
                             type="button"
                             onClick={() => {
