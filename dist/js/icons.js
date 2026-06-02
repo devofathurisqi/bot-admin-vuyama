@@ -27,40 +27,39 @@ window.Icons = {
 };
 
 // Global Premium Image with Skeleton Loader & Blur-in Transition (DOM-stable loop-free version)
+// Global Premium Image with Skeleton Loader (Stateless Direct-DOM high-performance version)
 window.ImageWithSkeleton = ({ src, alt, className = "", containerClassName = "", ...props }) => {
-  const [loaded, setLoaded] = React.useState(false);
-  const [error, setError] = React.useState(false);
-
-  // Reset states if src changes
-  React.useEffect(() => {
-    setLoaded(false);
-    setError(false);
-  }, [src]);
-
   return (
-    <div className={`relative w-full h-full bg-gray-100 dark:bg-gray-800/30 overflow-hidden flex items-center justify-center ${containerClassName}`}>
-      {/* Loading Skeleton Overlay (Fade out when loaded or error) */}
-      <div className={`absolute inset-0 bg-gray-200 dark:bg-gray-850 flex flex-col items-center justify-center space-y-1.5 animate-pulse transition-opacity duration-300 ${loaded || error ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-        <div className="w-5 h-5 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
-        <span className="text-[8px] text-gray-500 dark:text-gray-400 font-bold tracking-wider uppercase">Loading...</span>
-      </div>
-
-      {/* Error Overlay (Only visible on error) */}
-      <div className={`absolute inset-0 bg-gray-150 dark:bg-gray-850 flex flex-col items-center justify-center space-y-1 z-10 transition-opacity duration-350 ${error ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <svg className="w-6 h-6 text-gray-450 dark:text-gray-550" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
-        </svg>
-        <span className="text-[8px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider">Error</span>
-      </div>
-
-      {/* Image tag (Always rendered, hidden via opacity when loading or error) */}
+    <div className={`relative w-full h-full bg-gray-200 dark:bg-gray-800 animate-pulse overflow-hidden flex items-center justify-center ${containerClassName}`}>
       <img
         src={src}
         alt={alt}
         loading="lazy"
-        onLoad={() => setLoaded(true)}
-        onError={() => setError(true)}
-        className={`${className} transition-all duration-500 ${loaded && !error ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-95 blur-sm'}`}
+        onLoad={(e) => {
+          // Stop pulsing and fade in the image using direct DOM class and style manipulation
+          const container = e.currentTarget.parentElement;
+          if (container) {
+            container.classList.remove('animate-pulse');
+            container.classList.remove('bg-gray-200');
+            container.classList.remove('dark:bg-gray-800');
+          }
+          e.currentTarget.style.opacity = '1';
+        }}
+        onError={(e) => {
+          // Stop pulsing and hide the broken image element
+          const container = e.currentTarget.parentElement;
+          if (container) {
+            container.classList.remove('animate-pulse');
+          }
+          e.currentTarget.style.display = 'none';
+        }}
+        style={{
+          opacity: 0,
+          transition: 'opacity 0.4s ease-in-out',
+          width: '100%',
+          height: '100%'
+        }}
+        className={className}
         {...props}
       />
     </div>
