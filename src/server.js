@@ -7,7 +7,6 @@ const multer = require('multer');
 const db = require('./utils/db');
 const { initSocket, emitEvent } = require('./utils/socket');
 const { getBotStatus } = require('./bot_state');
-const { syncExcelToDatabase } = require('./services/knowledge');
 const logger = require('./utils/logger');
 
 const app = express();
@@ -48,16 +47,7 @@ app.use('/pdf', express.static(pdfDir, {
   immutable: true
 }));
 
-// Multer Storage Configuration
-const excelStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../learn'));
-  },
-  filename: (req, file, cb) => {
-    cb(null, 'vuyama_data.xlsx'); // Overwrite the main Excel file
-  }
-});
-const uploadExcel = multer({ storage: excelStorage });
+
 
 const productImgStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -127,25 +117,6 @@ app.get('/api/whatsapp/status', (req, res) => {
   res.json(getBotStatus());
 });
 
-// 2. Excel Migration Sync
-app.post('/api/migration/import', uploadExcel.single('file'), async (req, res) => {
-  try {
-    await logToDb('info', 'Excel upload initiated via dashboard...');
-    const result = await syncExcelToDatabase();
-    await logToDb('info', 'Excel sync completed successfully!');
-    
-    // Add audit log
-    await db('audit_logs').insert({
-      action: 'SYNC_EXCEL',
-      details: 'excel file imported and database synced'
-    });
-
-    res.json(result);
-  } catch (error) {
-    await logToDb('error', `Excel migration failed: ${error.message}`);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
 
 // 3. Products CRUD
 app.get('/api/products', async (req, res) => {

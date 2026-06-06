@@ -53,12 +53,8 @@ GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash
 ```
 
-### 3. Initialize Database
-Initialize the schema and seed the clean knowledge base from the backup JSON:
-```bash
-node src/scripts/initDb.js
-node src/scripts/runSync.js
-```
+### 3. Database Setup
+The database schema and tables are managed directly on the live Supabase PostgreSQL instance. Ensure the `.env` variables are correctly configured.
 
 ### 4. Run the Application
 ```bash
@@ -91,11 +87,6 @@ admin-bot-vuyama/
 │   │   ├── logger.js          # Pino logger config
 │   │   ├── socket.js          # WebSockets manager
 │   │   └── workflow.js        # Workflow auto-pause utility
-│   └── scripts/
-│       ├── initDb.js          # Database schema migrations
-│       ├── runSync.js         # Seeder trigger
-│       ├── recover_images.js  # Startup image mapping utility
-│       └── testSuite.js       # Comprehensive programmatic QA test suite
 ├── learn/                     # Storage for uploaded product images
 ├── data/
 │   ├── media/                 # Daily color stock images
@@ -103,13 +94,3 @@ admin-bot-vuyama/
 ├── dist/                      # Dashboard UI React build
 └── README.md
 ```
-
----
-
-## 🧪 Verification & Testing
-
-Verify system correctness by executing the programmatic test suite:
-```bash
-node src/scripts/testSuite.js
-```
-This runs 15 test assertions covering time-based memory, intent clarification, local FAQ matcher overrides, RAG replies, PDF invoice generation, and 1-number manual override.
