@@ -25,9 +25,22 @@ window.ProductModal = ({
     return ['Lainnya'];
   })();
 
-  // Initialize variants and wholesale_tiers arrays if undefined
-  const variants = productForm.variants || [];
-  const wholesale_tiers = productForm.wholesale_tiers || [];
+  // Initialize variants and wholesale_tiers arrays safely if undefined or stringified
+  let variants = [];
+  try {
+    variants = Array.isArray(productForm.variants) ? productForm.variants : (typeof productForm.variants === 'string' ? JSON.parse(productForm.variants || '[]') : []);
+  } catch (e) {
+    variants = [];
+  }
+  if (!Array.isArray(variants)) variants = [];
+
+  let wholesale_tiers = [];
+  try {
+    wholesale_tiers = Array.isArray(productForm.wholesale_tiers) ? productForm.wholesale_tiers : (typeof productForm.wholesale_tiers === 'string' ? JSON.parse(productForm.wholesale_tiers || '[]') : []);
+  } catch (e) {
+    wholesale_tiers = [];
+  }
+  if (!Array.isArray(wholesale_tiers)) wholesale_tiers = [];
 
   // Helper functions for Variants
   const handleAddVariant = () => {

@@ -399,6 +399,14 @@ app.post('/api/whatsapp/send', async (req, res) => {
       timestamp
     });
 
+    // Auto-pause bot for this contact due to manual admin reply from dashboard
+    try {
+      const { pauseBotForCustomer } = require('./utils/workflow');
+      await pauseBotForCustomer(phoneNumber, 'Intervensi Live Chat Dashboard');
+    } catch (err) {
+      logger.error('Failed to trigger pauseBotForCustomer in send route:', err);
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -463,6 +471,14 @@ app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (re
       status: 'sent',
       timestamp
     });
+
+    // Auto-pause bot for this contact due to manual admin reply from dashboard
+    try {
+      const { pauseBotForCustomer } = require('./utils/workflow');
+      await pauseBotForCustomer(phoneNumber, 'Intervensi Live Chat Dashboard');
+    } catch (err) {
+      logger.error('Failed to trigger pauseBotForCustomer in send-media route:', err);
+    }
 
     res.json({ success: true, filepath });
   } catch (error) {

@@ -237,7 +237,14 @@ window.App = () => {
     }
   };
 
-  // On Initial Mount and tab switching
+  // Keep activeChat in a Ref so Socket.IO callbacks can always read the latest selected chat
+  // without tearing down and rebuilding the WebSocket connection or triggering redundant data fetches.
+  const activeChatRef = useRef(activeChat);
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
+  // On Initial Mount only - Connect socket and load starting states
   useEffect(() => {
     fetchBotStatus();
     fetchCustomers();
@@ -258,14 +265,14 @@ window.App = () => {
 
     // Real-time messages update
     socket.on('incoming_message', (msg) => {
-      if (activeChat && msg.phone_number === activeChat) {
+      if (activeChatRef.current && msg.phone_number === activeChatRef.current) {
         setChatMessages(prev => [...prev, msg]);
       }
       fetchCustomers();
     });
 
     socket.on('chat_history_cleared', (data) => {
-      if (activeChat && data.phone_number === activeChat) {
+      if (activeChatRef.current && data.phone_number === activeChatRef.current) {
         setChatMessages([]);
       }
       fetchCustomers();
@@ -294,7 +301,7 @@ window.App = () => {
     return () => {
       socket.disconnect();
     };
-  }, [activeChat]);
+  }, []);
 
   // Debounce search input to prevent firing rapid network requests
   useEffect(() => {
@@ -303,11 +310,6 @@ window.App = () => {
     }, 250);
     return () => clearTimeout(handler);
   }, [productSearch]);
-
-  // Reset page to 1 when search or category filter updates
-  useEffect(() => {
-    setProductPage(1);
-  }, [debouncedProductSearch, productCategory]);
 
   // Triggers products fetch when page, debounced search, or category filter updates
   useEffect(() => {
@@ -477,8 +479,8 @@ window.App = () => {
       stock: p.stock || 0,
       image: p.image || '',
       status: p.status || 'Tersedia',
-      variants: p.variants || [],
-      wholesale_tiers: p.wholesale_tiers || []
+      variants: Array.isArray(p.variants) ? p.variants : (typeof p.variants === 'string' ? JSON.parse(p.variants || '[]') : []),
+      wholesale_tiers: Array.isArray(p.wholesale_tiers) ? p.wholesale_tiers : (typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers || '[]') : [])
     });
     setProductModalOpen(true);
   };
@@ -949,9 +951,15 @@ window.App = () => {
             products={products}
             productsLoading={productsLoading}
             productSearch={productSearch}
-            setProductSearch={setProductSearch}
+            setProductSearch={(val) => {
+              setProductSearch(val);
+              setProductPage(1);
+            }}
             productCategory={productCategory}
-            setProductCategory={setProductCategory}
+            setProductCategory={(val) => {
+              setProductCategory(val);
+              setProductPage(1);
+            }}
             productPage={productPage}
             setProductPage={setProductPage}
             productPagination={productPagination}

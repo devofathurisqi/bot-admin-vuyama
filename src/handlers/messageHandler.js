@@ -3,6 +3,7 @@ const path = require('path');
 const knowledge = require('../services/knowledge');
 const history = require('../services/history');
 const gemini = require('../services/gemini');
+const memory = require('../services/memory');
 const db = require('../utils/db');
 const { emitEvent } = require('../utils/socket');
 const logger = require('../utils/logger');
@@ -143,10 +144,13 @@ const getComparisonReply = (userMessage) => {
 /**
  * Build dynamic system prompt containing the latest database context
  */
-const buildDynamicSystemPrompt = async (userMessage = "", phoneNumber = null) => {
+const buildDynamicSystemPrompt = async (userMessage = "", phoneNumber = null, memoryAnalysis = null) => {
   try {
+    // If we have memory context, prepend the 3-day summary to the classifier string to solve coreference context loss
+    const classificationText = memoryAnalysis ? `${memoryAnalysis.summary} ${userMessage}` : userMessage;
+    
     // Smart RAG selector retrieval with context awareness
-    const context = await knowledge.retrieveKnowledgeContext(userMessage, phoneNumber);
+    const context = await knowledge.retrieveKnowledgeContext(classificationText, phoneNumber);
 
     logger.info(`Smart RAG Classifier classified intent. Querying tables: [${context.selectedTables.join(', ')}]`);
 
@@ -163,12 +167,19 @@ const buildDynamicSystemPrompt = async (userMessage = "", phoneNumber = null) =>
 
     return `Kamu adalah seorang admin Customer Service resmi Vuyama (bernama Vumin) yang sangat profesional, ramah, dan berpengalaman luas di bidang produksi mukena, hijab, dan label brand hijab. 
 
+INFORMASI PERCAKAPAN SAAT INI (Konteks Ringkasan dari ChatGPT):
+- Ringkasan percakapan 3 hari terakhir: ${memoryAnalysis ? memoryAnalysis.summary : 'Belum ada obrolan sebelumnya.'}
+- Intent/Niat terdeteksi saat ini: ${memoryAnalysis ? memoryAnalysis.extracted_intent : 'OTHER'}
+- Status Alur Percakapan: ${memoryAnalysis ? memoryAnalysis.conversation_state : 'idle'}
+
 ATURAN MUTLAK & DISIPLIN DATA KETAT (PENTING - DILARANG KERAS BERIMPROVISASI ATAU MENGARANG):
 1. **DILARANG KERAS MENGARANG PRODUK**: Kamu HANYA boleh merekomendasikan atau menyebutkan nama produk yang benar-benar tercantum di dalam daftar "products" atau "pdf_pricelist_official" di bagian KNOWLEDGE BASE di bawah. Jika customer bertanya tentang produk, jenis, bahan, atau nama barang yang tidak ada di data kita, kamu HARUS menjawab dengan sopan bahwa produk tersebut sedang kosong/belum tersedia, atau minta mereka menunggu admin manusia mengecek ke bagian gudang. JANGAN PERNAH menyebutkan nama barang khayalan!
 2. **DILARANG KERAS MENGARANG HARGA DAN ATURAN GROSIR**: Semua harga retail (price_retail), harga reseller (price_reseller), varian harga per ukuran (sizes), dan diskon grosir berjenjang (wholesale_tiers) HARUS 100% akurat sesuai angka yang ada di database atau "pdf_pricelist_official". Jangan pernah memotong harga secara mandiri, mengarang diskon khayalan, atau mengasumsikan biaya kirim (ongkir) tanpa data resmi.
-3. **DILARANG KERAS MENGARANG DETAIL SPESIFIKASI**: Deskripsi bahan, warna, berat, dan status ketersediaan barang wajib merujuk secara ketat pada data produk terkait. Jika tidak tertulis di data, jangan berasumsi atau menebak-nebak secara acak. Katakan dengan jujur atau minta mereka menunggu konfirmasi admin.
+3. **DILARANG KERAS MENGARANG DETAIL SPESIFIKASI**: Deskripsi bahan, warna, berat, and status ketersediaan barang wajib merujuk secara ketat pada data produk terkait. Jika tidak tertulis di data, jangan berasumsi atau menebak-nebak secara acak. Katakan dengan jujur atau minta mereka menunggu konfirmasi admin.
 4. **PRIORITAS DATA KATALOG DAN HARGA RESELLER TERBARU (MUTLAK)**: Jika terdapat perbedaan harga, paket reseller, minimal pembelian, atau varian produk antara data tabel database ("products"/"reseller_program") dengan data di dalam "pdf_pricelist_official" di KNOWLEDGE BASE di bawah, kamu WAJIB memprioritaskan dan menggunakan data yang ada di "pdf_pricelist_official" (karena itu adalah backup wawasan resmi paling terbaru dari PDF Price List Update April/Mei 2026)!
 5. **PEMICU DOKUMEN KOMPARASI PDF (MUTLAK PENTING)**: Jika customer secara eksplisit meminta perbandingan produk/bahan (seperti "paris japan vs jadul bagusan mana ya", "apa bedanya akrilik sama woven", dsb.), kamu WAJIB menyertakan tag khusus \`[COMPARISON_SHEET]\` di awal atau di akhir balasanmu agar sistem kita otomatis mencetak PDF A4 perbandingan resmi. Jika customer hanya bertanya hal umum, jangan sertakan tag tersebut!
+6. **PEMICU INVOICE DRAFT PDF (MUTLAK PENTING)**: Jika customer sepakat untuk melakukan pembelian, setuju dengan rincian pesanan, atau menanyakan total tagihan/invoice untuk ditransfer, sertakan tag \`[INVOICE_SHEET]\` di bagian akhir balasanmu agar sistem kita mencetak PDF invoice ringkasan tagihan secara otomatis.
+7. **PEMICU DOKUMEN WELCOME RESELLER (MUTLAK PENTING)**: Jika customer setuju bergabung, bertanya rincian panduan, atau menanyakan SOP untuk program reseller dengan tingkatan tertentu (seperti Silver, Gold, Legend, Sultan), sertakan tag \`[WELCOME_GUIDE: Level]\` (contoh: \`[WELCOME_GUIDE: Silver]\`, \`[WELCOME_GUIDE: Sultan]\`) di akhir balasanmu agar sistem kita otomatis mencetak PDF guide selamat datang yang sesuai.
 
 ATURAN KHUSUS OPERASIONAL BISNIS VUYAMA (MUTLAK Wajib Dipatuhi):
 - **Ecer**: Pembelian ecer (satuan) hanya bisa dilakukan dengan checkout via toko resmi Shopee Vuyama di: https://shopee.co.id/vuyama.
@@ -284,7 +295,8 @@ const isComplaintMessage = (msgText) => {
   const COMPLAINT_KEYWORDS = [
     'kecewa', 'marah', 'refund', 'penipuan', 'barang belum datang',
     'respon lama', 'komplain', 'jelek', 'rugi', 'lambat',
-    'kembalikan uang', 'salah kirim', 'cacat', 'rusak', 'pecah'
+    'kembalikan uang', 'salah kirim', 'cacat', 'rusak', 'pecah',
+    'robek', 'bolong', 'kotor', 'kurang'
   ];
   const normalized = msgText.toLowerCase();
   return COMPLAINT_KEYWORDS.some(k => normalized.includes(k));
@@ -370,16 +382,15 @@ ${text}
 };
 
 /**
- * Context string builder from customer message history
+ * Context string builder from customer message history (restricted to last 3 days)
  */
 const buildContextString = async (phoneNumber) => {
-  const limit = parseInt(process.env.CONTEXT_MESSAGES_LIMIT, 10) || 8;
-  const chatHistory = await history.getHistory(phoneNumber, limit);
+  const chatHistory = await history.getConversationsWithinDays(phoneNumber, 3);
   if (chatHistory.length === 0) return '';
 
-  let contextStr = '\nRiwayat chat terakhir:\n';
+  let contextStr = '\nRiwayat chat terakhir (3 hari terakhir):\n';
   chatHistory.forEach(msg => {
-    const sender = msg.sender === 'customer' ? 'Customer' : 'Admin';
+    const sender = msg.sender === 'customer' ? 'Customer' : msg.sender === 'agent' ? 'Admin' : 'Bot';
     contextStr += `${sender}: ${msg.message}\n`;
   });
   return contextStr;
@@ -410,6 +421,20 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       };
     }
 
+    // 0.3 RETAIL/ECER BYPASS (Zero-Call)
+    const isRetailQuery = (msgText) => {
+      const normalized = msgText.toLowerCase();
+      return normalized.includes('ecer') || normalized.includes('satuan') || normalized.includes('retail') || /\b(1\s*(pcs|pc|buah|biji))\b/.test(normalized);
+    };
+
+    if (isRetailQuery(userMessage)) {
+      await logToDb('info', `Deteksi otomatis Pertanyaan Ecer/Satuan dari ${phoneNumber} (Bypass ke Shopee).`);
+      return {
+        intent: 'retail_shopee',
+        response: 'Untuk pembelian ecer (satuan), silakan langsung checkout melalui toko resmi Shopee Vuyama ya kak... 😊 Berikut link toko Shopee kami: https://shopee.co.id/vuyama'
+      };
+    }
+
     // 0.5 LOCAL FAQ SIMILARITY MATCHING (Zero-Call RAG / Smart TF-IDF ML Engine)
     const matchedFaq = await knowledge.findMatchingFaq(userMessage);
     if (matchedFaq) {
@@ -420,8 +445,13 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       };
     }
 
-    // 1. COMPLAINT DETECTION FLOW
-    if (isComplaintMessage(userMessage)) {
+    // 1. UPDATE/FETCH CONVERSATION MEMORY (Event-driven background gatekeeper)
+    logger.info(`Updating 3-day time-based memory for customer ${phoneNumber}`);
+    const memoryAnalysis = await memory.updateMemory(phoneNumber, userMessage);
+
+    // 2. COMPLAINT DETECTION FLOW (Hybrid: Keyword + ChatGPT/Gemini extracted intent)
+    const isComplaint = isComplaintMessage(userMessage) || memoryAnalysis.extracted_intent === 'COMPLAINT';
+    if (isComplaint) {
       await logToDb('warn', `Deteksi otomatis Komplain dari ${phoneNumber}: "${userMessage.substring(0, 40)}..."`);
 
       // Auto-block the bot from replying to this customer in the future
@@ -462,10 +492,11 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       };
     }
 
-    // 2. ORDER CONFIRMATION FLOW
-
-    // Scenario B: Customer fills the format (checked first to avoid phrase conflicts)
-    if (isFilledOrderFormat(userMessage)) {
+    // 3. ORDER CONFIRMATION FLOW (Hybrid: Format or ChatGPT Intent)
+    const isFilledFormat = isFilledOrderFormat(userMessage) || 
+      (memoryAnalysis.extracted_intent === 'ORDER_FORMAT' && 
+       ['nama', 'alamat', 'pesanan'].every(k => userMessage.toLowerCase().includes(k)));
+    if (isFilledFormat) {
       await logToDb('info', `Customer ${phoneNumber} mengirimkan format order. Menjalankan AI parser...`);
 
       const parsed = await parseOrderFormatWithGemini(userMessage);
@@ -545,8 +576,8 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       };
     }
 
-    // Scenario A: Customer wants to order (gives order format)
-    if (isOrderIntentMessage(userMessage)) {
+    const isOrderIntent = isOrderIntentMessage(userMessage) || memoryAnalysis.extracted_intent === 'ORDER_INTENT';
+    if (isOrderIntent) {
       await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
 
       // Fetch customer name
@@ -596,9 +627,18 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       };
     }
 
-    // 3. NORMAL AI CHAT FLOW (USING DYNAMIC KNOWLEDGE AND DYNAMIC SYSTEM PROMPT)
+    // 4. CHECK INTENT CLARITY (Clarification Gatekeeper - runs only if not order or complaint)
+    if (!memoryAnalysis.is_intent_clear) {
+      await logToDb('info', `Customer ${phoneNumber} intent unclear. Asking clarifying question...`);
+      return {
+        intent: 'clarification',
+        response: memoryAnalysis.clarification_question
+      };
+    }
+
+    // 5. NORMAL AI CHAT FLOW (USING DYNAMIC KNOWLEDGE AND DYNAMIC SYSTEM PROMPT)
     const contextStr = await buildContextString(phoneNumber);
-    const systemPrompt = await buildDynamicSystemPrompt(userMessage, phoneNumber);
+    const systemPrompt = await buildDynamicSystemPrompt(userMessage, phoneNumber, memoryAnalysis);
     const prompt = `${systemPrompt}${contextStr}\n\nCustomer: ${userMessage}\n\nAdmin (jangan mulai dengan 'Admin:'):`;
 
     logger.info(`Calling Gemini AI for customer ${phoneNumber}`);

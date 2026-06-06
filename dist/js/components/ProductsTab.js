@@ -45,8 +45,21 @@ const SkeletonGrid = () => {
 const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct }) => {
   const [currentImgIndex, setCurrentImgIndex] = React.useState(0);
   const images = p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [];
-  const variantsList = p.variants || [];
-  const tiersList = p.wholesale_tiers || [];
+  let variantsList = [];
+  try {
+    variantsList = Array.isArray(p.variants) ? p.variants : (typeof p.variants === 'string' ? JSON.parse(p.variants || '[]') : []);
+  } catch (e) {
+    variantsList = [];
+  }
+  if (!Array.isArray(variantsList)) variantsList = [];
+
+  let tiersList = [];
+  try {
+    tiersList = Array.isArray(p.wholesale_tiers) ? p.wholesale_tiers : (typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers || '[]') : []);
+  } catch (e) {
+    tiersList = [];
+  }
+  if (!Array.isArray(tiersList)) tiersList = [];
 
   const handlePrev = (e) => {
     e.stopPropagation();

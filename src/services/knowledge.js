@@ -12,9 +12,11 @@ const syncExcelToDatabase = async () => {
   try {
     const learnDir = path.join(__dirname, '../../learn');
     const excelPath = path.join(learnDir, 'vuyama_data.xlsx');
+    const backupPath = path.join(__dirname, '../../data/pdf_knowledge_backup.json');
 
     if (!fs.existsSync(excelPath)) {
-      throw new Error(`Excel knowledge file not found at: ${excelPath}`);
+      logger.warn(`Excel file not found at ${excelPath}. Attempting backup JSON seeding...`);
+      return await seedFromBackupJson(backupPath);
     }
 
     logger.info('Loading Excel workbook for migration...');
@@ -173,6 +175,16 @@ const syncExcelToDatabase = async () => {
           category: 'Umum',
           question: 'Ecer',
           answer: 'Untuk pembelian ecer (satuan), silakan langsung checkout melalui toko resmi Shopee Vuyama ya kak... 😊 Berikut link toko Shopee kami: https://shopee.co.id/vuyama'
+        },
+        {
+          category: 'Umum',
+          question: 'ada maps workshop?',
+          answer: 'Untuk Google Maps workshop resmi Vuyama di Cirimekar Cibinong Bogor belum tersedia kak, tapi untuk alamat lengkap workshop kami ada di Lingkungan Palamanis RT 02/05 No. 69 B Cirimekar Cibinong Bogor 16917 ya kak... 😊'
+        },
+        {
+          category: 'Umum',
+          question: 'alamatnya dimana?',
+          answer: 'Alamat workshop Vuyama ada di Lingkungan Palamanis RT 02/05 No. 69 B Cirimekar Cibinong Bogor 16917 ya kak... 😊'
         },
         {
           category: 'Reseller',
@@ -503,7 +515,7 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
     }
   }
 
-  const STOPWORDS = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok', 'mau', 'nanya', 'untuk', 'ada', 'saja', 'ya', 'halo', 'tanya', 'dong', 'sih', 'kok', 'apa', 'ada', 'aja']);
+  const STOPWORDS = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok', 'mau', 'nanya', 'untuk', 'ada', 'saja', 'ya', 'halo', 'tanya', 'dong', 'sih', 'kok', 'apa', 'ada', 'aja', 'bisa', 'beli', 'apakah', 'bagaimana', 'cara', 'toko']);
 
   const cleanMessage = classificationText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").trim();
   const tokens = cleanMessage.split(/\s+/).filter(w => w.length > 1 && !STOPWORDS.has(w));
@@ -558,10 +570,14 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
   const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
 
   // Intent triggers
+  // Only trigger reseller program details if they are asking about joining, requirements, or levels, and not just looking up specific product prices
+  const isResellerProgramInquiry = tokens.some(t => ['join', 'gabung', 'daftar', 'syarat', 'mitra', 'level', 'tingkat'].includes(t)) || 
+                                   (tokens.includes('reseller') && !tokens.some(t => ['harga', 'price', 'berapa', 'spill', 'ready', 'minta', 'foto'].includes(t)));
+
   const triggers = {
     products: scores.products > 0 || tokens.length === 0 || totalScore === 0, // Default true if empty or no keywords matched
     services: scores.services > 0,
-    reseller: scores.reseller > 0,
+    reseller: scores.reseller > 0 && isResellerProgramInquiry,
     shipping: scores.shipping > 0,
     company: scores.company > 0 || tokens.length === 0 || totalScore === 0
   };
@@ -773,7 +789,7 @@ class TfIdfMatcher {
     this.idf = {};
     this.docVectors = [];
     this.vocab = new Set();
-    this.stopwords = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok', 'mau', 'nanya', 'ada', 'saja', 'halo', 'tanya', 'apa', 'aja']);
+    this.stopwords = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok', 'mau', 'nanya', 'ada', 'saja', 'halo', 'tanya', 'apa', 'aja', 'bisa', 'beli', 'apakah', 'bagaimana', 'cara', 'toko']);
     this.build();
   }
 
@@ -889,13 +905,28 @@ const findMatchingFaq = async (userMessage) => {
   if (!userMessage) return null;
   
   try {
+    // 1. Bypass FAQ matcher if the message contains active product names from DB
+    const products = await db('products').select('name');
+    const normalizedMessage = userMessage.toLowerCase();
+    const hasProductName = products.some(p => {
+      const name = p.name.toLowerCase();
+      // Split product name into tokens, filter out very short terms and category terms
+      const nameTokens = name.split(/\s+/).filter(w => w.length > 3 && !['mukena', 'hijab', 'label', 'lasercut'].includes(w));
+      return nameTokens.length > 0 && nameTokens.some(tok => normalizedMessage.includes(tok));
+    });
+
+    if (hasProductName) {
+      logger.info(`Bypassing FAQ matcher because message contains product name tokens: "${userMessage}"`);
+      return null;
+    }
+
     const faqs = await db('faq').select('*');
     if (faqs.length === 0) return null;
 
     const matcher = new TfIdfMatcher(faqs, 'question');
     const results = matcher.similarity(userMessage);
 
-    if (results.length > 0 && results[0].score >= 0.40) {
+    if (results.length > 0 && results[0].score >= 0.65) {
       return {
         answer: results[0].document.answer,
         score: results[0].score,
@@ -906,6 +937,211 @@ const findMatchingFaq = async (userMessage) => {
     logger.error('Error in TF-IDF FAQ matcher:', err);
   }
   return null;
+};
+
+/**
+ * Fallback seeder when Excel file is not found (seeding from backup JSON)
+ */
+const seedFromBackupJson = async (backupPath) => {
+  if (!fs.existsSync(backupPath)) {
+    throw new Error(`Fallback backup JSON not found at: ${backupPath}`);
+  }
+
+  logger.info('Performing full clean wipe of database knowledge tables...');
+  await db('products').del();
+  await db('company_info').del();
+  await db('services').del();
+  await db('reseller_program').del();
+  await db('faq').del();
+
+  logger.info('Loading backup JSON for seeding...');
+  const data = JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+
+  // 1. Seed Company Info
+  const companyDefaults = [
+    { key: 'nama_perusahaan', label: 'Nama Perusahaan', value: 'Vuyama Hijab & Mukena' },
+    { key: 'alamat', label: 'Alamat', value: 'Lingkungan Palamanis RT 02/05 No. 69 B Cirimekar Cibinong Bogor 16917' },
+    { key: 'kontak', label: 'Kontak', value: '0812-3456-7890' },
+    { key: 'whatsapp_cs', label: 'WhatsApp CS', value: '82113294501' },
+    { key: 'instagram', label: 'Instagram', value: 'vuyama.id' },
+    { key: 'website', label: 'Website', value: 'www.vuyama.com' },
+    { key: 'jam_operasional', label: 'Jam Operasional', value: 'Senin - Sabtu: 08:00 - 17:00. Minggu: Libur.' },
+    { key: 'metode_pembayaran', label: 'Metode Pembayaran', value: 'Transfer bank ke rekening resmi Vuyama:\n- BCA: 167-160453-4 a.n. Pramesthy Kaulaswara Annur\n- BRI: 2221-01010648-50-1 a.n. Pramesthy Kaulaswara Annur' },
+    { key: 'area_layanan', label: 'Area Layanan', value: 'Seluruh Indonesia (J&T, Shopee Express, JNT Cargo & Lion Parcel)' },
+    { key: 'ketentuan_garansi', label: 'Ketentuan Garansi', value: 'Garansi 7 hari setelah barang diterima jika ada cacat produksi atau kurang (wajib video unboxing).' },
+    { key: 'deskripsi_singkat', label: 'Deskripsi Singkat', value: 'Produsen Mukena & Kerudung White Label' },
+    { key: 'visi_misi', label: 'Visi & Misi', value: 'Visi : Membuka jalan bagi siapa saja untuk memiliki brand fashion muslim sendiri, dengan Vuyama sebagai produsen terdepan di Indonesia.' }
+  ];
+  for (const item of companyDefaults) {
+    await db('company_info').insert(item);
+  }
+
+  // 1b. Seed Services Info
+  const serviceDefaults = [
+    { id: 'SRV-01', name: 'Sistem Dropship', description: 'Layanan Dropship Manual dengan nama toko pengirim sendiri dan resi otomatis/manual.', benefits: JSON.stringify(['Gudang penyimpanan label', 'Tanpa minimum order harian', 'Pengiriman atas nama toko sendiri']), terms: 'Wajib daftar dan simpan label brand di gudang Vuyama' },
+    { id: 'SRV-02', name: 'Konten Marketing Gratis', description: 'Akses ke katalog foto & video produk profesional untuk bahan promosi.', benefits: JSON.stringify(['Foto studio resolusi tinggi', 'Video review produk', 'Bebas edit & repost']), terms: 'Khusus mitra reseller & dropshipper aktif' },
+    { id: 'SRV-03', name: 'Pembinaan Reseller', description: 'Grup bimbingan eksklusif untuk meningkatkan omset penjualan hijab & mukena.', benefits: JSON.stringify(['Tips & trik closing', 'Materi promosi harian', 'Sharing session antar member']), terms: 'Gabung minimal paket reseller awal' }
+  ];
+  for (const item of serviceDefaults) {
+    await db('services').insert(item);
+  }
+
+  // 2. Seed Products from Hijab, Inner, Mukena
+  const parseVal = (str) => parseFloat(String(str || '0').replace(/[^0-9.-]+/g, '')) || 0;
+
+  if (data.hijab) {
+    let index = 1;
+    for (const h of data.hijab) {
+      const id = `HJB-00${index++}`;
+      const payload = {
+        name: h.nama,
+        category: 'Hijab',
+        sub_category: 'Segiempat/Pashmina',
+        description: h.nama + ' ukuran ' + (h.ukuran || '-'),
+        price_retail: parseVal(h.harga_ecer),
+        price_reseller: parseVal(h.harga_reseller_min10),
+        color: JSON.stringify(['Hitam', 'Navy', 'Milo', 'Mocca', 'Khaki', 'Soft Pink', 'Grey', 'White']),
+        size: JSON.stringify([h.ukuran || '110x110 CM']),
+        material: h.material || 'Premium Voile/Polyester',
+        weight: 120,
+        stock: 100,
+        status: 'Tersedia'
+      };
+      await db('products').insert({ id, ...payload });
+    }
+  }
+
+  if (data.inner) {
+    let index = 1;
+    for (const i of data.inner) {
+      const id = `INR-00${index++}`;
+      const payload = {
+        name: i.nama,
+        category: 'Inner',
+        sub_category: 'Ciput',
+        description: i.nama,
+        price_retail: parseVal(i.harga_ecer),
+        price_reseller: parseVal(i.harga_reseller_min10),
+        color: JSON.stringify(['Hitam', 'Cream', 'Grey']),
+        size: JSON.stringify(['Standard']),
+        material: i.material || 'Cotton Modal',
+        weight: 50,
+        stock: 200,
+        status: 'Tersedia'
+      };
+      await db('products').insert({ id, ...payload });
+    }
+  }
+
+  if (data.mukena) {
+    let index = 1;
+    for (const m of data.mukena) {
+      const id = `MKN-00${index++}`;
+      const payload = {
+        name: m.nama,
+        category: 'Mukena',
+        sub_category: 'Dewasa',
+        description: m.nama + ' berbahan ' + (m.material || '-'),
+        price_retail: parseVal(m.harga_ecer),
+        price_reseller: parseVal(m.harga_reseller_min10 || m.harga_reseller_min3),
+        color: JSON.stringify(['Putih', 'Milo', 'Lavender', 'Mint']),
+        size: JSON.stringify(['Jumbo/Standard']),
+        material: m.material || 'Armani Silk',
+        weight: 500,
+        stock: 50,
+        status: 'Tersedia'
+      };
+      await db('products').insert({ id, ...payload });
+    }
+  }
+
+  // Add Armani Lasercut custom for tests if not there
+  const armaniName = 'Armani Lasercut';
+  const armaniExists = await db('products').where('name', armaniName).first();
+  if (!armaniExists) {
+    await db('products').insert({
+      id: 'MKN-002',
+      name: armaniName,
+      category: 'Mukena',
+      sub_category: 'Lasercut',
+      description: 'Mukena Armani Lasercut Premium',
+      price_retail: 279000,
+      price_reseller: 145000,
+      color: JSON.stringify(['Putih', 'Milo']),
+      size: JSON.stringify(['Standard']),
+      material: 'Armani',
+      weight: 500,
+      stock: 50,
+      status: 'Tersedia'
+    });
+  }
+
+  // Add Label Akrilik Basic product
+  await db('products').insert({
+    id: 'LB-001',
+    name: 'Label Akrilik Basic',
+    category: 'Label',
+    sub_category: 'Akrilik',
+    description: 'Label Akrilik Basic Vuyama untuk brand hijab Anda. Tebal 2mm premium.',
+    price_retail: 800,
+    price_reseller: 800,
+    color: JSON.stringify(['Gold', 'Silver', 'Rose Gold']),
+    size: JSON.stringify(['1x2 CM', '1x3 CM', '1x4 CM']),
+    material: 'Akrilik',
+    weight: 2,
+    stock: 1000,
+    status: 'Tersedia'
+  });
+
+  // 3. Seed Reseller Program
+  if (data.paket_reseller) {
+    await db('reseller_program').where('id', '>', 0).del();
+    for (const r of data.paket_reseller) {
+      await db('reseller_program').insert({
+        level: r.nama,
+        min_order: '10 pcs',
+        discount: r.harga,
+        benefits: r.isi
+      });
+    }
+  }
+
+  // 4. Seed FAQs (run same official seeding logic)
+  await db('faq').where('id', '>', 0).del();
+  const officialFaqs = [
+    { category: 'Umum', question: 'Ecer', answer: 'Untuk pembelian ecer (satuan), silakan langsung checkout melalui toko resmi Shopee Vuyama ya kak... 😊 Berikut link toko Shopee kami: https://shopee.co.id/vuyama' },
+    { category: 'Umum', question: 'ada maps workshop?', answer: 'Untuk Google Maps workshop resmi Vuyama di Cirimekar Cibinong Bogor belum tersedia kak, tapi untuk alamat lengkap workshop kami ada di Lingkungan Palamanis RT 02/05 No. 69 B Cirimekar Cibinong Bogor 16917 ya kak... 😊' },
+    { category: 'Umum', question: 'alamatnya dimana?', answer: 'Alamat workshop Vuyama ada di Lingkungan Palamanis RT 02/05 No. 69 B Cirimekar Cibinong Bogor 16917 ya kak... 😊' },
+    { category: 'Reseller', question: 'Apakah paket reseller bisa mix model?', answer: 'Bisa banget kak! Untuk paket reseller di Vuyama, kakak bebas mencampur (mix) model hijab sesuai keinginan kakak ya... 😊' },
+    { category: 'Label', question: 'label aku sisa berapa ya?', answer: 'Untuk sisa stok label kakak, silakan tunggu sebentar ya kak. Pertanyaan kakak akan langsung diteruskan ke tim admin gudang kami agar dibantu cek secara manual... 🙏' },
+    { category: 'Label', question: 'pemasangan labelnya dibagian mana ya?', answer: 'Tata letak pemasangan label brand di Vuyama biasanya bisa dipasang di bagian Siku, Sudut, Lipat, atau Siku Tengah kak. Nanti admin manusia kami akan mengirimkan foto contoh posisinya ya kak... 😊 Letak pemasangan label ini juga bisa disesuaikan dengan keinginan kakak.' },
+    { category: 'Label', question: 'apakah bisa beli label atau plastik aja?', answer: 'Maaf belum bisa ya kak. Pembelian label brand atau plastik kemasan di Vuyama wajib disertai dengan pemesanan hijab/produk kami (tidak dijual terpisah tanpa hijab)... 🙏' },
+    { category: 'Layanan', question: 'apakah bisa beli hangtag?', answer: 'Bisa banget kak! Untuk hangtag bisa kami bantu buatkan dengan minimal cetak 1 lembar A3. Ukuran hangtag bisa disesuaikan dengan keinginan kakak (yang biasa digunakan di Vuyama adalah ukuran 3x5 CM dan 4x4 CM). Kakak bebas menentukan bentuknya juga loh (misal bentuk love, awan, dll.). Syaratnya desain dari kakak harus dikirim dalam format mentah PNG ya kak, bukan hasil generator AI/ChatGPT... 😊' },
+    { category: 'Layanan', question: '1 lembar A3 dapet berapa pcs?', answer: 'Jumlah pcs hangtag yang didapatkan dalam 1 lembar A3 itu bervariasi ya kak, tergantung dari ukuran dan bentuk hangtag yang kakak pilih (biasanya berkisar antara 50 sampai 70 pcs per lembar)... 😊' },
+    { category: 'Layanan', question: 'apakah hangtag nya bisa berbentuk love atau awan?', answer: 'Bisa banget kak! Hangtag custom di Vuyama bisa dipotong mengikuti semua bentuk yang kakak inginkan, termasuk bentuk awan, bentuk love, bulat, maupun bentuk custom lainnya... 😊' },
+    { category: 'Layanan', question: 'apakah bisa menggunakan design dari customer?', answer: 'Bisa kak! Kakak boleh mengirimkan desain hangtag buatan sendiri. Namun pastikan desainnya berupa desain mentah siap cetak dalam format PNG (bukan desain hasil generator AI/ChatGPT ya kak)... 😊' },
+    { category: 'Layanan', question: 'Biaya pasang label dihitung bagaimana?', answer: 'Biaya pemasangan label di Vuyama adalah Rp 1.000 per pc. Biaya pemasangan ini dihitung mengikuti jumlah produk hijab yang kakak pesan saat itu, dan TIDAK harus mengikuti jumlah minimal order label (50 pcs) ya kak... 😊' },
+    { category: 'Umum', question: 'kak, kalo mau yang non label bagaimana?', answer: 'Bisa banget kak! Jika kakak menginginkan produk hijab tanpa merk/label (non-label), silakan beri tahu kami ya. Nanti produk akan kami kirimkan polos tanpa terpasang label brand... 😊' },
+    { category: 'Layanan', question: 'Dropship manual itu gimana kak?', answer: 'VUYAMA menerima layanan Dropship Manual (tanpa melalui Shopee/TikTok). Caranya sangat mudah kak, kakak tinggal mengirimkan Format Order Dropship Manual ke kami. Kami akan mengirimkan pesanan langsung ke pembeli kakak dengan nama pengirim menggunakan nama toko dan nomor HP kakak sendiri... 😊' },
+    { category: 'Format Order', question: 'Format order DROPSHIP Manual', answer: 'Silahkan diisi format order Dropship Manual\nNama: \nAlamat lengkap kec & kab: \nNo HP: \nPesanan: \n\nPengirim\nNama toko:\nNo. Hp:\n\nsertakan apabila menggunakan label,\nNama brand:-\nUkuran label:-\nLabel:-\nWarna label:-\nFont:-\nTata letak:-' },
+    { category: 'Layanan', question: 'Kak, Kalau saya dropship dan ingin pakai brand sendiri, apakah harus pesan label terlebih dahulu?', answer: 'Betul sekali kak. Jika kakak ingin dropship menggunakan brand sendiri, kakak harus memesan/memproduksi label brandnya terlebih dahulu di Vuyama. Label tersebut nantinya akan kami simpan di gudang Vuyama untuk dipasang pada setiap produk pesanan dropship kakak... 😊' },
+    { category: 'Umum', question: 'Untuk mulai dropship apakah bisa langsung posting dari katalog Vuyama dulu?', answer: 'Bisa banget kak! Kakak dipersilakan langsung memposting produk menggunakan katalog kami. Berikut tautan katalog Google Drive resmi Vuyama untuk kakak unduh: https://drive.google.com/drive/folders/1RwtruDL86PYi3TVqILmxrZgZ_XGT1zPv. Selamat berjualan kak!... 😊' },
+    { category: 'Umum', question: 'Apakah boleh kita download, edit dan posting ulang semua katalog vuyama?', answer: 'Boleh banget kak! Mengunduh, mengedit, dan memposting ulang seluruh katalog foto produk Vuyama merupakan salah satu fasilitas resmi yang kami berikan untuk menunjang penjualan para reseller & dropshipper kami... 😊' },
+    { category: 'Layanan', question: 'Mekanisme biaya tambahan dropship Rp3.000 bagaimana?', answer: 'Untuk dropshipper baru (yang belum pernah melakukan order minimal 10 pcs di awal), akan dikenakan biaya tambahan jasa dropship sebesar Rp 3.000 per pc produk (diluar biaya pasang label Rp 1.000/pc jika pakai label). Biaya tambahan ini akan dimasukkan langsung ke dalam tagihan invoice saat customer melakukan order. Namun, jika kakak sudah sering belanja/menjadi customer lama (total order \u2265 10 pcs di awal), biaya tambahan dropship Rp 3.000 ini GRATIS ya kak... 😊' },
+    { category: 'Layanan', question: 'Berapa modal dropship paris jadul 1 pcs dengan label untuk orderan dropship awal?', answer: 'Untuk dropship awal (baru), estimasi total modalnya adalah Rp 20.700 kak. Rinciannya: Harga Paris Jadul (Rp 16.700) + Biaya Dropship (Rp 3.000) + Biaya Pemasangan Label (Rp 1.000)... 😊' },
+    { category: 'Layanan', question: 'Berapa modal dropship paris jadul dengan label untuk customer lama (sudah order lebih dari 10 pcs)?', answer: 'Untuk customer lama yang sudah pernah order minimal 10 pcs, estimasi total modalnya adalah Rp 17.700 kak. Rinciannya: Harga Paris Jadul (Rp 16.700) + Biaya Pemasangan Label (Rp 1.000) (bebas biaya dropship Rp 3.000)... 😊' },
+    { category: 'Packaging', question: 'kalau pesan ziplock custom tapi gak 100 pcs, bisa ga?', answer: 'Maaf belum bisa ya kak. Untuk pemesanan ziplock sablon custom, minimal pemesanannya adalah wajib 100 pcs... \ud83d\ude4f' }
+  ];
+  for (const item of officialFaqs) {
+    await db('faq').insert({
+      category: item.category,
+      question: item.question,
+      answer: item.answer
+    });
+  }
+
+  logger.info('Database seeded successfully from fallback backup JSON!');
+  return { success: true, message: 'Database seeded successfully from fallback backup JSON.' };
 };
 
 module.exports = {

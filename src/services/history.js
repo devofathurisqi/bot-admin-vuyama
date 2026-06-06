@@ -13,12 +13,22 @@ const addMessage = async (phoneNumber, message, sender = 'customer', type = 'tex
   });
 };
 
-// Get conversation history for a customer
+// Get conversation history for a customer (fixed to get latest messages in chronological order)
 const getHistory = async (phoneNumber, limit = config.contextMessagesLimit) => {
+  const rows = await db('conversations')
+    .where('phone_number', phoneNumber)
+    .orderBy('timestamp', 'desc')
+    .limit(limit);
+  return rows.reverse();
+};
+
+// Get conversations within the last N days (for time-based memory system)
+const getConversationsWithinDays = async (phoneNumber, days = 3) => {
+  const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   return db('conversations')
     .where('phone_number', phoneNumber)
-    .orderBy('timestamp', 'asc')
-    .limit(limit);
+    .where('timestamp', '>=', cutoffDate)
+    .orderBy('timestamp', 'asc');
 };
 
 // Get recent messages for context
@@ -95,6 +105,7 @@ const updateEscalation = async (escalationId, updates) => {
 module.exports = {
   addMessage,
   getHistory,
+  getConversationsWithinDays,
   getContext,
   getAllConversations,
   getConversationsByStatus,

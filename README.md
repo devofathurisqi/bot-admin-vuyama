@@ -1,117 +1,115 @@
-# Vuyama WhatsApp Customer Service Bot 🤖
+# Vuyama WhatsApp Customer Service Bot & CRM Suite 🤖
 
-AI-powered customer service chatbot untuk Vuyama yang melayani reseller mukena dan kerudung melalui WhatsApp.
+AI-powered customer service chatbot and admin dashboard for Vuyama, designed to streamline reseller and dropshipper interactions, manage orders, and handle complaints.
 
 **Powered by Google Gemini AI**
 
-## 🚀 Fitur Utama
+---
 
-- ✅ **AI-Powered Responses** - Natural language menggunakan Google Gemini AI
-- ✅ **WhatsApp Integration** - Bot langsung di WhatsApp menggunakan whatsapp-web.js
-- ✅ **Excel Knowledge Base** - Product info, services, FAQ dikelola via Excel (vuyama_data.xlsx)
-- ✅ **Context Aware** - Bot mengingat percakapan sebelumnya untuk flow yang natural
-- ✅ **Chat History** - Simpan semua chat history untuk tracking
-- ✅ **Escalation** - Auto-detect dan escalate ke human agent
+## 🚀 Key Features
+
+* **Single-Model Orchestration**:
+  * **Google Gemini** acts as both the background context analyzer (intent classification, memory summarization, and ambiguity gating) and the primary responder generating professional, natural customer-facing replies.
+* **3-Day Sliding Conversational Memory**: Replaces buggy message-count limits. Gemini summarizes the history of the last 3 days to maintain context, while messages older than 3 days automatically expire from active memory.
+* **1-Number Manual Override (Auto-Mute)**: If the human admin manually replies to a customer (via phone or dashboard live chat), the bot automatically blocks itself for that contact and sets their status to `WAITING_HUMAN` to prevent overlapping replies.
+* **Dynamic PDF Generation**: Automatically compiles premium A4 PDFs (invoices, material comparisons, and reseller welcome guides) using Puppeteer and attaches them directly to WhatsApp.
+* **Database Single Source of Truth**: Completely transitioned from Excel to PostgreSQL (via Knex.js) for company profile, products, services, reseller programs, and FAQs.
+* **Fuzzy FAQ Matcher Bypass**: Bypasses local FAQ similarity matching if the query mentions active product name tokens to ensure product-specific queries go through the full RAG pipeline.
+
+---
+
+## 🛠️ Tech Stack
+
+* **Backend**: Node.js, Express, Knex.js, PostgreSQL, Socket.io
+* **WhatsApp client**: whatsapp-web.js (Puppeteer integration)
+* **Frontend**: React (served via Express from `/dist`)
+* **AI Orchestration**: Google Gemini API (`gemini-2.5-flash`)
+
+---
 
 ## 📋 Prerequisites
 
-- Node.js 18+
-- npm/yarn
-- Gemini API Key (Dapatkan di [Google AI Studio](https://aistudio.google.com/))
-- WhatsApp account
+* Node.js 18+
+* PostgreSQL database
+* Gemini API Key
+* WhatsApp account for QR code pairing
 
-## 🛠️ Setup
+---
+
+## 🛠️ Setup & Run
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Configure .env
-Buat file `.env` (copy dari `.env.example`) dan masukkan API Key Anda:
+### 2. Configure Environment
+Create a `.env` file from the example, providing your database connection string and API keys:
 ```env
-GEMINI_API_KEY=AIzaSy...
-GEMINI_MODEL=gemini-1.5-flash
+NODE_ENV=development
+BOT_NAME=Vumin
+DATABASE_URL=postgresql://user:password@host:port/database
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-### 3. Prepare Knowledge Base
-Edit data Vuyama di folder `learn/vuyama_data.xlsx`. Anda bisa mengedit:
-- **Company**: Info profil perusahaan
-- **Products**: Daftar produk, harga, stok
-- **Services**: Layanan yang tersedia
-- **FAQ**: Tanya jawab umum
+### 3. Initialize Database
+Initialize the schema and seed the clean knowledge base from the backup JSON:
+```bash
+node src/scripts/initDb.js
+node src/scripts/runSync.js
+```
 
-### 4. Run Bot
+### 4. Run the Application
 ```bash
 npm start
 ```
+Scan the QR code displayed in the terminal with your WhatsApp app (**Linked Devices**) to connect.
 
-Bot akan:
-1. ✅ Connect ke Gemini AI
-2. 📱 Show WhatsApp QR code
-3. 💬 Siap menerima pesan
-
-## 💬 Scan QR & Start Testing
-
-1. Bot akan menampilkan **QR code** di terminal
-2. Buka **WhatsApp** → **Linked Devices** → **Link a Device**
-3. Scan QR code tersebut
-4. Bot siap di-test!
-
-## 🧠 AI System
-
-Bot menggunakan **Google Gemini 1.5 Flash**:
-- Fast & intelligent responses
-- Multilingual support (Indonesian focus)
-- Context-aware conversation
-
-### System Prompt
-AI diberikan personality:
-- Admin customer service Vuyama yang friendly & professional
-- Gaya bahasa natural dengan emoji
-- Menggunakan data dari Excel sebagai basis pengetahuan
-- Escalation handling untuk masalah yang butuh admin manusia
+---
 
 ## 📁 Project Structure
 
 ```
-vuyama-bot/
+admin-bot-vuyama/
 ├── src/
-│   ├── bot.js                 # Main WhatsApp + AI integration
 │   ├── index.js               # Entry point
+│   ├── bot.js                 # WhatsApp Web client & PDF send delegation
+│   ├── server.js              # Express API & Socket.io server
+│   ├── bot_state.js           # Shared bot connection state
 │   ├── handlers/
-│   │   └── messageHandler.js  # AI response generation + escalation check
+│   │   └── messageHandler.js  # Single-model reply loop & auto-block routing
 │   ├── services/
-│   │   ├── gemini.js          # Gemini API wrapper
-│   │   ├── knowledge.js       # Excel knowledge base loader
-│   │   └── history.js         # Chat & order history
-│   └── utils/
-│       ├── config.js          # Configuration
-│       ├── logger.js          # Logging
-│       └── storage.js         # JSON file storage for history
-├── learn/
-│   ├── vuyama_data.xlsx       # Knowledge base (Excel)
-│   └── images/                # Product images
-├── data/                      # Chat history & orders (auto-created)
-├── .env                       # Configuration
-├── package.json
+│   │   ├── gemini.js          # Gemini generative API wrapper
+│   │   ├── analyzer.js        # Gemini intent & memory analyzer
+│   │   ├── memory.js          # Conversation memory updater
+│   │   ├── history.js         # Time-based 3-day history filter
+│   │   ├── knowledge.js       # PostgreSQL RAG lookup & local FAQ similarity
+│   │   └── documentGenerator.js # Real-time A4 PDF compiler (Puppeteer)
+│   ├── utils/
+│   │   ├── db.js              # Knex PostgreSQL connection
+│   │   ├── logger.js          # Pino logger config
+│   │   ├── socket.js          # WebSockets manager
+│   │   └── workflow.js        # Workflow auto-pause utility
+│   └── scripts/
+│       ├── initDb.js          # Database schema migrations
+│       ├── runSync.js         # Seeder trigger
+│       ├── recover_images.js  # Startup image mapping utility
+│       └── testSuite.js       # Comprehensive programmatic QA test suite
+├── learn/                     # Storage for uploaded product images
+├── data/
+│   ├── media/                 # Daily color stock images
+│   └── pdf/                   # Compiled A4 PDF documents
+├── dist/                      # Dashboard UI React build
 └── README.md
 ```
 
-## 📊 Data Files
+---
 
-Data history tersimpan secara lokal di folder `data/`:
-- `conversations.json`: Semua pesan chat
-- `orders.json`: Catatan pesanan
-- `escalations.json`: Tiket eskalasi ke admin
+## 🧪 Verification & Testing
 
-## 📞 Support
-
-**Issues?**
-1. Cek log terminal untuk melihat error
-2. Pastikan `GEMINI_API_KEY` di `.env` sudah benar
-3. Pastikan file `vuyama_data.xlsx` tidak sedang dibuka oleh aplikasi lain (Excel) saat bot dijalankan
-
-## 📄 License
-
-Created for Vuyama 2026
+Verify system correctness by executing the programmatic test suite:
+```bash
+node src/scripts/testSuite.js
+```
+This runs 15 test assertions covering time-based memory, intent clarification, local FAQ matcher overrides, RAG replies, PDF invoice generation, and 1-number manual override.

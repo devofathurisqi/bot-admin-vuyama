@@ -38,15 +38,11 @@ const logToDb = async (level, message) => {
 };
 
 /**
- * Asynchronously generates a custom comparison PDF using Gemini and Puppeteer,
- * caches it permanently under data/pdf/, and sends it to the customer.
+ * Asynchronously generates a custom PDF (comparison, invoice, or reseller welcome guide)
+ * using the consolidated documentGenerator service and sends it to the customer.
  */
-const asyncGenerateAndSendPdfComparison = async (client, phoneNumber, messageText, comparisonText) => {
+const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) => {
   try {
-    const logMsg = `[PDF CS Vuyama] Memulai proses penyusunan lembar perbandingan PDF untuk nomor ${phoneNumber}...`;
-    logger.info(logMsg);
-    await logToDb('info', logMsg);
-    
     if (!client.pupBrowser) {
       const errNoPup = `[PDF CS Vuyama] Gagal: Browser Puppeteer tidak aktif pada client.`;
       logger.warn(errNoPup);
@@ -54,126 +50,74 @@ const asyncGenerateAndSendPdfComparison = async (client, phoneNumber, messageTex
       return;
     }
 
-    const normalized = messageText.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
-    
-    // Determine a clean slug based on keywords for permanent caching
-    let slug = 'umum';
-    if (/paris/i.test(normalized) && /(japan|jadul|legend|klasik|basic|ori)/i.test(normalized)) {
-      slug = 'paris_japan_vs_paris_jadul';
-    } else if (/(akrilik|acrylic|plat|besi|woven|satin)/i.test(normalized)) {
-      slug = 'label_brand_comparison';
-    } else if (/(bamboo|airtech)/i.test(normalized)) {
-      slug = 'pashmina_bamboo_vs_airtech';
-    } else {
-      // General slug by extracting key nouns
-      const words = normalized.split(/\s+/).filter(w => w.length > 3 && !['sama', 'atau', 'vs', 'dan', 'beda', 'banding', 'lebih', 'bagus', 'laku', 'mending', 'pilih', 'mana'].includes(w));
-      if (words.length >= 2) {
-        slug = `${words[0]}_vs_${words[1]}`;
-      } else if (words.length === 1) {
-        slug = words[0];
+    const docGen = require('./services/documentGenerator');
+    let pdfPath = null;
+    let logMsg = '';
+
+    if (type === 'comparison') {
+      const messageText = options.messageText || '';
+      const comparisonText = options.comparisonText || '';
+      
+      const normalized = messageText.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+      let slug = 'umum';
+      if (/paris/i.test(normalized) && /(japan|jadul|legend|klasik|basic|ori)/i.test(normalized)) {
+        slug = 'paris_japan_vs_paris_jadul';
+      } else if (/(akrilik|acrylic|plat|besi|woven|satin)/i.test(normalized)) {
+        slug = 'label_brand_comparison';
+      } else if (/(bamboo|airtech)/i.test(normalized)) {
+        slug = 'pashmina_bamboo_vs_airtech';
       } else {
-        slug = `custom_${Date.now()}`;
+        const words = normalized.split(/\s+/).filter(w => w.length > 3 && !['sama', 'atau', 'vs', 'dan', 'beda', 'banding', 'lebih', 'bagus', 'laku', 'mending', 'pilih', 'mana'].includes(w));
+        if (words.length >= 2) {
+          slug = `${words[0]}_vs_${words[1]}`;
+        } else if (words.length === 1) {
+          slug = words[0];
+        } else {
+          slug = `custom_${Date.now()}`;
+        }
       }
+
+      logMsg = `[PDF CS Vuyama] Memulai pembuatan PDF perbandingan "${slug}" untuk ${phoneNumber}...`;
+      logger.info(logMsg);
+      await logToDb('info', logMsg);
+
+      pdfPath = await docGen.generateComparisonPdf(client.pupBrowser, slug, comparisonText);
+    } 
+    else if (type === 'invoice') {
+      // Get customer's latest order ID
+      const order = await db('orders').where('phone_number', phoneNumber).orderBy('id', 'desc').first();
+      if (!order) {
+        logger.warn(`[PDF CS Vuyama] Gagal: Order tidak ditemukan untuk ${phoneNumber}`);
+        return;
+      }
+
+      logMsg = `[PDF CS Vuyama] Memulai pembuatan PDF Invoice #${order.id} untuk ${phoneNumber}...`;
+      logger.info(logMsg);
+      await logToDb('info', logMsg);
+
+      pdfPath = await docGen.generateInvoicePdf(client.pupBrowser, order.id);
+    } 
+    else if (type === 'welcome_guide') {
+      const level = options.resellerLevel || 'Silver';
+      logMsg = `[PDF CS Vuyama] Memulai pembuatan PDF Welcome Guide (${level}) untuk ${phoneNumber}...`;
+      logger.info(logMsg);
+      await logToDb('info', logMsg);
+
+      pdfPath = await docGen.generateWelcomeGuidePdf(client.pupBrowser, phoneNumber, level);
     }
 
-    const filename = `perbandingan_${slug}.pdf`;
-    const outputPath = path.join(__dirname, '../data/pdf', filename);
-
-    // Ensure dir exists
-    const dir = path.dirname(outputPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    // 1. If already generated and cached on disk, send it immediately!
-    if (fs.existsSync(outputPath)) {
-      const cacheMsg = `[PDF CS Vuyama] Dokumen perbandingan "${filename}" ditemukan di cache. Mengirimkan langsung...`;
-      logger.info(cacheMsg);
-      await logToDb('info', cacheMsg);
-
-      const media = MessageMedia.fromFilePath(outputPath);
+    if (pdfPath && fs.existsSync(pdfPath)) {
+      const media = MessageMedia.fromFilePath(pdfPath);
       await client.sendMessage(phoneNumber, media);
       
-      const sentCacheMsg = `[PDF CS Vuyama] Dokumen PDF cache "${filename}" berhasil dikirim ke ${phoneNumber}`;
-      logger.info(sentCacheMsg);
-      await logToDb('info', sentCacheMsg);
-      return;
-    }
-
-    const geminiMsg = `[PDF CS Vuyama] Menghubungi Gemini AI untuk menyusun layout tabel perbandingan HTML...`;
-    logger.info(geminiMsg);
-    await logToDb('info', geminiMsg);
-
-    // 2. Ask Gemini to generate a clean, modern HTML comparison sheet
-    const prompt = `You are a master document writer and premium graphic designer for Vuyama (premium brand of hijab and brand labels). 
-Vuyama is famous for its hyper-minimalist, pristine, and elegant aesthetic: a simple centered logo "V" on a solid white background, neat lines, and high-end typography.
-
-Convert this product comparison data into an outstanding, professional A4 HTML comparison sheet:
-"""
-${comparisonText}
-"""
-
-HTML & CSS Styling Rules (Strict):
-- Entire document background must be solid white (#ffffff).
-- Font family: Use high-end typography. Import "Inter" (sans-serif) and "Playfair Display" (serif) from Google Fonts. Use Playfair Display for headers and Inter for table content.
-- Margins & Spacing: The page must have precise padding (e.g. 40px) and generous margins to fit perfectly on a single A4 page with clean white space.
-- Header:
-  * A beautifully designed centered capital letter "V" (very large, elegant serif font, size 64px, color #0f172a).
-  * A thin letter-spaced sub-header below the logo: "V U Y A M A   O F F I C I A L   C S" (size 12px, letter-spacing 6px, color #64748b).
-  * A delicate thin divider line below the header (#e2e8f0).
-- Comparison Table:
-  * Width must be 100% with border-collapse.
-  * Table headers (th): Background must be an ultra-soft slate (#f8fafc), text color #0f172a, bold uppercase, clean letter-spacing, cell padding 14px 18px.
-  * Table borders: Very clean, thin borders (#e2e8f0).
-  * Table body cells (td): Clean readable font, padding 14px 18px, alternating row colors (white and #f8fafc) for maximum legibility.
-  * Ensure the text is perfectly aligned (headers centered or left-aligned matching the columns).
-- Summary / Footer:
-  * Below the table, include a modern, clean highlight card with a left-accent border: "border-left: 3px solid #0f172a; padding: 12px 20px; background-color: #f8fafc; margin-top: 30px; font-style: italic; color: #475569;" containing a clean 1-2 sentence final recommendation or styling tip.
-  * A subtle, centered footer at the bottom of the page: "Vuyama Official - Premium Hijab & Brand Label Production" (size 10px, color #94a3b8).
-- Do NOT output any markdown fences like \`\`\`html. Return the raw HTML code starting with <!DOCTYPE html>.`;
-
-    const htmlCode = await gemini.callGemini(prompt);
-    
-    let cleanHtml = htmlCode.trim();
-    if (cleanHtml.startsWith('```html')) cleanHtml = cleanHtml.replace(/^```html/, '');
-    if (cleanHtml.startsWith('```')) cleanHtml = cleanHtml.replace(/^```/, '');
-    if (cleanHtml.endsWith('```')) cleanHtml = cleanHtml.replace(/```$/, '');
-    cleanHtml = cleanHtml.trim();
-
-    const puppeteerMsg = `[PDF CS Vuyama] Gemini berhasil menyusun struktur. Membuka Puppeteer untuk merender halaman dan mencetak PDF A4...`;
-    logger.info(puppeteerMsg);
-    await logToDb('info', puppeteerMsg);
-
-    // 3. Render PDF via Puppeteer
-    const page = await client.pupBrowser.newPage();
-    try {
-      await page.setContent(cleanHtml, { waitUntil: 'networkidle0' });
-      
-      await page.pdf({ 
-        path: outputPath, 
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '20mm', bottom: '20mm', left: '20mm', right: '20mm' }
-      });
-      
-      const generatedMsg = `[PDF CS Vuyama] Sukses mencetak dan menyimpan PDF ke disk: ${filename}`;
-      logger.info(generatedMsg);
-      await logToDb('info', generatedMsg);
-
-      // 4. Send PDF to the customer via WhatsApp
-      if (fs.existsSync(outputPath)) {
-        const media = MessageMedia.fromFilePath(outputPath);
-        await client.sendMessage(phoneNumber, media);
-        
-        const successMsg = `[PDF CS Vuyama] Dokumen PDF perbandingan "${filename}" berhasil terkirim ke ${phoneNumber}!`;
-        logger.info(successMsg);
-        await logToDb('info', successMsg);
-      }
-    } finally {
-      await page.close();
+      const successMsg = `[PDF CS Vuyama] Dokumen PDF ${type} berhasil dikirim ke ${phoneNumber}!`;
+      logger.info(successMsg);
+      await logToDb('info', successMsg);
+    } else {
+      logger.warn(`[PDF CS Vuyama] File PDF tidak ditemukan setelah proses render.`);
     }
   } catch (error) {
-    const errMsg = `[PDF CS Vuyama] Gagal memproses perbandingan untuk ${phoneNumber}: ${error.message}`;
+    const errMsg = `[PDF CS Vuyama] Gagal memproses dokumen PDF ${type} untuk ${phoneNumber}: ${error.message}`;
     logger.error(errMsg, error);
     await logToDb('error', errMsg);
   }
@@ -269,6 +213,15 @@ client.on('message_create', async (msg) => {
         status: 'sent',
         timestamp: new Date()
       });
+
+      // Auto-pause bot for this contact due to manual admin intervention from phone
+      try {
+        const { pauseBotForCustomer } = require('./utils/workflow');
+        await pauseBotForCustomer(phoneNumber, 'Intervensi Manual HP Admin');
+      } catch (err) {
+        logger.error('Failed to trigger pauseBotForCustomer in fromMe handler:', err);
+      }
+
       return;
     }
 
@@ -428,6 +381,19 @@ client.on('message_create', async (msg) => {
     const isComp = replyText.includes('[COMPARISON_SHEET]');
     replyText = replyText.replace(/\[COMPARISON_SHEET\]/gi, '').trim();
 
+    // Detect invoice PDF trigger
+    const isInvoice = replyText.includes('[INVOICE_SHEET]');
+    replyText = replyText.replace(/\[INVOICE_SHEET\]/gi, '').trim();
+
+    // Detect welcome guide PDF trigger
+    const welcomeGuideRegex = /\[WELCOME_GUIDE:\s*([^\]]+)\]/gi;
+    let resellerLevel = null;
+    const welcomeMatch = welcomeGuideRegex.exec(replyText);
+    if (welcomeMatch) {
+      resellerLevel = welcomeMatch[1].trim();
+    }
+    replyText = replyText.replace(welcomeGuideRegex, '').trim();
+
     // Extract all images
     let imgMatches = [...replyText.matchAll(imgRegex)].map(m => m[1].trim());
     replyText = replyText.replace(imgRegex, '').trim();
@@ -502,10 +468,18 @@ client.on('message_create', async (msg) => {
         })().catch(err => logger.error('Error in async static image sending:', err));
       }
 
-      // Step B2: If it's a comparison query, dynamically generate/retrieve and send comparison PDF in background
-      if (isComp && replyText.length > 0) {
-        asyncGenerateAndSendPdfComparison(client, phoneNumber, messageText, replyText)
+      // Step B2: If it's a comparison query, invoice, or welcome guide, dynamically generate and send in background
+      if (isComp) {
+        asyncGenerateAndSendPdf(client, phoneNumber, 'comparison', { messageText, comparisonText: response.response })
           .catch(err => logger.error('Error in dynamic PDF comparison generation:', err));
+      }
+      if (isInvoice) {
+        asyncGenerateAndSendPdf(client, phoneNumber, 'invoice')
+          .catch(err => logger.error('Error in dynamic PDF invoice generation:', err));
+      }
+      if (resellerLevel) {
+        asyncGenerateAndSendPdf(client, phoneNumber, 'welcome_guide', { resellerLevel })
+          .catch(err => logger.error('Error in dynamic PDF welcome guide generation:', err));
       }
 
       // Step C: Send all matching documents back-to-back
