@@ -18,11 +18,11 @@ const SkeletonGrid = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <div className="h-2 w-12 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
-                  <div className="h-4.5 w-20 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
                 </div>
                 <div className="space-y-1.5">
                   <div className="h-2 w-12 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
-                  <div className="h-4.5 w-20 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
+                  <div className="h-4 w-20 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
                 </div>
               </div>
               <div className="flex items-center justify-between pt-1">
@@ -215,7 +215,7 @@ const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct }) => {
           className="p-2 rounded-xl bg-gray-200/80 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-white hover:bg-brand-600 transition duration-200 flex items-center justify-center"
           title="Penyuntingan Produk"
         >
-          <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
         </button>
         <button 
           type="button"
