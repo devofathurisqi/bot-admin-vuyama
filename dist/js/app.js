@@ -46,27 +46,28 @@ window.App = () => {
   const [productPagination, setProductPagination] = useState({ total: 0, page: 1, limit: 9 });
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  
+
   // Product Form holds all fields including complex variants & wholesale tiers
-  const [productForm, setProductForm] = useState({ 
-    id: '', 
-    name: '', 
-    category: '', 
-    sub_category: '', 
-    description: '', 
-    price_retail: '', 
-    price_reseller: '', 
-    color: '', 
-    size: '', 
-    material: '', 
-    weight: '', 
-    stock: '', 
-    image: '', 
+  const [productForm, setProductForm] = useState({
+    id: '',
+    name: '',
+    category: '',
+    sub_category: '',
+    description: '',
+    price_retail: '',
+    price_reseller: '',
+    color: '',
+    size: '',
+    material: '',
+    weight: '',
+    stock: '',
+    image: '',
     status: 'Tersedia',
     variants: [],
     wholesale_tiers: []
   });
-  
+
+
   const [uploadingImage, setUploadingImage] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
 
@@ -74,7 +75,7 @@ window.App = () => {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [selectedConfirmOrder, setSelectedConfirmOrder] = useState(null);
   const [confirmForm, setConfirmForm] = useState({ productId: '', quantity: 1, total: 0, remark: '' });
-  
+
   // Automatic final price calculation for completed orders
   useEffect(() => {
     if (confirmForm.productId) {
@@ -146,7 +147,7 @@ window.App = () => {
           setProductPagination(d.pagination);
         }
       }
-    } catch (e) { 
+    } catch (e) {
     } finally {
       // Small timeout to give smooth skeleton experience
       setTimeout(() => setProductsLoading(false), 300);
@@ -403,12 +404,12 @@ window.App = () => {
     const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
     const method = editingProduct ? 'PUT' : 'POST';
 
-    const colorParsed = typeof productForm.color === 'string' 
-      ? productForm.color.split(',').map(c => c.trim()).filter(Boolean) 
+    const colorParsed = typeof productForm.color === 'string'
+      ? productForm.color.split(',').map(c => c.trim()).filter(Boolean)
       : productForm.color;
-      
-    const sizeParsed = typeof productForm.size === 'string' 
-      ? productForm.size.split(',').map(s => s.trim()).filter(Boolean) 
+
+    const sizeParsed = typeof productForm.size === 'string'
+      ? productForm.size.split(',').map(s => s.trim()).filter(Boolean)
       : productForm.size;
 
     try {
