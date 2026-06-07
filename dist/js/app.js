@@ -1082,11 +1082,7 @@ window.App = () => {
           <SettingsTab
             activeTab={activeTab}
             settings={settings}
-            editingSetting={editingSetting}
-            setEditingSetting={setEditingSetting}
-            settingValue={settingValue}
-            setSettingValue={setSettingValue}
-            handleSaveSetting={handleSaveSetting}
+            fetchSettings={fetchSettings}
           />
         </div>
       </main>

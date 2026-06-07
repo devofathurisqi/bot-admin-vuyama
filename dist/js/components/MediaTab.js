@@ -1,6 +1,6 @@
 window.MediaTab = ({
   activeTab,
-  media,
+  media = [],
   galleryInputRef,
   handleMediaUpload,
   handleDeleteMedia,

@@ -984,51 +984,59 @@ app.get('/api/media', async (req, res) => {
     
     let filesList = [];
     
-    // Scan color_stock
+    // Scan color_stock asynchronously
     if (fs.existsSync(colorStockDir)) {
       try {
-        const files = fs.readdirSync(colorStockDir);
-        files.forEach(f => {
+        const files = await fs.promises.readdir(colorStockDir);
+        await Promise.all(files.map(async (f) => {
           const filePath = path.join(colorStockDir, f);
-          if (fs.statSync(filePath).isFile()) {
-            const stats = fs.statSync(filePath);
-            filesList.push({
-              id: 'color-stock-' + f,
-              filename: f,
-              original_name: f,
-              filepath: `/media/color_stock/${f}`,
-              mime_type: f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
-              size: stats.size,
-              tag: 'color_stock',
-              created_at: stats.mtime
-            });
+          try {
+            const stats = await fs.promises.stat(filePath);
+            if (stats.isFile()) {
+              filesList.push({
+                id: 'color-stock-' + f,
+                filename: f,
+                original_name: f,
+                filepath: `/media/color_stock/${f}`,
+                mime_type: f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
+                size: stats.size,
+                tag: 'color_stock',
+                created_at: stats.mtime
+              });
+            }
+          } catch (e) {
+            // Safe to ignore file-specific stat errors
           }
-        });
+        }));
       } catch (err) {
         logger.error('Error scanning color_stock:', err);
       }
     }
     
-    // Scan others
+    // Scan others asynchronously
     if (fs.existsSync(othersDir)) {
       try {
-        const files = fs.readdirSync(othersDir);
-        files.forEach(f => {
+        const files = await fs.promises.readdir(othersDir);
+        await Promise.all(files.map(async (f) => {
           const filePath = path.join(othersDir, f);
-          if (fs.statSync(filePath).isFile()) {
-            const stats = fs.statSync(filePath);
-            filesList.push({
-              id: 'others-' + f,
-              filename: f,
-              original_name: f,
-              filepath: `/media/others/${f}`,
-              mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
-              size: stats.size,
-              tag: 'others',
-              created_at: stats.mtime
-            });
+          try {
+            const stats = await fs.promises.stat(filePath);
+            if (stats.isFile()) {
+              filesList.push({
+                id: 'others-' + f,
+                filename: f,
+                original_name: f,
+                filepath: `/media/others/${f}`,
+                mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+                size: stats.size,
+                tag: 'others',
+                created_at: stats.mtime
+              });
+            }
+          } catch (e) {
+            // Safe to ignore file-specific stat errors
           }
-        });
+        }));
       } catch (err) {
         logger.error('Error scanning others:', err);
       }
@@ -1038,27 +1046,34 @@ app.get('/api/media', async (req, res) => {
     const mediaDir = path.join(__dirname, '../data/media');
     if (fs.existsSync(mediaDir)) {
       try {
-        const files = fs.readdirSync(mediaDir);
-        files.forEach(f => {
+        const files = await fs.promises.readdir(mediaDir);
+        await Promise.all(files.map(async (f) => {
           const filePath = path.join(mediaDir, f);
-          if (fs.statSync(filePath).isFile()) {
-            const stats = fs.statSync(filePath);
-            filesList.push({
-              id: 'media-' + f,
-              filename: f,
-              original_name: f,
-              filepath: `/media/${f}`,
-              mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
-              size: stats.size,
-              tag: 'others',
-              created_at: stats.mtime
-            });
+          try {
+            const stats = await fs.promises.stat(filePath);
+            if (stats.isFile()) {
+              filesList.push({
+                id: 'media-' + f,
+                filename: f,
+                original_name: f,
+                filepath: `/media/${f}`,
+                mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+                size: stats.size,
+                tag: 'others',
+                created_at: stats.mtime
+              });
+            }
+          } catch (e) {
+            // Safe to ignore file-specific stat errors
           }
-        });
+        }));
       } catch (err) {
         // Safe to ignore
       }
     }
+    
+    // Sort filesList by created_at desc
+    filesList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     
     res.json({ success: true, data: filesList });
   } catch (error) {
@@ -1328,10 +1343,9 @@ app.get('/api/logs', async (req, res) => {
 // 10. Settings API
 app.get('/api/settings', async (req, res) => {
   try {
-    // Read sheets info as settings backup
-    const company = await db('company_info').select('*');
-    const reseller = await db('reseller_program').select('*');
-    const services = await db('services').select('*');
+    const company = await db('company_info').select('*').orderBy('id', 'asc');
+    const reseller = await db('reseller_program').select('*').orderBy('id', 'asc');
+    const services = await db('services').select('*').orderBy('id', 'asc');
 
     res.json({
       success: true,
@@ -1347,15 +1361,140 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
+// Company Profile CRUD
+app.post('/api/settings/company', async (req, res) => {
+  try {
+    const { key, label, value } = req.body;
+    if (!key || !label || !value) {
+      return res.status(400).json({ success: false, error: 'key, label, and value are required.' });
+    }
+
+    const [inserted] = await db('company_info').insert({
+      key,
+      label,
+      value,
+      created_at: new Date(),
+      updated_at: new Date()
+    }).returning('*');
+
+    await db('audit_logs').insert({
+      action: 'ADD_COMPANY_INFO',
+      details: `Added company info: ${key}`
+    });
+
+    triggerBackupSync();
+    res.json({ success: true, data: inserted });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.put('/api/settings/company/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { value } = req.body;
+    const { key, label, value } = req.body;
 
-    await db('company_info').where('id', id).update({ value, updated_at: new Date() });
+    const updates = { updated_at: new Date() };
+    if (key !== undefined) updates.key = key;
+    if (label !== undefined) updates.label = label;
+    if (value !== undefined) updates.value = value;
+
+    await db('company_info').where('id', id).update(updates);
     
-    triggerBackupSync();
+    await db('audit_logs').insert({
+      action: 'UPDATE_COMPANY_INFO',
+      details: `Updated company info: ${id}`
+    });
 
+    triggerBackupSync();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/settings/company/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db('company_info').where('id', id).del();
+
+    await db('audit_logs').insert({
+      action: 'DELETE_COMPANY_INFO',
+      details: `Deleted company info: ${id}`
+    });
+
+    triggerBackupSync();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reseller Program CRUD
+app.post('/api/settings/reseller', async (req, res) => {
+  try {
+    const { level, min_order, price, benefits } = req.body;
+    if (!level || price === undefined) {
+      return res.status(400).json({ success: false, error: 'level and price are required.' });
+    }
+
+    const [inserted] = await db('reseller_program').insert({
+      level,
+      min_order: min_order || null,
+      price: parseFloat(price) || 0,
+      benefits: benefits || null,
+      created_at: new Date(),
+      updated_at: new Date()
+    }).returning('*');
+
+    await db('audit_logs').insert({
+      action: 'ADD_RESELLER_TIER',
+      details: `Added reseller tier: ${level}`
+    });
+
+    triggerBackupSync();
+    res.json({ success: true, data: inserted });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/settings/reseller/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { level, min_order, price, benefits } = req.body;
+
+    const updates = { updated_at: new Date() };
+    if (level !== undefined) updates.level = level;
+    if (min_order !== undefined) updates.min_order = min_order;
+    if (price !== undefined) updates.price = parseFloat(price) || 0;
+    if (benefits !== undefined) updates.benefits = benefits;
+
+    await db('reseller_program').where('id', id).update(updates);
+
+    await db('audit_logs').insert({
+      action: 'UPDATE_RESELLER_TIER',
+      details: `Updated reseller tier: ${id}`
+    });
+
+    triggerBackupSync();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/settings/reseller/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db('reseller_program').where('id', id).del();
+
+    await db('audit_logs').insert({
+      action: 'DELETE_RESELLER_TIER',
+      details: `Deleted reseller tier: ${id}`
+    });
+
+    triggerBackupSync();
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
