@@ -979,103 +979,40 @@ app.delete('/api/blocked-numbers/:phoneNumber', async (req, res) => {
 // 8. Media Gallery API
 app.get('/api/media', async (req, res) => {
   try {
-    const colorStockDir = path.join(__dirname, '../data/media/color_stock');
-    const othersDir = path.join(__dirname, '../data/media/others');
-    
-    let filesList = [];
-    
-    // Scan color_stock asynchronously
-    if (fs.existsSync(colorStockDir)) {
-      try {
-        const files = await fs.promises.readdir(colorStockDir);
-        await Promise.all(files.map(async (f) => {
-          const filePath = path.join(colorStockDir, f);
-          try {
-            const stats = await fs.promises.stat(filePath);
-            if (stats.isFile()) {
-              filesList.push({
-                id: 'color-stock-' + f,
-                filename: f,
-                original_name: f,
-                filepath: `/media/color_stock/${f}`,
-                mime_type: f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
-                size: stats.size,
-                tag: 'color_stock',
-                created_at: stats.mtime
-              });
-            }
-          } catch (e) {
-            // Safe to ignore file-specific stat errors
-          }
-        }));
-      } catch (err) {
-        logger.error('Error scanning color_stock:', err);
+    const { search, tag, limit = 12, page = 1 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let query = db('media_gallery');
+
+    if (search) {
+      const s = `%${search.toLowerCase()}%`;
+      query = query.where((q) => {
+        q.whereILike('original_name', s)
+         .orWhereILike('filename', s);
+      });
+    }
+
+    if (tag) {
+      if (tag === 'color_stock') {
+        query = query.where('tag', 'color_stock');
+      } else {
+        // Tag 'gallery' represents any other files
+        query = query.whereNot('tag', 'color_stock');
       }
     }
-    
-    // Scan others asynchronously
-    if (fs.existsSync(othersDir)) {
-      try {
-        const files = await fs.promises.readdir(othersDir);
-        await Promise.all(files.map(async (f) => {
-          const filePath = path.join(othersDir, f);
-          try {
-            const stats = await fs.promises.stat(filePath);
-            if (stats.isFile()) {
-              filesList.push({
-                id: 'others-' + f,
-                filename: f,
-                original_name: f,
-                filepath: `/media/others/${f}`,
-                mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
-                size: stats.size,
-                tag: 'others',
-                created_at: stats.mtime
-              });
-            }
-          } catch (e) {
-            // Safe to ignore file-specific stat errors
-          }
-        }));
-      } catch (err) {
-        logger.error('Error scanning others:', err);
+
+    const totalRes = await query.clone().count('id as count').first();
+    const media = await query.orderBy('created_at', 'desc').limit(limit).offset(offset);
+
+    res.json({
+      success: true,
+      data: media,
+      pagination: {
+        total: parseInt(totalRes.count),
+        page: parseInt(page),
+        limit: parseInt(limit)
       }
-    }
-    
-    // Also include any generic files in root data/media if any
-    const mediaDir = path.join(__dirname, '../data/media');
-    if (fs.existsSync(mediaDir)) {
-      try {
-        const files = await fs.promises.readdir(mediaDir);
-        await Promise.all(files.map(async (f) => {
-          const filePath = path.join(mediaDir, f);
-          try {
-            const stats = await fs.promises.stat(filePath);
-            if (stats.isFile()) {
-              filesList.push({
-                id: 'media-' + f,
-                filename: f,
-                original_name: f,
-                filepath: `/media/${f}`,
-                mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
-                size: stats.size,
-                tag: 'others',
-                created_at: stats.mtime
-              });
-            }
-          } catch (e) {
-            // Safe to ignore file-specific stat errors
-          }
-        }));
-      } catch (err) {
-        // Safe to ignore
-      }
-    }
-    
-    // Sort filesList by created_at desc
-    filesList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    
-    res.json({ success: true, data: filesList });
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1515,6 +1452,75 @@ const PORT = process.env.PORT || 5000;
 const startServer = () => {
   server.listen(PORT, async () => {
     logger.info(`Backend API and WebSockets running on port ${PORT}`);
+    
+    // Sync physical media folder files into database media_gallery table
+    try {
+      const colorStockDir = path.join(__dirname, '../data/media/color_stock');
+      const othersDir = path.join(__dirname, '../data/media/others');
+      const mediaDir = path.join(__dirname, '../data/media');
+
+      const scanAndInsert = async (dir, tag, relativePrefix) => {
+        if (!fs.existsSync(dir)) return;
+        const files = await fs.promises.readdir(dir);
+        for (const f of files) {
+          const filePath = path.join(dir, f);
+          try {
+            const stats = await fs.promises.stat(filePath);
+            if (stats.isFile()) {
+              const filepath = `${relativePrefix}/${f}`;
+              const existing = await db('media_gallery').where('filepath', filepath).first();
+              if (!existing) {
+                await db('media_gallery').insert({
+                  filename: f,
+                  original_name: f,
+                  filepath: filepath,
+                  mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+                  size: stats.size,
+                  tag: tag,
+                  created_at: stats.mtime
+                });
+                logger.info(`Synced disk file to DB media_gallery: ${filepath}`);
+              }
+            }
+          } catch (e) {
+            // Ignore file specific stat/insert errors
+          }
+        }
+      };
+
+      await scanAndInsert(colorStockDir, 'color_stock', '/media/color_stock');
+      await scanAndInsert(othersDir, 'others', '/media/others');
+
+      if (fs.existsSync(mediaDir)) {
+        const files = await fs.promises.readdir(mediaDir);
+        for (const f of files) {
+          const filePath = path.join(mediaDir, f);
+          try {
+            const stats = await fs.promises.stat(filePath);
+            if (stats.isFile()) {
+              const filepath = `/media/${f}`;
+              const existing = await db('media_gallery').where('filepath', filepath).first();
+              if (!existing) {
+                await db('media_gallery').insert({
+                  filename: f,
+                  original_name: f,
+                  filepath: filepath,
+                  mime_type: f.toLowerCase().endsWith('.pdf') ? 'application/pdf' : (f.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg'),
+                  size: stats.size,
+                  tag: 'others',
+                  created_at: stats.mtime
+                });
+                logger.info(`Synced root disk file to DB media_gallery: ${filepath}`);
+              }
+            }
+          } catch (e) {
+            // Ignore file specific stat/insert errors
+          }
+        }
+      }
+    } catch (e) {
+      logger.error('Failed to sync media files into database on startup:', e);
+    }
     
     // Ensure business hours parameters exist in database on startup
     try {

@@ -28,6 +28,12 @@ window.App = () => {
   const [complaints, setComplaints] = useState([]);
   const [blockedNumbers, setBlockedNumbers] = useState([]);
   const [media, setMedia] = useState([]);
+  const [mediaSearch, setMediaSearch] = useState('');
+  const [debouncedMediaSearch, setDebouncedMediaSearch] = useState('');
+  const [mediaPage, setMediaPage] = useState(1);
+  const [mediaPagination, setMediaPagination] = useState({ total: 0, page: 1, limit: 12 });
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaSubTab, setMediaSubTab] = useState('color_stock');
   const [stockColors, setStockColors] = useState([]);
   const [logs, setLogs] = useState([]);
   const [settings, setSettings] = useState({ company: [], reseller: [], services: [], escalationKeywords: '' });
@@ -186,12 +192,22 @@ window.App = () => {
     } catch (e) { }
   };
 
-  const fetchMedia = async () => {
+  const fetchMedia = async (pageToFetch = mediaPage) => {
+    setMediaLoading(true);
     try {
-      const res = await fetch('/api/media');
+      const tagQuery = mediaSubTab ? `&tag=${mediaSubTab}` : '';
+      const res = await fetch(`/api/media?search=${debouncedMediaSearch}${tagQuery}&page=${pageToFetch}&limit=12`);
       const d = await res.json();
-      if (d.success) setMedia(d.data);
-    } catch (e) { }
+      if (d.success) {
+        setMedia(d.data);
+        if (d.pagination) {
+          setMediaPagination(d.pagination);
+        }
+      }
+    } catch (e) {
+    } finally {
+      setTimeout(() => setMediaLoading(false), 200);
+    }
   };
 
   const fetchStockColors = async () => {
@@ -312,10 +328,22 @@ window.App = () => {
     return () => clearTimeout(handler);
   }, [productSearch]);
 
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedMediaSearch(mediaSearch);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [mediaSearch]);
+
   // Triggers products fetch when page, debounced search, or category filter updates
   useEffect(() => {
     fetchProducts(productPage);
   }, [productPage, debouncedProductSearch, productCategory]);
+
+  // Triggers media fetch when page, debounced search, or tag updates
+  useEffect(() => {
+    fetchMedia(mediaPage);
+  }, [mediaPage, debouncedMediaSearch, mediaSubTab]);
 
   // Scroll to bottom of chat window
   useEffect(() => {
@@ -1073,6 +1101,20 @@ window.App = () => {
             handleToggleStockColorStatus={handleToggleStockColorStatus}
             handleDeleteStockColor={handleDeleteStockColor}
             handleSyncKnowledge={handleSyncKnowledge}
+            mediaSubTab={mediaSubTab}
+            setMediaSubTab={(val) => {
+              setMediaSubTab(val);
+              setMediaPage(1);
+            }}
+            mediaSearch={mediaSearch}
+            setMediaSearch={(val) => {
+              setMediaSearch(val);
+              setMediaPage(1);
+            }}
+            mediaPage={mediaPage}
+            setMediaPage={setMediaPage}
+            mediaPagination={mediaPagination}
+            mediaLoading={mediaLoading}
           />
           <LogsTab
             activeTab={activeTab}
