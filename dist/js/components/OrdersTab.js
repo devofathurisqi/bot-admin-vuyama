@@ -87,10 +87,47 @@ window.OrdersTab = ({
 
             {/* SPECS AND PURCHASE */}
             <div className="space-y-3 p-3.5 bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-darkbg-border/30 rounded-xl">
-              <div className="space-y-1 border-b border-darkbg-border/40 pb-2 text-gray-800 dark:text-gray-300">
-                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Produk & Pesanan</span>
-                <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{order.pesanan_raw}</p>
-              </div>
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide block">Rincian Order</span>
+              
+              {order.items && order.items.length > 0 ? (
+                <div className="space-y-1.5 pb-2 border-b border-darkbg-border/40">
+                  <table className="w-full text-left text-[11px] border-collapse text-gray-800 dark:text-gray-300">
+                    <thead>
+                      <tr className="border-b border-darkbg-border/30 text-gray-500 font-bold uppercase text-[9px]">
+                        <th className="py-1">Item</th>
+                        <th className="py-1 text-center">Qty</th>
+                        <th className="py-1 text-right">Harga</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.items.map((item, idx) => (
+                        <tr key={idx} className="border-b border-darkbg-border/20 last:border-0">
+                          <td className="py-1 font-semibold">
+                            {item.product_name || item.product_id}
+                          </td>
+                          <td className="py-1 text-center font-bold text-gray-500">
+                            {item.quantity}
+                          </td>
+                          <td className="py-1 text-right font-semibold text-brand-400">
+                            Rp {(item.price * item.quantity).toLocaleString('id-ID')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {order.pesanan_raw && (
+                    <details className="mt-1.5 text-[10px] text-gray-500">
+                      <summary className="cursor-pointer font-semibold outline-none hover:text-gray-300">Lihat Catatan Awal</summary>
+                      <p className="mt-1 whitespace-pre-wrap leading-relaxed text-gray-600 dark:text-gray-400">{order.pesanan_raw}</p>
+                    </details>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1 border-b border-darkbg-border/40 pb-2 text-gray-800 dark:text-gray-300">
+                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wide">Produk & Pesanan</span>
+                  <p className="text-xs font-medium leading-relaxed whitespace-pre-wrap">{order.pesanan_raw}</p>
+                </div>
+              )}
 
               {/* Label custom specs if filled */}
               {order.brand_name && (
@@ -121,6 +158,19 @@ window.OrdersTab = ({
                   )}
                 </div>
               </div>
+
+              {order.status !== 'CANCELLED' && (
+                <div className="pb-1">
+                  <a 
+                    href={`/api/orders/${order.id}/invoice/download`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 hover:bg-indigo-650 text-indigo-600 dark:text-indigo-400 hover:text-white font-extrabold text-[10px] transition flex items-center justify-center space-x-1.5 shadow-sm"
+                  >
+                    <span>📄 Download Invoice PDF</span>
+                  </a>
+                </div>
+              )}
 
               {['PENDING', 'CONFIRMED', 'PAID', 'SHIPPED'].includes(order.status) && (
                 <div className="pb-1.5">

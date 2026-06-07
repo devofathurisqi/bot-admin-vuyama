@@ -14,6 +14,9 @@ const path = require('path');
 // Set to track programmatically sent messages to prevent duplicates in CRM live chat
 const pendingOutgoingMessages = new Set();
 
+// Set to track in-flight message processing locks per phone number
+const inFlightLocks = new Set();
+
 // Initialize WhatsApp client
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -84,8 +87,11 @@ const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) 
       pdfPath = await docGen.generateComparisonPdf(client.pupBrowser, slug, comparisonText);
     } 
     else if (type === 'invoice') {
-      // Get customer's latest order ID
-      const order = await db('orders').where('phone_number', phoneNumber).orderBy('id', 'desc').first();
+      const oId = options.orderId;
+      const order = oId
+        ? await db('orders').where('id', oId).first()
+        : await db('orders').where('phone_number', phoneNumber).orderBy('id', 'desc').first();
+        
       if (!order) {
         logger.warn(`[PDF CS Vuyama] Gagal: Order tidak ditemukan untuk ${phoneNumber}`);
         return;
@@ -148,18 +154,28 @@ client.on('authenticated', () => {
 
 // Message received & created handler
 client.on('message_create', async (msg) => {
-  try {
-    // Skip if status message
-    if (msg.isStatus) return;
+  // Skip if status message
+  if (msg.isStatus) return;
 
-    const phoneNumber = msg.fromMe ? msg.to : msg.from;
-    const messageText = msg.body;
-    const isGroup = msg.isGroupMsg || phoneNumber.includes('@g.us');
+  const phoneNumber = msg.fromMe ? msg.to : msg.from;
+  const isGroup = msg.isGroupMsg || phoneNumber.includes('@g.us');
 
-    // Skip group messages
-    if (isGroup) {
+  // Skip group messages
+  if (isGroup) {
+    return;
+  }
+
+  // Deduplication lock: prevent double replies for the same user in quick succession
+  if (!msg.fromMe) {
+    if (inFlightLocks.has(phoneNumber)) {
+      logger.info(`Message from ${phoneNumber} is already being processed (in-flight lock). Skipping.`);
       return;
     }
+    inFlightLocks.add(phoneNumber);
+  }
+
+  try {
+    const messageText = msg.body;
 
     // ==========================================
     // CASE A: OUTGOING MESSAGE BY HUMAN ADMIN FROM PHONE
@@ -217,7 +233,7 @@ client.on('message_create', async (msg) => {
       // Auto-pause bot for this contact due to manual admin intervention from phone
       try {
         const { pauseBotForCustomer } = require('./utils/workflow');
-        await pauseBotForCustomer(phoneNumber, 'Intervensi Manual HP Admin');
+        await pauseBotForCustomer(phoneNumber, 12);
       } catch (err) {
         logger.error('Failed to trigger pauseBotForCustomer in fromMe handler:', err);
       }
@@ -230,7 +246,33 @@ client.on('message_create', async (msg) => {
     // ==========================================
     logger.info(`Pesan masuk dari ${phoneNumber}: "${messageText}"`);
 
-    // 1. Auto-register customer in database CRM if not present
+    // 1. Download media if image
+    let imageBuffer = null;
+    let imageMime = null;
+    let finalMessageText = messageText;
+    let isImage = false;
+
+    if (msg.hasMedia && msg.type === 'image') {
+      try {
+        const media = await msg.downloadMedia();
+        if (media) {
+          isImage = true;
+          imageMime = media.mimetype;
+          imageBuffer = Buffer.from(media.data, 'base64');
+          const ext = imageMime.split('/')[1] || 'png';
+          const filename = `incoming-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+          const diskPath = path.join(__dirname, '../learn/images', filename);
+          fs.writeFileSync(diskPath, imageBuffer);
+          const relativeUrl = `/uploads/${filename}`;
+          finalMessageText = `[Gambar: ${relativeUrl}]` + (messageText ? ` ${messageText}` : '');
+          logger.info(`Downloaded and saved incoming media to ${diskPath}`);
+        }
+      } catch (err) {
+        logger.error('Failed to download incoming media:', err);
+      }
+    }
+
+    // 2. Auto-register customer in database CRM if not present
     let customer = await db('customers').where('phone_number', phoneNumber).first();
     if (!customer) {
       let name = 'Customer';
@@ -260,9 +302,9 @@ client.on('message_create', async (msg) => {
     // Save incoming message to database
     await db('conversations').insert({
       phone_number: phoneNumber,
-      message: messageText,
+      message: finalMessageText || '',
       sender: 'customer',
-      message_type: 'text',
+      message_type: isImage ? 'image' : 'text',
       status: 'received',
       timestamp: new Date()
     });
@@ -270,9 +312,9 @@ client.on('message_create', async (msg) => {
     // Stream incoming message to dashboard Live Chat in real-time
     emitEvent('incoming_message', {
       phone_number: phoneNumber,
-      message: messageText,
+      message: finalMessageText || '',
       sender: 'customer',
-      message_type: 'text',
+      message_type: isImage ? 'image' : 'text',
       status: 'received',
       timestamp: new Date()
     });
@@ -281,21 +323,19 @@ client.on('message_create', async (msg) => {
     const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
     emitEvent('customer_updated', updatedCustomer);
 
-    // 2. CHECK BLOCK TABLE & ACTIVE ORDERS (If customer is blocked or has an active order, bot ignores and remains silent)
+    // 3. CHECK BLOCK TABLE, ACTIVE ORDERS & SMART PAUSE TIMER
     const isBlocked = await db('blocked_numbers').where('phone_number', phoneNumber).first();
-    const activeOrder = await db('orders')
-      .where('phone_number', phoneNumber)
-      .whereIn('status', ['PENDING', 'CONFIRMED', 'PAID', 'SHIPPED'])
-      .first();
+    const isPaused = customer.paused_until && new Date(customer.paused_until) > new Date();
+    const isMutedStatus = ['WAITING_HUMAN', 'ORDER_PENDING', 'ORDER_CONFIRMED'].includes(customer.status);
 
-    if (isBlocked || activeOrder) {
-      logger.info(`Bot dinonaktifkan untuk ${phoneNumber}. Human admin yang membalas. (Blocked: ${!!isBlocked}, Active Order: ${!!activeOrder})`);
+    if (isBlocked || isPaused || isMutedStatus) {
+      logger.info(`Bot CS di-mute untuk ${phoneNumber} (Blocked: ${!!isBlocked}, Paused: ${!!isPaused}, Muted Status: ${customer.status})`);
       
-      // OPTIMIZATION: If a blocked/active user sends the filled order format, still parse and update the order board, but keep bot silent!
-      if (messageHandler.isFilledOrderFormat(messageText)) {
+      // OPTIMIZATION: If a blocked/active/paused/muted user sends the filled order format, still parse and update the order board, but keep bot silent!
+      if (messageHandler.isFilledOrderFormat(finalMessageText)) {
         logger.info(`Customer ${phoneNumber} mengirimkan format order terisi. Mem-parsing untuk order board...`);
         try {
-          const parsed = await messageHandler.parseOrderFormatWithGemini(messageText);
+          const parsed = await messageHandler.parseOrderFormatWithGemini(finalMessageText);
           const existingPendingOrder = await db('orders')
             .where('phone_number', phoneNumber)
             .andWhere('status', 'PENDING')
@@ -303,39 +343,66 @@ client.on('message_create', async (msg) => {
             .first();
 
           let orderId;
+          const orderHeader = {
+            customer_name: parsed.customer_name || (existingPendingOrder ? existingPendingOrder.customer_name : 'Customer Vuyama'),
+            address: parsed.address,
+            phone: parsed.phone,
+            pesanan_raw: parsed.pesanan_raw,
+            updated_at: new Date()
+          };
+
+          const customSpecs = {
+            brand_name: parsed.brand_name,
+            label_size: parsed.label_size,
+            label_shape: parsed.label_shape,
+            ink_color: parsed.ink_color,
+            label_color: parsed.label_color,
+            font: parsed.font
+          };
+
           if (existingPendingOrder) {
             orderId = existingPendingOrder.id;
-            await db('orders').where('id', orderId).update({
-              customer_name: parsed.customer_name || existingPendingOrder.customer_name || 'Customer Vuyama',
-              address: parsed.address,
-              phone: parsed.phone,
-              pesanan_raw: parsed.pesanan_raw,
-              brand_name: parsed.brand_name,
-              label_size: parsed.label_size,
-              label_shape: parsed.label_shape,
-              ink_color: parsed.ink_color,
-              label_color: parsed.label_color,
-              font: parsed.font,
-              updated_at: new Date()
-            });
+            await db('orders').where('id', orderId).update(orderHeader);
+            
+            // Check if draft item exists
+            const existingItem = await db('order_items').where('order_id', orderId).first();
+            if (existingItem) {
+              await db('order_items').where('id', existingItem.id).update({
+                product_name: parsed.pesanan_raw || 'Label Custom',
+                custom_specs: JSON.stringify(customSpecs),
+                updated_at: new Date()
+              });
+            } else {
+              await db('order_items').insert({
+                order_id: orderId,
+                product_name: parsed.pesanan_raw || 'Label Custom',
+                quantity: 1,
+                price: 0,
+                subtotal: 0,
+                custom_specs: JSON.stringify(customSpecs)
+              });
+            }
             logger.info(`Mengupdate Order #${orderId} milik customer.`);
           } else {
             const [orderIdObj] = await db('orders').insert({
               phone_number: phoneNumber,
-              customer_name: parsed.customer_name || 'Customer Vuyama',
-              address: parsed.address,
-              phone: parsed.phone,
-              pesanan_raw: parsed.pesanan_raw,
-              brand_name: parsed.brand_name,
-              label_size: parsed.label_size,
-              label_shape: parsed.label_shape,
-              ink_color: parsed.ink_color,
-              label_color: parsed.label_color,
-              font: parsed.font,
+              customer_name: orderHeader.customer_name,
+              address: orderHeader.address,
+              phone: orderHeader.phone,
+              pesanan_raw: orderHeader.pesanan_raw,
               status: 'PENDING',
               total: 0
             }).returning('id');
             orderId = orderIdObj ? orderIdObj.id : null;
+
+            await db('order_items').insert({
+              order_id: orderId,
+              product_name: parsed.pesanan_raw || 'Label Custom',
+              quantity: 1,
+              price: 0,
+              subtotal: 0,
+              custom_specs: JSON.stringify(customSpecs)
+            });
             logger.info(`Membuat Order #${orderId} baru untuk customer.`);
           }
 
@@ -346,7 +413,19 @@ client.on('message_create', async (msg) => {
           });
 
           // Stream real-time update to dashboard
-          const updatedOrder = await db('orders').where('id', orderId).first();
+          const rawOrder = await db('orders').where('id', orderId).first();
+          const items = await db('order_items').where('order_id', orderId);
+          const updatedOrder = {
+            ...rawOrder,
+            items,
+            brand_name: customSpecs.brand_name || null,
+            label_size: customSpecs.label_size || null,
+            label_shape: customSpecs.label_shape || null,
+            ink_color: customSpecs.ink_color || null,
+            label_color: customSpecs.label_color || null,
+            font: customSpecs.font || null
+          };
+
           emitEvent('order_updated', updatedOrder);
 
           const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
@@ -358,20 +437,19 @@ client.on('message_create', async (msg) => {
       return;
     }
 
-    // 3. GENERATE BOT RESPONSE
-    const response = await messageHandler.generateResponse(phoneNumber, messageText, customer.status);
+    // 4. GENERATE BOT RESPONSE
+    const response = await messageHandler.generateResponse(phoneNumber, finalMessageText, customer.status, imageBuffer, imageMime);
 
     try {
-      // Simulate typing status to look exactly like a human admin and reduce spam flagging
+      // Simulate typing status
       const chat = await msg.getChat();
       await chat.sendStateTyping();
-      // Small delay of 1.5 seconds to mimic typing speed
       await new Promise(resolve => setTimeout(resolve, 1500));
     } catch (e) {
-      // Fail-safe if sendStateTyping throws
+      // Fail-safe
     }
 
-    // 4. SEND BOT RESPONSE
+    // 5. SEND BOT RESPONSE
     const imgRegex = /\[SEND_IMAGE:\s*([^\]]+)\]/gi;
     const docRegex = /\[SEND_DOCUMENT:\s*([^\]]+)\]/gi;
     
@@ -398,7 +476,7 @@ client.on('message_create', async (msg) => {
     let imgMatches = [...replyText.matchAll(imgRegex)].map(m => m[1].trim());
     replyText = replyText.replace(imgRegex, '').trim();
     
-    // Filter out comparison images since we are using high-quality PDFs for comparisons now
+    // Filter out comparison images
     imgMatches = imgMatches.filter(img => !img.includes('comparison'));
     
     // Extract all documents
@@ -409,9 +487,6 @@ client.on('message_create', async (msg) => {
     pendingOutgoingMessages.add(key);
     
     let sentMsg = null;
-    let sentMediaCount = 0;
-    const sentImages = [];
-    const sentDocs = [];
 
     try {
       // Step A: Send reply text first if it exists
@@ -420,10 +495,9 @@ client.on('message_create', async (msg) => {
         logger.info(`Bot merespons teks ke ${phoneNumber}: "${replyText.substring(0, 50)}..."`);
       }
 
-      // Step B: Send all matching images back-to-back asynchronously in background
+      // Step B: Send all matching images back-to-back
       if (imgMatches.length > 0) {
         (async () => {
-          // Wait 2.5 seconds to simulate separate loading status
           await new Promise(resolve => setTimeout(resolve, 2500));
           
           for (const imagePath of imgMatches) {
@@ -446,7 +520,6 @@ client.on('message_create', async (msg) => {
 
             if (absolutePath && fs.existsSync(absolutePath)) {
               try {
-                // Simulate typing/uploading status for image
                 const chat = await msg.getChat();
                 await chat.sendStateTyping();
                 
@@ -461,8 +534,6 @@ client.on('message_create', async (msg) => {
               } catch (mediaErr) {
                 logger.error(`Gagal mengirim gambar dari path ${absolutePath}:`, mediaErr);
               }
-            } else {
-              logger.warn(`Gambar "${imagePath}" tidak ditemukan di disk pada path ${absolutePath || 'unknown'}`);
             }
           }
         })().catch(err => logger.error('Error in async static image sending:', err));
@@ -482,7 +553,7 @@ client.on('message_create', async (msg) => {
           .catch(err => logger.error('Error in dynamic PDF welcome guide generation:', err));
       }
 
-      // Step C: Send all matching documents back-to-back
+      // Step C: Send all matching documents
       for (const docPath of docMatches) {
         let absoluteDocPath = null;
         if (docPath.startsWith('/pdf/')) {
@@ -497,8 +568,6 @@ client.on('message_create', async (msg) => {
             const media = MessageMedia.fromFilePath(absoluteDocPath);
             const mediaMsg = await client.sendMessage(phoneNumber, media);
             if (!sentMsg) sentMsg = mediaMsg;
-            sentDocs.push(docPath);
-            sentMediaCount++;
             logger.info(`Bot mengirim dokumen "${docPath}" ke ${phoneNumber}`);
           } catch (docErr) {
             logger.error(`Gagal mengirim dokumen dari path ${absoluteDocPath}:`, docErr);
@@ -508,26 +577,13 @@ client.on('message_create', async (msg) => {
         }
       }
 
-      // Fallback if absolutely nothing was sent (neither text nor media)
-      if (!sentMsg && replyText.length === 0) {
-        const fallbackText = "Ada yang bisa Vumin bantu lagi kak? 😊";
-        sentMsg = await client.sendMessage(phoneNumber, fallbackText);
-      }
-    } catch (sendErr) {
-      logger.error('Gagal mengirim respon bot:', sendErr);
     } finally {
-      setTimeout(() => pendingOutgoingMessages.delete(key), 5000);
+      setTimeout(() => pendingOutgoingMessages.delete(key), 8000);
     }
 
-    // Save bot reply to database (include sent media logs)
-    let dbMessage = replyText;
-    if (sentImages.length > 0) {
-      dbMessage += (dbMessage ? '\n' : '') + `[Gambar: ${sentImages.join(', ')}]`;
-    }
-    if (sentDocs.length > 0) {
-      dbMessage += (dbMessage ? '\n' : '') + `[Dokumen: ${sentDocs.join(', ')}]`;
-    }
-    const dbMessageType = sentMediaCount > 0 ? (sentImages.length > 0 ? 'image' : 'document') : 'text';
+    // Save bot response to CRM database
+    const dbMessageType = isImage ? 'image' : 'text';
+    const dbMessage = replyText || '[Dokumen/Gambar Terkirim]';
 
     await db('conversations').insert({
       phone_number: phoneNumber,
@@ -538,7 +594,7 @@ client.on('message_create', async (msg) => {
       timestamp: new Date()
     });
 
-    // Stream bot's reply to dashboard Live Chat in real-time
+    // Stream bot response to dashboard
     emitEvent('incoming_message', {
       phone_number: phoneNumber,
       message: dbMessage,
@@ -551,6 +607,10 @@ client.on('message_create', async (msg) => {
   } catch (error) {
     logger.error('Error processing WhatsApp message:', error);
     await logToDb('error', `Error processing message from ${msg.from}: ${error.message}`);
+  } finally {
+    if (!msg.fromMe) {
+      inFlightLocks.delete(phoneNumber);
+    }
   }
 });
 
@@ -640,5 +700,6 @@ process.on('unhandledRejection', (reason, promise) => {
 module.exports = {
   client,
   startBot,
-  pendingOutgoingMessages
+  pendingOutgoingMessages,
+  asyncGenerateAndSendPdf
 };

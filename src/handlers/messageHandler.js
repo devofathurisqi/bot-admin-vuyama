@@ -20,139 +20,31 @@ const logToDb = async (level, message) => {
 };
 
 /**
- * Detect simple greetings/common words and return static human-like responses
- * without calling Gemini API to save 100% of tokens and respond instantly.
+ * Check if the message arrives outside business hours (Monday-Saturday, 08:00 - 17:00 WIB)
  */
-const getStaticGreetingReply = (userMessage) => {
-  if (!userMessage) return null;
-  const normalized = userMessage.trim().toLowerCase().replace(/[?,.!\s]+/g, ' ');
-
-  // 1. Assalamualaikum patterns
-  if (/^(assalamualaikum|assalamu'alaikum|askum|mikum|ass|asalamu'alaikum)/i.test(normalized)) {
-    return "Waalaikumsalam Kak! Ada yang bisa kami bantu? 😊";
-  }
-
-  // 2. Halo/Hai patterns
-  if (/^(halo|hai|hello|hey|hei|p|halo admin|hallo|spada)/i.test(normalized) && normalized.length <= 12) {
-    return "Halo juga Kak! Ada yang bisa kami bantu? 😊";
-  }
-
-  // 3. Greeting by time patterns
-  if (/^(selamat (pagi|siang|sore|malam))/i.test(normalized)) {
-    const match = normalized.match(/selamat (pagi|siang|sore|malam)/i);
-    const timeOfDay = match ? match[1] : 'hari';
-    return `Selamat ${timeOfDay} juga Kak! Ada yang bisa kami bantu? 😊`;
-  }
-
-  // 4. Test/Tes patterns
-  if (/^(tes|test|testing|ping)/i.test(normalized) && normalized.length <= 6) {
-    return "Iya Kak, masuk kok. Ada yang bisa kami bantu? 😊";
-  }
-
-  // 5. Thank you patterns
-  if (/^(terima kasih|makasih|tengkyu|thanks|suwun|thx|nuhun)/i.test(normalized) && normalized.length <= 15) {
-    return "Sama-sama Kak! 😊 Senang bisa membantu. Jika ada hal lain yang perlu ditanyakan, hubungi kami saja ya...";
-  }
-
-  return null;
+const checkBusinessHours = () => {
+  const now = new Date();
+  // Convert to Jakarta Time (WIB)
+  const wibString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+  const wibDate = new Date(wibString);
+  const day = wibDate.getDay(); // 0 = Sunday, 1-6 = Mon-Sat
+  const hours = wibDate.getHours();
+  
+  const isSunday = day === 0;
+  const isWorkingTime = !isSunday && (hours >= 8 && hours < 17);
+  return isWorkingTime;
 };
-
-/**
- * Detect comparison questions and return brief explanation with infographic image bypass
- */
-const getComparisonReply = (userMessage) => {
-  if (!userMessage) return null;
-  const normalized = userMessage.trim().toLowerCase().replace(/[?,.!\s]+/g, ' ');
-
-  // List of comparative/choice keywords (Strict comparison check)
-  const isComparisonQuery = /\b(vs|beda|bedanya|perbedaan|banding|bandingkan|perbandingan|selisih|kelebihan|kekurangan|bagusan mana|mending mana|pilih mana|lebih bagus|lebih laku|lebih laris)\b/i.test(normalized);
-
-  // 1. Paris Japan vs Paris Jadul
-  const hasJapan = /japan/i.test(normalized);
-  const hasJadul = /(jadul|legend|klasik|basic|ori)/i.test(normalized);
-  const hasParis = /paris/i.test(normalized);
-
-  let replyText = null;
-
-  if (
-    (hasParis && isComparisonQuery) ||
-    (hasJapan && hasJadul) ||
-    (hasParis && (hasJapan || hasJadul) && isComparisonQuery)
-  ) {
-    // If specifically asking which is more popular / sells better
-    if (/(laku|laris|populer|banyak|beli|jual)/i.test(normalized)) {
-      replyText = `Untuk Vuyama, **Paris Japan** jauh lebih banyak dipilih dan gampang laku kak! Karena bahannya premium, super lembut, tegak di dahi, dan feedback customernya sangat memuaskan... 😊\n\nSedangkan **Paris Jadul** biasanya dipilih untuk market massal karena harganya yang sangat murah & ekonomis.`;
-    } else {
-      // Default comparison
-      replyText = `Ini perbandingan singkat antara Paris Japan dan Paris Jadul ya kak... 😊\n\n- **Paris Japan**: Bahan premium, serat rapat, super lembut, flowy, dan tegak di dahi (nggak kaku).\n- **Paris Jadul**: Bahan standar, serat renggang, tekstur agak kaku khas retro/vintage, sangat ekonomis.`;
-    }
-  }
-
-  // 2. Label Material (Akrilik vs Plat Besi vs Woven vs Satin)
-  const hasAklik = /(akrilik|acrylic)/i.test(normalized);
-  const hasPlat = /(plat|besi|logam)/i.test(normalized);
-  const hasWoven = /woven/i.test(normalized);
-  const hasSatin = /satin/i.test(normalized);
-  const hasLabel = /label/i.test(normalized);
-
-  // Check if at least two label types are mentioned, or one label type and comparative query
-  const labelMatchCount = [hasAklik, hasPlat, hasWoven, hasSatin].filter(Boolean).length;
-
-  if (
-    !replyText && (
-      (hasLabel && isComparisonQuery) ||
-      (labelMatchCount >= 2) ||
-      ((hasAklik || hasPlat || hasWoven || hasSatin) && hasLabel && isComparisonQuery)
-    )
-  ) {
-    if (/(laku|laris|populer|best|seller|bagusan|mending|pilih)/i.test(normalized)) {
-      replyText = `Bahan label paling laris (*best seller*) kami adalah **Akrilik** (kesan mewah mengkilap) and **Woven** (rajutan benang super awet) kak... 😊\n\nSetiap bahan memiliki keunikan masing-masing untuk menaikkan kelas brand hijab kakak.`;
-    } else {
-      replyText = `Berikut ringkasan singkat 4 bahan label brand best seller kami kak... 😊\n\n- **Akrilik**: Kesan modern & super mewah (efek kaca mengkilap).\n- **Plat Besi/Logam**: Sangat premium, kokoh, memberi kesan eksklusif & mahal.\n- **Woven**: Rajutan benang detail tinggi, awet, & bernuansa klasik.\n- **Satin**: Lembut di kulit, lentur, dan sangat ekonomis.`;
-    }
-  }
-
-  // 3. Pashmina Bamboo vs Pashmina Airtech
-  const hasBamboo = /bamboo/i.test(normalized);
-  const hasAirtech = /airtech/i.test(normalized);
-  const hasPashmina = /pashmina/i.test(normalized);
-
-  if (
-    !replyText && (
-      (hasPashmina && isComparisonQuery) ||
-      (hasBamboo && hasAirtech) ||
-      (hasPashmina && (hasBamboo || hasAirtech) && isComparisonQuery)
-    )
-  ) {
-    if (/(laku|laris|populer|bagusan|mending|pilih)/i.test(normalized)) {
-      replyText = `Kedua pashmina ini sangat laris dengan keunggulannya masing-masing kak... 😊\n\n- Pilih **Bamboo Spandex** jika mencari kenyamanan ekstra (sangat adem & ada *cooling effect* serat bambu alami).\n- Pilih **Airtech Ultrasoft** jika mencari pashmina yang sangat ringan, mudah menyerap keringat (*quick-dry*), dan pas untuk luar ruangan.`;
-    } else {
-      replyText = `Perbedaan singkat Pashmina Bamboo vs Pashmina Airtech kak... 😊\n\n- **Pashmina Bamboo**: Serat bambu alami, super lembut, adem dingin (*cooling effect*), & jatuh banget.\n- **Pashmina Airtech**: Sangat ringan, ada sirkulasi udara mikro (*micro-ventilation*), menyerap keringat, & *quick-dry*.`;
-    }
-  }
-
-  if (replyText) {
-    return `[COMPARISON_SHEET]${replyText}\n\nkami akan cari data perbandingan kami (gambar / pdf), jika ada kami akan kirim ke kakak. jika tidak ada tidak akan kami follow up tapi kaka boleh kok tanya tanya lagi hehe`;
-  }
-
-  return null;
-};
-
-
-
 
 /**
  * Build dynamic system prompt containing the latest database context
  */
 const buildDynamicSystemPrompt = async (userMessage = "", phoneNumber = null, memoryAnalysis = null) => {
   try {
-    // If we have memory context, prepend the 3-day summary to the classifier string to solve coreference context loss
+    // Prepend 3-day summary to the classifier string to solve coreference context loss
     const classificationText = memoryAnalysis ? `${memoryAnalysis.summary} ${userMessage}` : userMessage;
     
-    // Smart RAG selector retrieval with context awareness
+    // Smart RAG selector retrieval (loads unified database context)
     const context = await knowledge.retrieveKnowledgeContext(classificationText, phoneNumber);
-
-    logger.info(`Smart RAG Classifier classified intent. Querying tables: [${context.selectedTables.join(', ')}]`);
 
     // Load the official PDF knowledge backup to guarantee absolute latest data
     let pdfPricelistOfficial = null;
@@ -237,16 +129,6 @@ GAYA BAHASA & KEPRIBADIAN (WAJIB DIPATUHI AGAR SEPERTI CS MANUSIA YANG SANGAT BE
     - Chat yang Anda hasilkan harus 100% rapi dan tertata dengan sangat indah saat dibaca baik di layar Laptop/Komputer maupun layar Handphone (HP) pelanggan!
     - **SPASI KATA & TANDA BACA:** JANGAN PERNAH menulis kata-kata yang saling berdempetan tanpa spasi. Selalu berikan spasi satu ketukan yang jelas setelah tanda titik (.), koma (,), titik dua (:), titik koma (;), dan tanda tanya (?). Contoh kesalahan: "beda banget:1. Paris" (SALAH!) ➔ harusnya "beda banget: \n\n1. Paris" atau "beda banget: 1. Paris" (BENAR!).
     - **PARAGRAF & JEDA BARIS BARU (DOUBLE ENTER) UNTUK DAFTAR POIN:** Setiap kali Anda membuat poin atau daftar penjelasan (seperti membahas 1. Paris Japan, 2. Paris Jadul, dsb.), Anda **WAJIB memberikan jeda dua baris baru (double enter / \`\\n\\n\`)** di antara poin-poin tersebut. JANGAN PERNAH menumpuk penjelasan list menjadi satu paragraf rapat yang tersambung terus-menerus tanpa enter. Tuliskan nama poin di baris tersendiri, lalu penjelasannya di baris baru di bawahnya agar tidak berantakan di layar HP pelanggan yang lebih kecil!
-    - **CONTOH STRUKTUR CHAT YANG SANGAT RAPI DI LAPTOP MAUPUN HP:**
-      "Ini bedanya Paris Japan sama Paris Jadul ya kak... 😊
-      
-      1. **Paris Japan**
-      - Bahannya poliester premium kak, seratnya lebih halus and rapat.
-      - Teksturnya lembut, jatuh, dan nggak kaku.
-      
-      2. **Paris Jadul**
-      - Bahannya poliester biasa, seratnya agak kasar dan doft.
-      - Teksturnya agak kaku dan berpasir..."
 
 INFORMASI KHUSUS PENGIRIMAN GAMBAR PRODUK (PENTING):
 Every product in the database has images. Proactively send them. Look at KNOWLEDGE BASE.
@@ -261,13 +143,13 @@ INFORMASI KHUSUS MULTI-VARIAN & TIERED PRICING / GROSIR (PENTING):
 Explain variants and tiered pricing if available.
 
 INFORMASI KHUSUS PILIHAN WARNA STOK KAIN / COLOR SWATCH (PENTING):
-Match color queries to color_stock_files and attach \`[SEND_IMAGE: path]\`.
+Match color queries to color_stock_files, stock_colors and product_aliases, and attach \`[SEND_IMAGE: path]\`.
 
 INFORMASI KHUSUS PERTANYAAN PERBANDINGAN BAHAN/PRODUK (MUTLAK PENTING):
 1. Keep points short (max 2-3 sentences).
 2. Use double enter spacing format.
 3. End comparing replies with:
-   "kami akan cari data perbandingan kami (gambar / pdf), jika ada kami akan kirim ke kakak. jika tidak ada tidak akan kami follow up tapi kaka boleh kok tanya tanya lagi hehe"
+   "Berikut Vumin lampirkan rincian perbandingan dan juga info stok warna terbarunya ya kak... 😊"
 
 KNOWLEDGE BASE VUYAMA (TERRETRIEVE SECARA DINAMIS DARI DATABASE & FILE CADANGAN RESMI):
 ${JSON.stringify({
@@ -278,6 +160,8 @@ ${JSON.stringify({
       reseller_program: context.reseller_program,
       documents: context.documents,
       color_stock_files: context.color_stock_files,
+      stock_colors: context.stock_colors,
+      product_aliases: context.product_aliases,
       pdf_pricelist_official: pdfPricelistOfficial
     }, null, 2)}
 
@@ -382,79 +266,26 @@ ${text}
 };
 
 /**
- * Context string builder from customer message history (restricted to last 3 days)
- */
-const buildContextString = async (phoneNumber) => {
-  const chatHistory = await history.getConversationsWithinDays(phoneNumber, 3);
-  if (chatHistory.length === 0) return '';
-
-  let contextStr = '\nRiwayat chat terakhir (3 hari terakhir):\n';
-  chatHistory.forEach(msg => {
-    const sender = msg.sender === 'customer' ? 'Customer' : msg.sender === 'agent' ? 'Admin' : 'Bot';
-    contextStr += `${sender}: ${msg.message}\n`;
-  });
-  return contextStr;
-};
-
-/**
  * Main function to generate bot response
  */
-const generateResponse = async (phoneNumber, userMessage, customerState) => {
+const generateResponse = async (phoneNumber, userMessage, customerState, imageBuffer = null, imageMime = null) => {
   try {
-    // 0. STATIC GREETING BYPASS (Zero-Call)
-    const staticReply = getStaticGreetingReply(userMessage);
-    if (staticReply) {
-      await logToDb('info', `Deteksi otomatis Sapaan dari ${phoneNumber} (Bypass Gemini).`);
-      return {
-        intent: 'greeting',
-        response: staticReply
-      };
+    // 1. Calculate business hours check and prepend notice if outside hours
+    const isWorkingHours = checkBusinessHours();
+    let offHoursNotice = "";
+    if (!isWorkingHours) {
+      offHoursNotice = "*(Pesan Otomatis Di Luar Jam Kerja)*\nHalo Kak! Saat ini CS kami sedang di luar jam operasional (Senin - Sabtu, 08:00 - 17:00). Kakak tetap bisa bertanya atau mengisi format order, dan asisten AI kami (Vumin) akan membantu menjawab sementara ya kak... 😊 Kami akan memproses dan mem-follow up chat Kakak secara manual setelah jam operasional aktif kembali. Terima kasih atas pengertiannya Kak! 🙏\n\n";
     }
 
-    // 0.25 COMPARISON BYPASS (Zero-Call)
-    const comparisonReply = getComparisonReply(userMessage);
-    if (comparisonReply) {
-      await logToDb('info', `Deteksi otomatis Pertanyaan Perbandingan dari ${phoneNumber} (Bypass Gemini).`);
-      return {
-        intent: 'comparison_match',
-        response: comparisonReply
-      };
-    }
-
-    // 0.3 RETAIL/ECER BYPASS (Zero-Call)
-    const isRetailQuery = (msgText) => {
-      const normalized = msgText.toLowerCase();
-      return normalized.includes('ecer') || normalized.includes('satuan') || normalized.includes('retail') || /\b(1\s*(pcs|pc|buah|biji))\b/.test(normalized);
-    };
-
-    if (isRetailQuery(userMessage)) {
-      await logToDb('info', `Deteksi otomatis Pertanyaan Ecer/Satuan dari ${phoneNumber} (Bypass ke Shopee).`);
-      return {
-        intent: 'retail_shopee',
-        response: 'Untuk pembelian ecer (satuan), silakan langsung checkout melalui toko resmi Shopee Vuyama ya kak... 😊 Berikut link toko Shopee kami: https://shopee.co.id/vuyama'
-      };
-    }
-
-    // 0.5 LOCAL FAQ SIMILARITY MATCHING (Zero-Call RAG / Smart TF-IDF ML Engine)
-    const matchedFaq = await knowledge.findMatchingFaq(userMessage);
-    if (matchedFaq) {
-      await logToDb('info', `Pencocokan Lokal Sukses (Skor: ${matchedFaq.score.toFixed(2)}) untuk "${userMessage.substring(0, 30)}..." -> Bypass Gemini.`);
-      return {
-        intent: 'faq_match',
-        response: matchedFaq.answer
-      };
-    }
-
-    // 1. UPDATE/FETCH CONVERSATION MEMORY (Event-driven background gatekeeper)
+    // 2. Update/fetch memory
     logger.info(`Updating 3-day time-based memory for customer ${phoneNumber}`);
     const memoryAnalysis = await memory.updateMemory(phoneNumber, userMessage);
 
-    // 2. COMPLAINT DETECTION FLOW (Hybrid: Keyword + ChatGPT/Gemini extracted intent)
+    // 3. COMPLAINT DETECTION FLOW (Keyword + intent)
     const isComplaint = isComplaintMessage(userMessage) || memoryAnalysis.extracted_intent === 'COMPLAINT';
     if (isComplaint) {
       await logToDb('warn', `Deteksi otomatis Komplain dari ${phoneNumber}: "${userMessage.substring(0, 40)}..."`);
-
-      // Auto-block the bot from replying to this customer in the future
+      
       const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
       if (!existingBlock) {
         await db('blocked_numbers').insert({
@@ -462,46 +293,35 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
           reason: 'Terdeteksi Komplain Otomatis'
         });
       }
-
-      // Update customer status to COMPLAINT and WAITING_HUMAN
+      
       await db('customers').where('phone_number', phoneNumber).update({
         status: 'WAITING_HUMAN',
         updated_at: new Date()
       });
-
-      // Insert record to complaints
-      await db('complaints').insert({
-        phone_number: phoneNumber,
-        message: userMessage,
-        status: 'OPEN'
-      });
-
-      // Alert dashboard clients
+      
       emitEvent('new_complaint', {
         phone_number: phoneNumber,
         message: userMessage
       });
-
-      // Notify customer update to UI
+      
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
-
+      
       return {
         intent: 'complaint',
         response: `Maaf banget atas ketidaknyamanannya ya Kak 🙏 Keluhan Kakak sudah dicatat oleh tim kami. Sebentar ya kak, kami bantu cek detail keluhan Kakak dan segera kami kabari. Mohon ditunggu sebentar ya Kak... 😊`
       };
     }
 
-    // 3. ORDER CONFIRMATION FLOW (Hybrid: Format or ChatGPT Intent)
+    // 4. ORDER CONFIRMATION FLOW (Format order filled)
     const isFilledFormat = isFilledOrderFormat(userMessage) || 
       (memoryAnalysis.extracted_intent === 'ORDER_FORMAT' && 
        ['nama', 'alamat', 'pesanan'].every(k => userMessage.toLowerCase().includes(k)));
+       
     if (isFilledFormat) {
       await logToDb('info', `Customer ${phoneNumber} mengirimkan format order. Menjalankan AI parser...`);
-
       const parsed = await parseOrderFormatWithGemini(userMessage);
 
-      // Check if there is an existing PENDING order for this customer
       const existingPendingOrder = await db('orders')
         .where('phone_number', phoneNumber)
         .andWhere('status', 'PENDING')
@@ -509,52 +329,73 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
         .first();
 
       let orderId;
+      const orderHeader = {
+        customer_name: parsed.customer_name || (existingPendingOrder ? existingPendingOrder.customer_name : 'Customer Vuyama'),
+        address: parsed.address,
+        phone: parsed.phone,
+        pesanan_raw: parsed.pesanan_raw,
+        updated_at: new Date()
+      };
+
+      const customSpecs = {
+        brand_name: parsed.brand_name,
+        label_size: parsed.label_size,
+        label_shape: parsed.label_shape,
+        ink_color: parsed.ink_color,
+        label_color: parsed.label_color,
+        font: parsed.font
+      };
+
       if (existingPendingOrder) {
         orderId = existingPendingOrder.id;
-        await db('orders').where('id', orderId).update({
-          customer_name: parsed.customer_name || existingPendingOrder.customer_name || 'Customer Vuyama',
-          address: parsed.address,
-          phone: parsed.phone,
-          pesanan_raw: parsed.pesanan_raw,
-          brand_name: parsed.brand_name,
-          label_size: parsed.label_size,
-          label_shape: parsed.label_shape,
-          ink_color: parsed.ink_color,
-          label_color: parsed.label_color,
-          font: parsed.font,
-          updated_at: new Date()
-        });
-
+        await db('orders').where('id', orderId).update(orderHeader);
+        
+        const existingItem = await db('order_items').where('order_id', orderId).first();
+        if (existingItem) {
+          await db('order_items').where('id', existingItem.id).update({
+            product_name: parsed.pesanan_raw || 'Label Custom',
+            custom_specs: JSON.stringify(customSpecs),
+            updated_at: new Date()
+          });
+        } else {
+          await db('order_items').insert({
+            order_id: orderId,
+            product_name: parsed.pesanan_raw || 'Label Custom',
+            quantity: 1,
+            price: 0,
+            subtotal: 0,
+            custom_specs: JSON.stringify(customSpecs)
+          });
+        }
         await logToDb('info', `Mengupdate Order #${orderId} yang ada dengan format yang telah terisi.`);
       } else {
-        // Fallback: Save order to PostgreSQL if no pending order exists
         const [orderIdObj] = await db('orders').insert({
           phone_number: phoneNumber,
-          customer_name: parsed.customer_name || 'Customer Vuyama',
-          address: parsed.address,
-          phone: parsed.phone,
-          pesanan_raw: parsed.pesanan_raw,
-          brand_name: parsed.brand_name,
-          label_size: parsed.label_size,
-          label_shape: parsed.label_shape,
-          ink_color: parsed.ink_color,
-          label_color: parsed.label_color,
-          font: parsed.font,
+          customer_name: orderHeader.customer_name,
+          address: orderHeader.address,
+          phone: orderHeader.phone,
+          pesanan_raw: orderHeader.pesanan_raw,
           status: 'PENDING',
           total: 0
         }).returning('id');
         orderId = orderIdObj ? orderIdObj.id : null;
 
+        await db('order_items').insert({
+          order_id: orderId,
+          product_name: parsed.pesanan_raw || 'Label Custom',
+          quantity: 1,
+          price: 0,
+          subtotal: 0,
+          custom_specs: JSON.stringify(customSpecs)
+        });
         await logToDb('info', `Membuat Order #${orderId} baru karena tidak ditemukan order PENDING sebelumnya.`);
       }
 
-      // Update customer status to ORDER_CONFIRMED
       await db('customers').where('phone_number', phoneNumber).update({
         status: 'ORDER_CONFIRMED',
         updated_at: new Date()
       });
 
-      // Auto-block the bot from replying in the future so human admin can handle details
       const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
       if (!existingBlock) {
         await db('blocked_numbers').insert({
@@ -563,28 +404,36 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
         });
       }
 
-      // Notify dashboard real-time of order update
-      const updatedOrder = await db('orders').where('id', orderId).first();
-      emitEvent('order_updated', updatedOrder);
+      const rawOrder = await db('orders').where('id', orderId).first();
+      const items = await db('order_items').where('order_id', orderId);
+      const updatedOrder = {
+        ...rawOrder,
+        items,
+        brand_name: customSpecs.brand_name || null,
+        label_size: customSpecs.label_size || null,
+        label_shape: customSpecs.label_shape || null,
+        ink_color: customSpecs.ink_color || null,
+        label_color: customSpecs.label_color || null,
+        font: customSpecs.font || null
+      };
 
+      emitEvent('order_updated', updatedOrder);
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
 
       return {
         intent: 'order_filled',
-        response: `Terima kasih Kak! 😊 Format ordernya sudah kami terima dan berhasil dicatat dengan status PENDING. Admin kami akan segera mengecek pesanan Kakak untuk menghitung ongkirnya. Mohon tunggu sebentar ya... 🙏`
+        response: offHoursNotice + `Terima kasih Kak! 😊 Format ordernya sudah kami terima dan berhasil dicatat dengan status PENDING. Admin kami akan segera mengecek pesanan Kakak untuk menghitung ongkirnya. Mohon tunggu sebentar ya... 🙏`
       };
     }
 
     const isOrderIntent = isOrderIntentMessage(userMessage) || memoryAnalysis.extracted_intent === 'ORDER_INTENT';
     if (isOrderIntent) {
       await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
-
-      // Fetch customer name
+      
       const customer = await db('customers').where('phone_number', phoneNumber).first();
       const customerName = customer ? customer.name : 'Customer Vuyama';
 
-      // Insert new order as PENDING immediately
       const [orderIdObj] = await db('orders').insert({
         phone_number: phoneNumber,
         customer_name: customerName,
@@ -594,7 +443,6 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
       }).returning('id');
       const orderId = orderIdObj ? orderIdObj.id : null;
 
-      // Auto-block the bot from replying immediately
       const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
       if (!existingBlock) {
         await db('blocked_numbers').insert({
@@ -608,7 +456,6 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
         updated_at: new Date()
       });
 
-      // Emit new order to frontend immediately
       emitEvent('new_order', {
         id: orderId,
         phone_number: phoneNumber,
@@ -617,32 +464,28 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
         status: 'PENDING'
       });
 
-      // Notify UI
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
 
       return {
         intent: 'order_intent',
-        response: `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
+        response: offHoursNotice + `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
       };
     }
 
-    // 4. CHECK INTENT CLARITY (Clarification Gatekeeper - runs only if not order or complaint)
-    if (!memoryAnalysis.is_intent_clear) {
-      await logToDb('info', `Customer ${phoneNumber} intent unclear. Asking clarifying question...`);
-      return {
-        intent: 'clarification',
-        response: memoryAnalysis.clarification_question
-      };
-    }
-
-    // 5. NORMAL AI CHAT FLOW (USING DYNAMIC KNOWLEDGE AND DYNAMIC SYSTEM PROMPT)
-    const contextStr = await buildContextString(phoneNumber);
+    // 5. Normal AI chat flow
     const systemPrompt = await buildDynamicSystemPrompt(userMessage, phoneNumber, memoryAnalysis);
-    const prompt = `${systemPrompt}${contextStr}\n\nCustomer: ${userMessage}\n\nAdmin (jangan mulai dengan 'Admin:'):`;
+    
+    // Add instruction to system prompt if image is supplied
+    let activePrompt = systemPrompt;
+    if (imageBuffer && imageMime) {
+      activePrompt += `\n\n[SISTEM AESTHETICS - ANALISIS GAMBAR]: Pelanggan melampirkan sebuah gambar. Gambar tersebut mungkin berupa bukti transfer pembayaran, swatch/pilihan warna kain, logo brand, atau sampel produk. Harap analisis gambar tersebut dengan cerdas dan hubungkan dengan data katalog Vuyama di atas. Jawab pertanyaan mereka dengan mengaitkan temuan dari gambar tersebut.`;
+    }
+
+    const prompt = `${activePrompt}\n\nCustomer: ${userMessage}\n\nAdmin (jangan mulai dengan 'Admin:'):`;
 
     logger.info(`Calling Gemini AI for customer ${phoneNumber}`);
-    const response = await gemini.callGemini(prompt);
+    const response = await gemini.callGemini(prompt, imageBuffer, imageMime);
 
     let cleanedResponse = response.trim();
     if (cleanedResponse.startsWith('Admin:')) {
@@ -651,7 +494,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState) => {
 
     return {
       intent: 'ai_reply',
-      response: cleanedResponse || 'Boleh kak, ada yang bisa dibantu? 😊'
+      response: offHoursNotice + (cleanedResponse || 'Boleh kak, ada yang bisa dibantu? 😊')
     };
   } catch (error) {
     logger.error('Error generating response:', error);
@@ -668,5 +511,6 @@ module.exports = {
   isComplaintMessage,
   isOrderIntentMessage,
   isFilledOrderFormat,
-  parseOrderFormatWithGemini
+  parseOrderFormatWithGemini,
+  checkBusinessHours
 };

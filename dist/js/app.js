@@ -754,15 +754,55 @@ window.App = () => {
     } catch (e) { }
   };
 
-  const handleChangeCustomerStatus = async (phone, status) => {
+  const handleChangeCustomerStatus = async (phone, status, pausedUntil = undefined) => {
     try {
+      const bodyPayload = { status };
+      if (pausedUntil !== undefined) bodyPayload.paused_until = pausedUntil;
       await fetch(`/api/customers/${phone}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify(bodyPayload)
       });
       fetchCustomers();
     } catch (e) { }
+  };
+
+  const handleSendInvoicePdf = async (orderId) => {
+    try {
+      showToast('Sedang membuat & mengirim PDF Invoice...');
+      const res = await fetch('/api/whatsapp/send-pdf/invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('PDF Invoice berhasil dikirim ke WhatsApp customer!');
+      } else {
+        showToast(`Gagal: ${data.error}`, 'error');
+      }
+    } catch (e) {
+      showToast('Error mengirim PDF Invoice.', 'error');
+    }
+  };
+
+  const handleSendWelcomePdf = async (phoneNumber, resellerLevel) => {
+    try {
+      showToast('Sedang membuat & mengirim PDF Panduan Reseller...');
+      const res = await fetch('/api/whatsapp/send-pdf/welcome', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber, resellerLevel })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('PDF Panduan Reseller berhasil dikirim ke WhatsApp customer!');
+      } else {
+        showToast(`Gagal: ${data.error}`, 'error');
+      }
+    } catch (e) {
+      showToast('Error mengirim PDF Panduan Reseller.', 'error');
+    }
   };
 
   // Active Chats Filters
@@ -993,6 +1033,9 @@ window.App = () => {
             fetchBlockedNumbers={fetchBlockedNumbers}
             fetchCustomers={fetchCustomers}
             chatEndRef={chatEndRef}
+            orders={orders}
+            handleSendInvoicePdf={handleSendInvoicePdf}
+            handleSendWelcomePdf={handleSendWelcomePdf}
           />
           <OrdersTab
             activeTab={activeTab}

@@ -4,43 +4,71 @@ const { emitEvent } = require('./socket');
 
 /**
  * Mutes the bot and pauses automatic AI replies for a specific customer
- * when the human admin manually sends a message.
+ * by setting their paused_until timestamp in the customers table.
  * @param {string} phoneNumber - Customer's WhatsApp phone number
- * @param {string} reason - Reason for pausing (e.g. 'Intervensi Live Chat Dashboard')
+ * @param {number} durationHours - Hours to pause the bot (default 12 hours)
  */
-const pauseBotForCustomer = async (phoneNumber, reason) => {
+const pauseBotForCustomer = async (phoneNumber, durationHours = 12) => {
   if (!phoneNumber) return;
   
   try {
-    // 1. Add number to blocked_numbers if not already blocked
-    const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
-    if (!existingBlock) {
-      await db('blocked_numbers').insert({
-        phone_number: phoneNumber,
-        reason: reason || 'Intervensi Manual Admin',
-        created_at: new Date()
-      });
-      emitEvent('number_blocked', { phone_number: phoneNumber, reason });
-      logger.info(`[Workflow Manual Override] Bot blocked/muted for ${phoneNumber}. Reason: ${reason}`);
-    }
-
-    // 2. Set customer status to WAITING_HUMAN in CRM
+    const pausedUntil = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+    
+    // 1. Update customer status to WAITING_HUMAN and set paused_until in CRM
     const customer = await db('customers').where('phone_number', phoneNumber).first();
     if (customer) {
       await db('customers').where('phone_number', phoneNumber).update({
         status: 'WAITING_HUMAN',
+        paused_until: pausedUntil,
         updated_at: new Date()
       });
       
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
-      logger.info(`[Workflow Manual Override] Customer ${phoneNumber} status updated to WAITING_HUMAN`);
+      logger.info(`[Workflow Manual Override] Bot paused/muted for ${phoneNumber} until ${pausedUntil.toISOString()}. Status set to WAITING_HUMAN`);
+    } else {
+      // If customer doesn't exist, we can register them as WAITING_HUMAN
+      await db('customers').insert({
+        phone_number: phoneNumber,
+        name: 'Customer',
+        status: 'WAITING_HUMAN',
+        paused_until: pausedUntil,
+        created_at: new Date(),
+        updated_at: new Date()
+      });
+      logger.info(`[Workflow Manual Override] Registered new customer ${phoneNumber} as WAITING_HUMAN (paused)`);
     }
   } catch (err) {
     logger.error(`[Workflow Manual Override] Failed to pause bot for customer ${phoneNumber}:`, err);
   }
 };
 
+/**
+ * Resumes bot automatic replies for a customer by clearing paused_until and resetting status to NORMAL.
+ * @param {string} phoneNumber - Customer's WhatsApp phone number
+ */
+const resumeBotForCustomer = async (phoneNumber) => {
+  if (!phoneNumber) return;
+  
+  try {
+    const customer = await db('customers').where('phone_number', phoneNumber).first();
+    if (customer) {
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'NORMAL',
+        paused_until: null,
+        updated_at: new Date()
+      });
+      
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+      logger.info(`[Workflow Manual Override] Bot resumed/unmuted for ${phoneNumber}. Status set to NORMAL`);
+    }
+  } catch (err) {
+    logger.error(`[Workflow Manual Override] Failed to resume bot for customer ${phoneNumber}:`, err);
+  }
+};
+
 module.exports = {
-  pauseBotForCustomer
+  pauseBotForCustomer,
+  resumeBotForCustomer
 };

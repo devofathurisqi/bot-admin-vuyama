@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const db = require('../utils/db');
 const logger = require('../utils/logger');
 
@@ -170,292 +172,137 @@ const getFAQCategories = async () => {
  * Dynamically analyzes the user message and history to select the precise tables and records to retrieve.
  */
 const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
-  let classificationText = userMessage || '';
+  try {
+    // Query all database catalog tables
+    const companyInfo = await db('company_info').orderBy('id', 'asc');
+    const products = await db('products').orderBy('id', 'asc');
+    const services = await db('services').orderBy('id', 'asc');
+    const reseller = await db('reseller_program').orderBy('id', 'asc');
+    const faq = await db('faq').orderBy('id', 'asc');
+    const stockColors = await db('stock_colors').orderBy('id', 'asc');
 
-  // Retrieve last messages of user for coreference resolution / conversational context
-  if (phoneNumber) {
-    try {
-      const limit = parseInt(process.env.CONTEXT_MESSAGES_LIMIT, 10) || 3;
-      const chatHistory = await db('conversations')
-        .where('phone_number', phoneNumber)
-        .orderBy('timestamp', 'desc')
-        .limit(limit);
-      
-      if (chatHistory && chatHistory.length > 0) {
-        // Concatenate non-system and non-media logs
-        const historyMsgs = chatHistory
-          .filter(h => h.message && !h.message.startsWith('[') && !h.message.endsWith(']'))
-          .map(h => h.message)
-          .reverse(); // chronological order
-        
-        classificationText = [...historyMsgs, userMessage].join(' ');
-      }
-    } catch (err) {
-      logger.error('Error fetching chat history for classification context:', err);
-    }
-  }
+    // Clean and structure the retrieved data
+    const cleanCompanyInfo = companyInfo.reduce((acc, c) => {
+      acc[c.key] = c.value;
+      return acc;
+    }, {});
 
-  const STOPWORDS = new Set(['di', 'ke', 'dari', 'yang', 'dan', 'atau', 'ini', 'itu', 'ada', 'adalah', 'untuk', 'dengan', 'saya', 'kami', 'kita', 'kamu', 'anda', 'dia', 'mereka', 'sih', 'ya', 'ka', 'kak', 'min', 'dong', 'kok', 'mau', 'nanya', 'untuk', 'ada', 'saja', 'ya', 'halo', 'tanya', 'dong', 'sih', 'kok', 'apa', 'ada', 'aja', 'bisa', 'beli', 'apakah', 'bagaimana', 'cara', 'toko']);
+    const cleanProducts = products.map(p => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      sub_category: p.sub_category,
+      description: p.description,
+      price_retail: parseFloat(p.price_retail),
+      price_reseller: parseFloat(p.price_reseller),
+      material: p.material,
+      stock: p.stock,
+      status: p.status,
+      color: typeof p.color === 'string' ? JSON.parse(p.color) : (p.color || []),
+      size: typeof p.size === 'string' ? JSON.parse(p.size) : (p.size || []),
+      images: p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [],
+      variants: typeof p.variants === 'string' ? JSON.parse(p.variants) : (p.variants || []),
+      wholesale_tiers: typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers) : (p.wholesale_tiers || [])
+    }));
 
-  const cleanMessage = classificationText.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").trim();
-  const tokens = cleanMessage.split(/\s+/).filter(w => w.length > 1 && !STOPWORDS.has(w));
+    const cleanServices = services.map(s => ({
+      name: s.name,
+      description: s.description,
+      benefits: typeof s.benefits === 'string' ? JSON.parse(s.benefits) : (s.benefits || []),
+      terms: s.terms
+    }));
 
-  // Comprehensive Table routing similarity score keyword models
-  const routingKeywords = {
-    products: [
-      // Mukena & Hijab terms
-      'mukena', 'mukenah', 'rukuh', 'telekung', 'hijab', 'kerudung', 'jilbab', 'khimar', 'pashmina', 'pasmina', 'bawal', 'segiempat', 'segi empat', 'instant', 'instan', 'bergo', 'ciput', 'manset',
-      // Label terms
-      'label', 'merek', 'brand', 'pita', 'plat', 'akrilik', 'acrylic', 'besi', 'kertas', 'hangtag', 'hang tag', 'woven', 'satin', 'kulit', 'leter', 'embos', 'emboss',
-      // Specs & shopping terms
-      'ready', 'stok', 'stock', 'harga', 'price', 'retail', 'ecer', 'eceran', 'bahan', 'material', 'ukuran', 'size', 'warna', 'dimensi', 'berat', 'gram', 'kg',
-      // General product/catalog terms
-      'produk', 'product', 'barang', 'jualan', 'koleksi', 'katalog', 'catalog', 'pricelist', 'daftar harga', 'price list', 'list', 'daftar', 'pilihan', 'lihat', 'sell', 'jual', 'beli', 'pesan', 'order', 'foto', 'gambar', 'penampakan', 'model', 'jenis', 'macam', 'tipe'
-    ],
-    services: [
-      // Services, custom brand, dropship
-      'jasa', 'layanan', 'service', 'custom', 'cetak', 'desain', 'design', 'buat brand', 'bikin brand', 'merek sendiri', 'dropship', 'dropshiper', 'dropshipper', 'dropshiping', 'dropshipping', 'kirim resi', 'resi otomatis', 'cod', 'bayar di tempat', 'kirim atas nama', 'maklon'
-    ],
-    reseller: [
-      // Reseller & Partner program terms
-      'reseller', 'reseler', 'resseler', 'mitra', 'agen', 'grosir', 'partai', 'borongan', 'diskon', 'potongan', 'tingkat', 'level', 'syarat', 'join', 'gabung', 'daftar', 'kemitraan', 'minimal beli', 'beli berapa', 'murah', 'lebih murah'
-    ],
-    shipping: [
-      // Shipping & Logistics terms
-      'kirim', 'pengiriman', 'dikirim', 'ongkir', 'ongkos kirim', 'tarif', 'biaya kirim', 'kurir', 'ekspedisi', 'kargo', 'cargo', 'pos', 'jne', 'j&t', 'jnt', 'sicepat', 'wahana', 'tiki', 'lion', 'sentral', 'anteraja'
-    ],
-    company: [
-      // Company info & location terms
-      'vuyama', 'vuyema', 'toko', 'workshop', 'pabrik', 'lokasi', 'alamat', 'maps', 'gmaps', 'google maps', 'posisi', 'dimana', 'di mana', 'daerah', 'kota', 'jam buka', 'buka jam', 'jadwal', 'hari apa', 'owner', 'pendiri', 'kontak', 'hubungi', 'nomor', 'telepon', 'wa', 'whatsapp', 'cs', 'admin', 'profile', 'profil', 'tentang'
-    ]
-  };
+    const cleanReseller = reseller.map(r => ({
+      level: r.level,
+      min_order: r.min_order,
+      price: parseFloat(r.price),
+      benefits: r.benefits
+    }));
 
-  const scores = {
-    products: 0,
-    services: 0,
-    reseller: 0,
-    shipping: 0,
-    company: 0
-  };
+    const cleanFaqs = faq.map(f => ({
+      q: f.question,
+      a: f.answer
+    }));
 
-  // Compute keyword matching scores
-  tokens.forEach(token => {
-    Object.keys(routingKeywords).forEach(table => {
-      if (routingKeywords[table].some(keyword => keyword.includes(token) || token.includes(keyword))) {
-        scores[table] += 1.5; // High weight overlap
-      }
-    });
-  });
+    const cleanStockColors = stockColors.map(c => ({
+      color_name: c.color_name,
+      category: c.category,
+      image_path: c.image_path,
+      is_ready: c.is_ready
+    }));
 
-  const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-
-  // Intent triggers
-  // Only trigger reseller program details if they are asking about joining, requirements, or levels, and not just looking up specific product prices
-  const isResellerProgramInquiry = tokens.some(t => ['join', 'gabung', 'daftar', 'syarat', 'mitra', 'level', 'tingkat'].includes(t)) || 
-                                   (tokens.includes('reseller') && !tokens.some(t => ['harga', 'price', 'berapa', 'spill', 'ready', 'minta', 'foto'].includes(t)));
-
-  const triggers = {
-    products: scores.products > 0 || tokens.length === 0 || totalScore === 0, // Default true if empty or no keywords matched
-    services: scores.services > 0,
-    reseller: scores.reseller > 0 && isResellerProgramInquiry,
-    shipping: scores.shipping > 0,
-    company: scores.company > 0 || tokens.length === 0 || totalScore === 0
-  };
-
-  let products = [];
-  let faq = [];
-  let services = [];
-  let reseller = [];
-  let companyInfo = [];
-
-  // Query 1: Products table selector
-  if (triggers.products) {
-    const isBroadQuery = tokens.some(t => ['semua', 'all', 'daftar', 'list', 'apa aja', 'apa saja', 'koleksi', 'katalog', 'catalog', 'lengkap', 'pricelist', 'produk', 'product', 'barang', 'toko', 'jual', 'jualan'].includes(t)) || tokens.length === 0 || totalScore === 0;
-
-    if (isBroadQuery) {
-      products = await db('products').where('status', 'Tersedia').orderBy('id', 'asc');
-    } else if (tokens.length > 0) {
-      // Find direct product category matches to pull complete category inventory
-      const categoryMatch = ['mukena', 'hijab', 'label'].find(cat =>
-        tokens.some(token => cat.includes(token) || token.includes(cat))
-      );
-
-      if (categoryMatch) {
-        const categoryName = categoryMatch.charAt(0).toUpperCase() + categoryMatch.slice(1);
-        const otherTokens = tokens.filter(t => t !== categoryMatch);
-
-        // Step A: Search for products in this category that match the other tokens (e.g. "akrilik" inside "label")
-        let query = db('products').whereILike('category', `%${categoryName}%`).andWhere('status', 'Tersedia');
-        if (otherTokens.length > 0) {
-          query = query.where((q) => {
-            otherTokens.forEach((token) => {
-              q.orWhereILike('name', `%${token}%`)
-                .orWhereILike('sub_category', `%${token}%`)
-                .orWhereILike('material', `%${token}%`)
-                .orWhereILike('description', `%${token}%`);
-            });
-          });
-        }
-        products = await query.orderBy('id', 'asc').limit(8);
-
-        // Step B: If we found fewer than 8 matching products, fill the rest with general category products
-        if (products.length < 8) {
-          const generalProducts = await db('products')
-            .whereILike('category', `%${categoryName}%`)
-            .andWhere('status', 'Tersedia')
-            .whereNotIn('id', products.map(p => p.id))
-            .orderBy('id', 'asc')
-            .limit(8 - products.length);
-          products = [...products, ...generalProducts];
-        }
-      } else {
-        // Perform broad fuzzy keyword search across product fields
-        let query = db('products').where('status', 'Tersedia');
-        query = query.where((q) => {
-          tokens.forEach((token) => {
-            q.orWhereILike('name', `%${token}%`)
-              .orWhereILike('category', `%${token}%`)
-              .orWhereILike('sub_category', `%${token}%`)
-              .orWhereILike('material', `%${token}%`)
-              .orWhereILike('id', `%${token}%`);
-          });
+    // Dynamically scan the data/pdf directory for uploaded documents
+    let availableDocs = [];
+    const pdfDir = path.join(__dirname, '../../data/pdf');
+    if (fs.existsSync(pdfDir)) {
+      try {
+        const files = fs.readdirSync(pdfDir);
+        availableDocs = files.filter(f => f.toLowerCase().endsWith('.pdf')).map(f => {
+          let name = f.replace('.pdf', '');
+          if (name.includes('PRICELIST')) {
+            name = 'Daftar Harga Pricelist Reseller Update Mei 2026';
+          }
+          return {
+            name: name,
+            path: `/pdf/${f}`,
+            filename: f
+          };
         });
-        products = await query.orderBy('id', 'asc').limit(8);
+      } catch (e) {
+        logger.error('Error scanning data/pdf directory:', e);
       }
     }
 
-    // Fallback if no matching active products found
-    if (products.length === 0) {
-      products = await db('products').where('status', 'Tersedia').orderBy('id', 'asc').limit(3);
+    // Dynamically scan the data/media/color_stock directory for available color stock images
+    let colorStockFiles = [];
+    const colorStockDir = path.join(__dirname, '../../data/media/color_stock');
+    if (fs.existsSync(colorStockDir)) {
+      try {
+        const files = fs.readdirSync(colorStockDir);
+        colorStockFiles = files.filter(f => f.toLowerCase().endsWith('.jpeg') || f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png')).map(f => {
+          let baseProductName = f.replace(/\s+Color\s+Stock\.[a-zA-Z0-9]+$/i, '').trim();
+          return {
+            filename: f,
+            product_name: baseProductName,
+            path: `/media/color_stock/${f}`
+          };
+        });
+      } catch (e) {
+        logger.error('Error scanning color_stock directory:', e);
+      }
     }
+
+    // Alias mapping database product IDs to specific color stock physical paths
+    const productAliases = {
+      'paris-legend': '/media/color_stock/Paris Jadul Color Stock.png',
+      'pashmina-modal': '/media/color_stock/Pashmina Modal Viscoe Color Stock.png'
+    };
+
+    return {
+      company: cleanCompanyInfo,
+      products: cleanProducts,
+      services: cleanServices,
+      faq: cleanFaqs,
+      reseller_program: cleanReseller,
+      documents: availableDocs,
+      color_stock_files: colorStockFiles,
+      stock_colors: cleanStockColors,
+      product_aliases: productAliases
+    };
+  } catch (error) {
+    logger.error('Error compiling consolidated knowledge context:', error);
+    return {
+      company: {},
+      products: [],
+      services: [],
+      faq: [],
+      reseller_program: [],
+      documents: [],
+      color_stock_files: [],
+      stock_colors: [],
+      product_aliases: {}
+    };
   }
-
-  // Query 2: Services table selector
-  if (triggers.services) {
-    services = await db('services').orderBy('id', 'asc');
-    const matchedFaqs = await db('faq')
-      .whereILike('category', '%layanan%')
-      .orWhereILike('question', '%dropship%')
-      .limit(3);
-    faq = [...faq, ...matchedFaqs];
-  }
-
-  // Query 3: Reseller table selector
-  if (triggers.reseller) {
-    reseller = await db('reseller_program').orderBy('id', 'asc');
-    const matchedFaqs = await db('faq')
-      .whereILike('category', '%reseller%')
-      .orWhereILike('question', '%reseller%')
-      .limit(3);
-    faq = [...faq, ...matchedFaqs];
-  }
-
-  // Query 4: Shipping table selector
-  if (triggers.shipping) {
-    const matchedFaqs = await db('faq')
-      .whereILike('question', '%kirim%')
-      .orWhereILike('answer', '%ongkir%')
-      .limit(3);
-    faq = [...faq, ...matchedFaqs];
-  }
-
-  // Query 5: Company Info table selector
-  companyInfo = await db('company_info').orderBy('id', 'asc');
-  if (triggers.company) {
-    const matchedFaqs = await db('faq')
-      .whereILike('category', '%umum%')
-      .limit(3);
-    faq = [...faq, ...matchedFaqs];
-  }
-
-  // Default baseline FAQs
-  if (faq.length === 0) {
-    faq = await db('faq').limit(2);
-  }
-
-  // Clean data structures to optimize prompt token size
-  const cleanProducts = products.map(p => ({
-    id: p.id,
-    name: p.name,
-    category: p.category,
-    sub_category: p.sub_category,
-    description: p.description,
-    price_retail: p.price_retail,
-    price_reseller: p.price_reseller,
-    material: p.material,
-    stock: p.stock,
-    images: p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [],
-    variants: typeof p.variants === 'string' ? JSON.parse(p.variants) : (p.variants || []),
-    wholesale_tiers: typeof p.wholesale_tiers === 'string' ? JSON.parse(p.wholesale_tiers) : (p.wholesale_tiers || [])
-  }));
-
-  const cleanServices = services.map(s => ({
-    name: s.name,
-    description: s.description,
-    terms: s.terms
-  }));
-
-  const cleanFaqs = faq.map(f => ({
-    q: f.question,
-    a: f.answer
-  }));
-
-  const cleanCompanyInfo = companyInfo.reduce((acc, c) => {
-    acc[c.key] = c.value;
-    return acc;
-  }, {});
-
-  // Dynamically scan the data/pdf directory for uploaded documents
-  let availableDocs = [];
-  const pdfDir = path.join(__dirname, '../../data/pdf');
-  if (fs.existsSync(pdfDir)) {
-    try {
-      const files = fs.readdirSync(pdfDir);
-      availableDocs = files.filter(f => f.toLowerCase().endsWith('.pdf')).map(f => {
-        let name = f.replace('.pdf', '');
-        if (name.includes('PRICELIST')) {
-          name = 'Daftar Harga Pricelist Reseller Update Mei 2026';
-        }
-        return {
-          name: name,
-          path: `/pdf/${f}`,
-          filename: f
-        };
-      });
-    } catch (e) {
-      logger.error('Error scanning data/pdf directory:', e);
-    }
-  }
-
-  // Dynamically scan the data/media/color_stock directory for available color stock images
-  let colorStockFiles = [];
-  const colorStockDir = path.join(__dirname, '../../data/media/color_stock');
-  if (fs.existsSync(colorStockDir)) {
-    try {
-      const files = fs.readdirSync(colorStockDir);
-      colorStockFiles = files.filter(f => f.toLowerCase().endsWith('.jpeg') || f.toLowerCase().endsWith('.jpg') || f.toLowerCase().endsWith('.png')).map(f => {
-        let baseProductName = f.replace(/\s+Color\s+Stock\.[a-zA-Z0-9]+$/i, '').trim();
-        return {
-          filename: f,
-          product_name: baseProductName,
-          path: `/media/color_stock/${f}`
-        };
-      });
-    } catch (e) {
-      logger.error('Error scanning color_stock directory:', e);
-    }
-  }
-
-  return {
-    company: cleanCompanyInfo,
-    products: cleanProducts,
-    services: cleanServices,
-    faq: cleanFaqs,
-    reseller_program: reseller,
-    documents: availableDocs, // Dynamically registered PDF catalogs
-    color_stock_files: colorStockFiles, // Dynamically registered color stock files!
-    selectedTables: Object.keys(triggers).filter(k => triggers[k])
-  };
 };
 
 /**

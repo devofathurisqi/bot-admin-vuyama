@@ -8,6 +8,17 @@ const db = require('./utils/db');
 const { initSocket, emitEvent } = require('./utils/socket');
 const { getBotStatus } = require('./bot_state');
 const logger = require('./utils/logger');
+const { exec } = require('child_process');
+
+const triggerBackupSync = () => {
+  exec('node scratch/sync_backup.js', (err, stdout, stderr) => {
+    if (err) {
+      logger.error('Error running sync_backup.js:', err);
+    } else {
+      logger.info('sync_backup.js completed successfully.');
+    }
+  });
+};
 
 const app = express();
 const server = http.createServer(app);
@@ -198,6 +209,8 @@ app.post('/api/products', async (req, res) => {
     await db('products').insert(payload);
     await db('audit_logs').insert({ action: 'CREATE_PRODUCT', details: `Created product: ${id} - ${name}` });
 
+    triggerBackupSync();
+
     res.json({ success: true, data: { ...payload, color, size, variants, wholesale_tiers } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -231,6 +244,8 @@ app.put('/api/products/:id', async (req, res) => {
     await db('products').where('id', id).update(payload);
     await db('audit_logs').insert({ action: 'UPDATE_PRODUCT', details: `Updated product: ${id}` });
 
+    triggerBackupSync();
+
     res.json({ success: true, data: { id, ...payload, color, size, variants, wholesale_tiers } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -242,6 +257,9 @@ app.delete('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     await db('products').where('id', id).del();
     await db('audit_logs').insert({ action: 'DELETE_PRODUCT', details: `Deleted product: ${id}` });
+    
+    triggerBackupSync();
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -373,7 +391,7 @@ app.post('/api/whatsapp/send', async (req, res) => {
     // Auto-pause bot for this contact due to manual admin reply from dashboard
     try {
       const { pauseBotForCustomer } = require('./utils/workflow');
-      await pauseBotForCustomer(phoneNumber, 'Intervensi Live Chat Dashboard');
+      await pauseBotForCustomer(phoneNumber, 12);
     } catch (err) {
       logger.error('Failed to trigger pauseBotForCustomer in send route:', err);
     }
@@ -446,7 +464,7 @@ app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (re
     // Auto-pause bot for this contact due to manual admin reply from dashboard
     try {
       const { pauseBotForCustomer } = require('./utils/workflow');
-      await pauseBotForCustomer(phoneNumber, 'Intervensi Live Chat Dashboard');
+      await pauseBotForCustomer(phoneNumber, 12);
     } catch (err) {
       logger.error('Failed to trigger pauseBotForCustomer in send-media route:', err);
     }
@@ -461,12 +479,21 @@ app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (re
 app.put('/api/customers/:phoneNumber', async (req, res) => {
   try {
     const { phoneNumber } = req.params;
-    const { status, assigned_to, is_pinned } = req.body;
+    const { status, assigned_to, is_pinned, paused_until, notes } = req.body;
 
     const updates = {};
-    if (status !== undefined) updates.status = status;
+    if (status !== undefined) {
+      updates.status = status;
+      if (status === 'NORMAL') {
+        updates.paused_until = null;
+      }
+    }
     if (assigned_to !== undefined) updates.assigned_to = assigned_to;
     if (is_pinned !== undefined) updates.is_pinned = is_pinned;
+    if (paused_until !== undefined) {
+      updates.paused_until = paused_until ? new Date(paused_until) : null;
+    }
+    if (notes !== undefined) updates.notes = notes;
     
     updates.updated_at = new Date();
 
@@ -482,6 +509,38 @@ app.put('/api/customers/:phoneNumber', async (req, res) => {
   }
 });
 
+// Helper to hydrate order with items and flatten custom specs for backward compatibility
+const hydrateOrder = async (order) => {
+  if (!order) return null;
+  const items = await db('order_items').where('order_id', order.id).orderBy('id', 'asc');
+  let customSpecs = {};
+  const formattedItems = items.map(item => {
+    const specs = typeof item.custom_specs === 'string' ? JSON.parse(item.custom_specs) : (item.custom_specs || {});
+    if (Object.keys(specs).length > 0) {
+      customSpecs = { ...customSpecs, ...specs };
+    }
+    return {
+      ...item,
+      price: parseFloat(item.price),
+      subtotal: parseFloat(item.subtotal),
+      custom_specs: specs
+    };
+  });
+  return {
+    ...order,
+    total: parseFloat(order.total),
+    shipping_cost: parseFloat(order.shipping_cost),
+    grand_total: parseFloat(order.grand_total),
+    items: formattedItems,
+    brand_name: customSpecs.brand_name || null,
+    label_size: customSpecs.label_size || null,
+    label_shape: customSpecs.label_shape || null,
+    ink_color: customSpecs.ink_color || null,
+    label_color: customSpecs.label_color || null,
+    font: customSpecs.font || null
+  };
+};
+
 // 5. Orders API
 app.get('/api/orders', async (req, res) => {
   try {
@@ -493,7 +552,12 @@ app.get('/api/orders', async (req, res) => {
     }
     
     const orders = await query.orderBy('created_at', 'desc');
-    res.json({ success: true, data: orders });
+    const hydratedOrders = [];
+    for (const order of orders) {
+      const hydrated = await hydrateOrder(order);
+      hydratedOrders.push(hydrated);
+    }
+    res.json({ success: true, data: hydratedOrders });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -524,8 +588,8 @@ app.put('/api/orders/:id', async (req, res) => {
       details: `Updated order ID ${id} to status: ${status}`
     });
 
-    // Notify
-    const updatedOrder = await db('orders').where('id', id).first();
+    const rawOrder = await db('orders').where('id', id).first();
+    const updatedOrder = await hydrateOrder(rawOrder);
     
     // Unblock customer when order is COMPLETED or CANCELLED
     if (status && (status === 'COMPLETED' || status === 'CANCELLED')) {
@@ -588,7 +652,7 @@ app.delete('/api/orders/:id', async (req, res) => {
 app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
   try {
     const { id } = req.params;
-    const { productId, quantity, total, remark } = req.body;
+    const { productId, quantity, total, remark, items: bodyItems } = req.body;
 
     const order = await db('orders').where('id', id).first();
     if (!order) {
@@ -598,22 +662,67 @@ app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Pesanan yang sudah Completed atau Cancelled tidak dapat diselesaikan lagi.' });
     }
 
-    // 1. Deduct product stock in database
-    if (productId && quantity) {
-      const product = await db('products').where('id', productId).first();
-      if (product) {
-        const newStock = Math.max(0, product.stock - parseInt(quantity));
-        await db('products').where('id', productId).update({ stock: newStock });
-        
-        await db('audit_logs').insert({
-          action: 'DEDUCT_STOCK',
-          details: `Deducted stock for product ${productId}: -${quantity} pcs (Order #${id})`
-        });
+    // Wrap single item checkout in array to support backward compatibility
+    let items = [];
+    if (bodyItems && Array.isArray(bodyItems) && bodyItems.length > 0) {
+      items = bodyItems;
+    } else if (productId && quantity) {
+      items = [
+        {
+          productId,
+          quantity: parseInt(quantity) || 0,
+          price: (parseFloat(total) || 0) / (parseInt(quantity) || 1)
+        }
+      ];
+    }
+
+    // Fetch existing custom specs from draft items to preserve them
+    const existingDraftItems = await db('order_items').where('order_id', id);
+    let preservedSpecs = {};
+    for (const item of existingDraftItems) {
+      const specs = typeof item.custom_specs === 'string' ? JSON.parse(item.custom_specs) : (item.custom_specs || {});
+      if (Object.keys(specs).length > 0) {
+        preservedSpecs = { ...preservedSpecs, ...specs };
       }
     }
 
-    // 2. Update order status to COMPLETED and total price
-    const totalVal = parseFloat(total) || 0;
+    // Delete draft items
+    await db('order_items').where('order_id', id).del();
+
+    let calculatedTotal = 0;
+    for (const item of items) {
+      const product = await db('products').where('id', item.productId).first();
+      const productName = product ? product.name : 'Unknown Product';
+      const itemQty = parseInt(item.quantity) || 0;
+      const unitPrice = parseFloat(item.price) || 0;
+      const subtotal = itemQty * unitPrice;
+      calculatedTotal += subtotal;
+
+      if (product) {
+        const newStock = Math.max(0, product.stock - itemQty);
+        await db('products').where('id', item.productId).update({ stock: newStock });
+        
+        await db('audit_logs').insert({
+          action: 'DEDUCT_STOCK',
+          details: `Deducted stock for product ${item.productId}: -${itemQty} pcs (Order #${id})`
+        });
+      }
+
+      // Attach preserved specs to label products
+      const specs = (product && product.category === 'Label') ? preservedSpecs : {};
+
+      await db('order_items').insert({
+        order_id: id,
+        product_id: item.productId,
+        product_name: productName,
+        quantity: itemQty,
+        price: unitPrice,
+        subtotal: subtotal,
+        custom_specs: JSON.stringify(specs)
+      });
+    }
+
+    const totalVal = total !== undefined ? parseFloat(total) : calculatedTotal;
     let updatedPesananRaw = order.pesanan_raw || '';
     if (remark) {
       updatedPesananRaw += `\n[Remark Admin]: ${remark}`;
@@ -626,7 +735,7 @@ app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
       updated_at: new Date()
     });
 
-    // Unblock the customer and update status to NORMAL since order is completed
+    // Unblock customer when order is completed
     if (order.phone_number) {
       await db('blocked_numbers').where('phone_number', order.phone_number).del();
       await db('customers').where('phone_number', order.phone_number).update({
@@ -642,17 +751,90 @@ app.post('/api/orders/:id/confirm-purchase', async (req, res) => {
     // Write audit log
     await db('audit_logs').insert({
       action: 'COMPLETE_ORDER',
-      details: `Completed order #${id} (Product: ${productId || 'unknown'}, Qty: ${quantity || 0}, Total: Rp ${totalVal}, Remark: ${remark || ''})`
+      details: `Completed order #${id} (Items: ${items.map(i => `${i.productId} x${i.quantity}`).join(', ')}, Total: Rp ${totalVal}, Remark: ${remark || ''})`
     });
 
-    // Broadcast real-time notifications
-    const updatedOrder = await db('orders').where('id', id).first();
+    const rawOrder = await db('orders').where('id', id).first();
+    const updatedOrder = await hydrateOrder(rawOrder);
+    
     emitEvent('order_updated', updatedOrder);
     emitEvent('products_updated');
 
     res.json({ success: true, data: updatedOrder });
   } catch (error) {
     logger.error('Error confirming order purchase:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual PDF Action: Send Invoice PDF
+app.post('/api/whatsapp/send-pdf/invoice', async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) {
+      return res.status(400).json({ success: false, error: 'orderId is required.' });
+    }
+    const order = await db('orders').where('id', orderId).first();
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+
+    const { client, asyncGenerateAndSendPdf } = require('./bot');
+    if (!client || !client.pupBrowser) {
+      return res.status(400).json({ success: false, error: 'WhatsApp client or Puppeteer browser not active.' });
+    }
+
+    // Trigger PDF invoice sending
+    await asyncGenerateAndSendPdf(client, order.phone_number, 'invoice', { orderId });
+    res.json({ success: true, message: 'PDF invoice generation triggered successfully.' });
+  } catch (error) {
+    logger.error('Error in send-pdf/invoice endpoint:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual PDF Action: Send welcome guide PDF
+app.post('/api/whatsapp/send-pdf/welcome', async (req, res) => {
+  try {
+    const { phoneNumber, resellerLevel } = req.body;
+    if (!phoneNumber || !resellerLevel) {
+      return res.status(400).json({ success: false, error: 'phoneNumber and resellerLevel are required.' });
+    }
+
+    const { client, asyncGenerateAndSendPdf } = require('./bot');
+    if (!client || !client.pupBrowser) {
+      return res.status(400).json({ success: false, error: 'WhatsApp client or Puppeteer browser not active.' });
+    }
+
+    await asyncGenerateAndSendPdf(client, phoneNumber, 'welcome_guide', { resellerLevel });
+    res.json({ success: true, message: 'PDF Welcome Guide generation triggered successfully.' });
+  } catch (error) {
+    logger.error('Error in send-pdf/welcome endpoint:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Direct Download Invoice PDF
+app.get('/api/orders/:id/invoice/download', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { client } = require('./bot');
+    const docGen = require('./services/documentGenerator');
+    
+    if (!client || !client.pupBrowser) {
+      return res.status(400).json({ success: false, error: 'WhatsApp client/browser tidak aktif.' });
+    }
+
+    const pdfPath = await docGen.generateInvoicePdf(client.pupBrowser, id);
+    if (fs.existsSync(pdfPath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=invoice-${id}.pdf`);
+      fs.createReadStream(pdfPath).pipe(res);
+    } else {
+      res.status(404).json({ success: false, error: 'File PDF Invoice tidak ditemukan.' });
+    }
+  } catch (error) {
+    logger.error('Error downloading invoice PDF:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1171,6 +1353,9 @@ app.put('/api/settings/company/:id', async (req, res) => {
     const { value } = req.body;
 
     await db('company_info').where('id', id).update({ value, updated_at: new Date() });
+    
+    triggerBackupSync();
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

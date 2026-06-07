@@ -32,13 +32,40 @@ window.LiveChatTab = ({
   fetchBlockedNumbers,
   fetchCustomers,
   chatEndRef,
-  handleChatMediaUpload // New Prop!
+  handleChatMediaUpload,
+  orders,
+  handleSendInvoicePdf,
+  handleSendWelcomePdf
 }) => {
   if (activeTab !== 'customers') return null;
 
   // Local state for sidebar visibility on tablet/mobile
   const [showSidebar, setShowSidebar] = React.useState(false);
   const fileInputRef = React.useRef(null);
+
+  const [selectedWelcomeLevel, setSelectedWelcomeLevel] = React.useState('Reseller A');
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = React.useState('');
+
+  // Find customer's orders
+  const normalizedActiveChat = activeChat ? activeChat.replace('@c.us', '') : '';
+  const customerOrders = React.useMemo(() => {
+    if (!activeChat || !orders) return [];
+    return orders.filter(o => {
+      const oPhone = o.phone_number ? o.phone_number.replace('@c.us', '') : '';
+      const oPhone2 = o.phone ? o.phone.replace(/[^0-9]/g, '') : '';
+      return oPhone === normalizedActiveChat || oPhone2 === normalizedActiveChat;
+    });
+  }, [activeChat, orders, normalizedActiveChat]);
+
+  // Sync selected order when customerOrders updates
+  React.useEffect(() => {
+    if (customerOrders.length > 0) {
+      setSelectedInvoiceOrder(customerOrders[0].id.toString());
+    } else {
+      setSelectedInvoiceOrder('');
+    }
+  }, [customerOrders]);
+
 
   // Parse message content to render images and document links nicely
   const renderMessageContent = (msgText) => {
@@ -352,35 +379,158 @@ window.LiveChatTab = ({
               </div>
             </div>
 
-            {/* BLOCK / PAUSE BOT ACTION */}
-            <div className="pt-4 border-t border-darkbg-border">
-              {blockedNumbers.some(b => b.phone_number === activeChat) ? (
-                <button
-                  onClick={() => handleUnblock(activeChat)}
-                  className="w-full py-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-450 hover:text-white font-extrabold text-xs transition duration-150"
-                >
-                  Resume Bot Replies (Unblock)
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    const reason = prompt('Masukkan alasan mematikan bot:');
-                    if (reason !== null) {
-                      fetch('/api/blocked-numbers', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone_number: activeChat, reason })
-                      }).then(() => {
-                        fetchBlockedNumbers();
-                        fetchCustomers();
-                      });
-                    }
-                  }}
-                  className="w-full py-2.5 rounded-xl border border-rose-500/20 bg-rose-500/5 hover:bg-rose-500 text-rose-450 hover:text-white font-extrabold text-xs transition duration-150"
-                >
-                  Pause Bot Replies (Block)
-                </button>
-              )}
+            {/* BOT CONTROL PANEL */}
+            <div className="pt-4 border-t border-darkbg-border space-y-3">
+              <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide block">Bot CS Handoff Control</span>
+              
+              {(() => {
+                const customer = customers.find(c => c.phone_number === activeChat);
+                if (!customer) return null;
+
+                const isBlocked = blockedNumbers.some(b => b.phone_number === activeChat);
+                const isPaused = customer.paused_until && new Date(customer.paused_until) > new Date();
+                const isTransactional = ['ORDER_PENDING', 'ORDER_CONFIRMED', 'COMPLAINT'].includes(customer.status);
+
+                let pauseTimeLeft = '';
+                if (isPaused) {
+                  const diffMs = new Date(customer.paused_until) - new Date();
+                  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+                  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                  pauseTimeLeft = `${hours}j ${minutes}m`;
+                }
+
+                if (isBlocked) {
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2.5 text-center">
+                      <div className="flex items-center justify-center space-x-1.5 text-rose-500 font-bold">
+                        <span>🚫</span>
+                        <span>Bot Mati (Permanen)</span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 leading-normal">Nomor ini diblokir dari balasan otomatis bot secara manual.</p>
+                      <button
+                        onClick={() => handleUnblock(activeChat)}
+                        className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[10px] transition duration-150"
+                      >
+                        Aktifkan Bot Kembali
+                      </button>
+                    </div>
+                  );
+                }
+
+                if (isTransactional) {
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 space-y-2.5 text-center">
+                      <div className="flex items-center justify-center space-x-1.5 text-rose-500 font-bold">
+                        <span>🚫</span>
+                        <span>Bot Mati (CS Manusia Aktif)</span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 leading-normal">Bot dinonaktifkan secara otomatis karena customer sedang bertransaksi / komplain.</p>
+                      <button
+                        onClick={() => handleChangeCustomerStatus(activeChat, 'NORMAL')}
+                        className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-[10px] transition duration-150"
+                      >
+                        Serahkan ke Bot (Status Normal)
+                      </button>
+                    </div>
+                  );
+                }
+
+                if (isPaused) {
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-2.5 text-center">
+                      <div className="flex items-center justify-center space-x-1.5 text-amber-500 font-bold">
+                        <span>⏳</span>
+                        <span>Bot Terjeda ({pauseTimeLeft})</span>
+                      </div>
+                      <p className="text-[10px] text-gray-500 leading-normal">Bot terjeda sementara karena ada intervensi manual dari HP / Live Chat.</p>
+                      <button
+                        onClick={() => handleChangeCustomerStatus(activeChat, 'NORMAL', null)}
+                        className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-[10px] transition duration-150"
+                      >
+                        Aktifkan Bot CS Sekarang
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-2.5 text-center">
+                    <div className="flex items-center justify-center space-x-1.5 text-emerald-500 font-bold">
+                      <span>✅</span>
+                      <span>Bot CS Aktif</span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 leading-normal">Bot otomatis membalas jika customer mengirimkan pesan.</p>
+                    <button
+                      onClick={() => {
+                        const pausedUntil = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+                        handleChangeCustomerStatus(activeChat, 'WAITING_HUMAN', pausedUntil);
+                      }}
+                      className="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-[10px] transition duration-150"
+                    >
+                      Jeda Bot (12 Jam)
+                    </button>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* MANUAL DOCUMENTS PANEL */}
+            <div className="pt-4 border-t border-darkbg-border space-y-4">
+              <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide block">Manual PDF Documents</span>
+              
+              {/* Send Welcome PDF */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/10">
+                <span className="text-[9px] text-indigo-400 font-extrabold uppercase tracking-wide block">Panduan Reseller</span>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedWelcomeLevel}
+                    onChange={(e) => setSelectedWelcomeLevel(e.target.value)}
+                    className="flex-1 px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border font-semibold text-[10px] focus:outline-none transition text-gray-800 dark:text-white"
+                  >
+                    <option value="Reseller A">Level A</option>
+                    <option value="Reseller B">Level B</option>
+                    <option value="Reseller C">Level C</option>
+                    <option value="Reseller D">Level D</option>
+                    <option value="Reseller E">Level E</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleSendWelcomePdf(activeChat, selectedWelcomeLevel)}
+                    className="px-3 py-1 rounded-lg bg-indigo-650 hover:bg-indigo-600 text-white font-extrabold text-[10px] transition"
+                  >
+                    🎓 Send
+                  </button>
+                </div>
+              </div>
+
+              {/* Send Invoice PDF */}
+              <div className="space-y-1.5 p-3 rounded-xl bg-brand-500/5 border border-brand-500/10">
+                <span className="text-[9px] text-brand-400 font-extrabold uppercase tracking-wide block">Invoice Pesanan</span>
+                {customerOrders.length > 0 ? (
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedInvoiceOrder}
+                      onChange={(e) => setSelectedInvoiceOrder(e.target.value)}
+                      className="flex-1 px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border font-semibold text-[10px] focus:outline-none transition text-gray-800 dark:text-white"
+                    >
+                      {customerOrders.map(o => (
+                        <option key={o.id} value={o.id}>
+                          #{o.id} - Rp {o.total.toLocaleString('id-ID')}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleSendInvoicePdf(parseInt(selectedInvoiceOrder))}
+                      className="px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-[10px] transition"
+                    >
+                      📄 Send
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-gray-500 italic">Belum ada pesanan terdaftar.</p>
+                )}
+              </div>
             </div>
           </div>
         </div>

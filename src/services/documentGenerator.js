@@ -34,6 +34,10 @@ const renderHtmlToPdf = async (browser, slug, htmlContent) => {
   const page = await browser.newPage();
   try {
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    
+    // Font loading guard: wait for web fonts to load before printing PDF
+    await page.evaluateHandle(() => document.fonts.ready);
+    
     await page.pdf({
       path: outputPath,
       format: 'A4',
@@ -97,10 +101,61 @@ const generateInvoicePdf = async (browser, orderId) => {
     throw new Error(`Order ID ${orderId} not found`);
   }
 
+  // Fetch bank details from company_info dynamically
+  const paymentMethod = await db('company_info').where('key', 'metode_pembayaran').first();
+  const paymentInstructions = paymentMethod ? paymentMethod.value : 'Silakan lakukan pembayaran transfer ke rekening resmi Vuyama.';
+
   // Format currency
   const formatRupiah = (val) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
   };
+
+  // Fetch relational order items
+  const items = await db('order_items').where('order_id', orderId).orderBy('id', 'asc');
+  
+  let itemsHtml = '';
+  if (items.length > 0) {
+    items.forEach(item => {
+      const specs = typeof item.custom_specs === 'string' ? JSON.parse(item.custom_specs) : (item.custom_specs || {});
+      let specDetails = '';
+      if (Object.keys(specs).length > 0 && specs.brand_name) {
+        specDetails = `
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px; line-height: 1.4;">
+            • Brand: ${specs.brand_name || '-'}<br>
+            • Size: ${specs.label_size || '-'}<br>
+            • Shape: ${specs.label_shape || '-'}<br>
+            • Ink/Label Color: ${specs.ink_color || '-'}/${specs.label_color || '-'}<br>
+            • Font: ${specs.font || '-'}
+          </div>
+        `;
+      }
+      
+      itemsHtml += `
+        <tr>
+          <td>
+            <div style="font-weight: 600;">${item.product_name}</div>
+            ${specDetails}
+          </td>
+          <td style="text-align: center; vertical-align: top;">${item.quantity}</td>
+          <td style="text-align: right; vertical-align: top;">${formatRupiah(item.price)}</td>
+          <td style="text-align: right; font-weight: 600; vertical-align: top;">${formatRupiah(item.subtotal)}</td>
+        </tr>
+      `;
+    });
+  } else {
+    // Fallback: render draft raw specifications if order items are empty
+    itemsHtml = `
+      <tr>
+        <td>
+          <div style="font-weight: 600;">Pemesanan Custom Draft</div>
+          <div style="font-size: 12px; color: #475569; white-space: pre-wrap; margin-top: 5px;">${order.pesanan_raw}</div>
+        </td>
+        <td style="text-align: center; vertical-align: top;">1</td>
+        <td style="text-align: right; vertical-align: top;">${formatRupiah(order.total)}</td>
+        <td style="text-align: right; font-weight: 600; vertical-align: top;">${formatRupiah(order.total)}</td>
+      </tr>
+    `;
+  }
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -265,27 +320,14 @@ const generateInvoicePdf = async (browser, orderId) => {
     <table class="order-table">
       <thead>
         <tr>
-          <th>Rincian Produk & Keterangan Tambahan</th>
-          <th style="text-align: right; width: 150px;">Total Tagihan</th>
+          <th>Produk & Keterangan</th>
+          <th style="text-align: center; width: 80px;">Qty</th>
+          <th style="text-align: right; width: 120px;">Harga Satuan</th>
+          <th style="text-align: right; width: 120px;">Subtotal</th>
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>
-            <strong>Pesanan Produk:</strong><br>
-            ${String(order.pesanan_raw || 'Pemesanan Hijab/Mukena Vuyama').replace(/\n/g, '<br>')}
-            <br><br>
-            <strong>Spesifikasi Label Brand (Jika Ada):</strong><br>
-            - Merek: ${order.brand_name || '-'}<br>
-            - Ukuran: ${order.label_size || '-'}<br>
-            - Bentuk: ${order.label_shape || '-'}<br>
-            - Warna (Tinta/Label): ${order.ink_color || '-'}/${order.label_color || '-'}<br>
-            - Font: ${order.font || '-'}
-          </td>
-          <td style="text-align: right; font-weight: 600; vertical-align: top;">
-            ${formatRupiah(order.total || 0)}
-          </td>
-        </tr>
+        ${itemsHtml}
       </tbody>
     </table>
     
@@ -306,10 +348,9 @@ const generateInvoicePdf = async (browser, orderId) => {
     
     <div class="payment-instructions">
       <h4>Petunjuk Pembayaran Transfer Bank:</h4>
-      Silakan lakukan pembayaran sebesar nominal di atas ke salah satu rekening resmi Vuyama:<br>
-      - **Bank BCA**: 0540-XXXX-XX a.n. Vuyama Official<br>
-      - **Bank Mandiri**: 131-00-XXXX-XXX a.n. Vuyama Official<br>
-      *Harap kirimkan bukti transfer ke WhatsApp ini setelah melakukan pembayaran untuk proses pengemasan dan pengiriman segera. Terima kasih kak!*
+      ${paymentInstructions.replace(/\n/g, '<br>')}
+      <br><br>
+      <em>Harap kirimkan bukti transfer ke WhatsApp ini setelah melakukan pembayaran untuk proses pengemasan dan pengiriman segera. Terima kasih kak!</em>
     </div>
     
     <div class="footer">
@@ -331,11 +372,22 @@ const generateWelcomeGuidePdf = async (browser, phoneNumber, resellerLevel) => {
   const benefitsText = programRows ? programRows.benefits : 'Fasilitas dan katalog dropship lengkap.';
   const minOrderText = programRows ? programRows.min_order : 'Sesuai ketentuan level.';
 
+  // Fetch company info from database dynamically
+  const companyRows = await db('company_info').select('key', 'value');
+  const companyInfo = {};
+  companyRows.forEach(row => {
+    companyInfo[row.key] = row.value;
+  });
+  const companyInfoString = JSON.stringify(companyInfo, null, 2);
+
   const prompt = `You are a professional designer for Vuyama. Create a premium A4 Reseller Welcome Guide HTML document.
 The customer has joined at the **${resellerLevel}** level.
 Minimal Order required: ${minOrderText}
 Reseller Benefits & Facilities:
 ${benefitsText}
+
+Company Contact & Context Information:
+${companyInfoString}
 
 SOP & Policies to incorporate beautifully:
 1. **Dropship Policy**: Explain how dropshipping works (custom label storage in our warehouse, shipping under their store name, custom invoice billing).

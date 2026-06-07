@@ -21,9 +21,11 @@ const FALLBACK_MODELS = [
 /**
  * Call Gemini API with automatic exponential backoff retries and model fallbacks for ultimate resilience
  * @param {string} prompt - The prompt to send to Gemini
+ * @param {Buffer|string} [imageBuffer=null] - Optional base64 string or image buffer
+ * @param {string} [imageMime=null] - Optional mime-type of the image (e.g. 'image/png')
  * @returns {Promise<string>} - The generated response
  */
-const callGemini = async (prompt) => {
+const callGemini = async (prompt, imageBuffer = null, imageMime = null) => {
   let lastError = null;
 
   for (const modelName of FALLBACK_MODELS) {
@@ -37,7 +39,26 @@ const callGemini = async (prompt) => {
         }
 
         const activeModel = genAI.getGenerativeModel({ model: modelName });
-        const result = await activeModel.generateContent(prompt);
+        
+        let contents;
+        if (imageBuffer && imageMime) {
+          const base64Data = Buffer.isBuffer(imageBuffer) ? imageBuffer.toString("base64") : imageBuffer;
+          contents = [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: imageMime
+              }
+            },
+            {
+              text: prompt
+            }
+          ];
+        } else {
+          contents = [prompt];
+        }
+
+        const result = await activeModel.generateContent(contents);
         const response = await result.response;
         const text = response.text();
 

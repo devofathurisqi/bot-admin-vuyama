@@ -10,6 +10,8 @@ window.DashboardTab = ({
 }) => {
   if (activeTab !== 'dashboard') return null;
 
+  const lowStockProducts = (products || []).filter(p => p.stock < 15);
+
   return (
     <div className="space-y-6 text-xs text-slate-300">
       {/* HERO BANNER */}
@@ -45,7 +47,7 @@ window.DashboardTab = ({
           <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Active Complaints</span>
           <div className="mt-2.5 flex items-baseline justify-between text-gray-800 dark:text-white">
             <span className="text-3xl font-extrabold text-rose-500">{complaints.filter(c => c.status === 'OPEN').length}</span>
-            <span className="text-xs text-rose-400 font-bold">Requires Action</span>
+            <span className="text-xs text-rose-450 font-bold">Requires Action</span>
           </div>
         </div>
 
@@ -58,7 +60,7 @@ window.DashboardTab = ({
         </div>
       </div>
 
-      {/* BOTTOM SECTIONS: WA STATUS & LIVE FEED */}
+      {/* BOTTOM SECTIONS: WA STATUS, LOW STOCK & LIVE FEED */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* WHATSAPP CONNECTION STATUS PANEL */}
         <div className="lg:col-span-1 p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
@@ -100,8 +102,45 @@ window.DashboardTab = ({
           </div>
         </div>
 
+        {/* LOW STOCK WARNING PANEL */}
+        <div className="lg:col-span-1 p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-darkbg-border pb-3">
+              <h3 className="font-extrabold text-base text-gray-800 dark:text-white">Low Stock Warning</h3>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${lowStockProducts.length > 0 ? 'bg-rose-500/10 text-rose-500 animate-pulse' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                {lowStockProducts.length} Alert
+              </span>
+            </div>
+
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {lowStockProducts.map((p, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-rose-500/5 border border-rose-500/10 text-gray-800 dark:text-gray-200">
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold block truncate max-w-[120px]">{p.name}</span>
+                    <span className="block text-[8px] text-gray-500 font-semibold uppercase tracking-wider">{p.category}</span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-xs font-black text-rose-500">{p.stock} pcs</span>
+                    <span className="block text-[8px] text-gray-500 font-semibold">Limit: 15</span>
+                  </div>
+                </div>
+              ))}
+              {lowStockProducts.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-emerald-500 space-y-2">
+                  <span className="text-2xl">✅</span>
+                  <p className="text-xs font-bold text-center">Stok semua produk aman!</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 border-t border-darkbg-border pt-4 text-center">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Stock Threshold Limit &lt; 15</span>
+          </div>
+        </div>
+
         {/* LIVE AUDIT ACTIVITY LOGS */}
-        <div className="lg:col-span-2 p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
+        <div className="lg:col-span-1 p-6 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border flex flex-col justify-between shadow-sm">
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-darkbg-border pb-3">
               <h3 className="font-extrabold text-base text-gray-800 dark:text-white">Live Activity Streams</h3>
