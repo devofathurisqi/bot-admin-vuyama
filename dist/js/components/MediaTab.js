@@ -18,8 +18,6 @@ window.MediaTab = ({
   mediaPagination,
   mediaLoading
 }) => {
-  if (activeTab !== 'media') return null;
-
   const [newColorName, setNewColorName] = React.useState('');
   const [newColorCategory, setNewColorCategory] = React.useState('Mukena');
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -27,6 +25,8 @@ window.MediaTab = ({
   
   // Local filter for stock colors
   const [colorFilter, setColorFilter] = React.useState('Semua');
+
+  if (activeTab !== 'media') return null;
 
   const handleSubmitColor = async (e) => {
     e.preventDefault();

@@ -37,8 +37,6 @@ window.LiveChatTab = ({
   handleSendInvoicePdf,
   handleSendWelcomePdf
 }) => {
-  if (activeTab !== 'customers') return null;
-
   // Local state for sidebar visibility on tablet/mobile
   const [showSidebar, setShowSidebar] = React.useState(false);
   const fileInputRef = React.useRef(null);
@@ -65,6 +63,8 @@ window.LiveChatTab = ({
       setSelectedInvoiceOrder('');
     }
   }, [customerOrders]);
+
+  if (activeTab !== 'customers') return null;
 
 
   // Parse message content to render images and document links nicely

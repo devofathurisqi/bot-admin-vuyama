@@ -3,8 +3,6 @@ window.SettingsTab = ({
   settings,
   fetchSettings
 }) => {
-  if (activeTab !== 'settings') return null;
-
   // Local state for Company profile editing
   const [editingCompanyId, setEditingCompanyId] = React.useState(null);
   const [companyEditForm, setCompanyEditForm] = React.useState({ key: '', label: '', value: '' });
@@ -16,6 +14,8 @@ window.SettingsTab = ({
   const [resellerEditForm, setResellerEditForm] = React.useState({ level: '', min_order: '', price: 0, benefits: '' });
   const [isAddingReseller, setIsAddingReseller] = React.useState(false);
   const [newResellerForm, setNewResellerForm] = React.useState({ level: '', min_order: '', price: 0, benefits: '' });
+
+  if (activeTab !== 'settings') return null;
 
   // Company Profile Actions
   const handleSaveCompanyEdit = async (id) => {

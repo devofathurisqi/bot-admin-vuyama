@@ -8,8 +8,6 @@ window.ConfirmOrderModal = ({
   products, 
   handleConfirmPurchaseSubmit 
 }) => {
-  if (!confirmModalOpen || !selectedConfirmOrder) return null;
-
   const [items, setItems] = React.useState([{ productId: '', quantity: 1, price: 0 }]);
 
   // Initialize items from order items or default empty item
@@ -38,6 +36,8 @@ window.ConfirmOrderModal = ({
       total: calculatedTotal
     }));
   }, [items, calculatedTotal]);
+
+  if (!confirmModalOpen || !selectedConfirmOrder) return null;
 
   const handleAddItem = () => {
     setItems([...items, { productId: '', quantity: 1, price: 0 }]);
