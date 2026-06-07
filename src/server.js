@@ -1513,8 +1513,34 @@ if (fs.existsSync(frontendDist)) {
 // Start Listening
 const PORT = process.env.PORT || 5000;
 const startServer = () => {
-  server.listen(PORT, () => {
+  server.listen(PORT, async () => {
     logger.info(`Backend API and WebSockets running on port ${PORT}`);
+    
+    // Ensure business hours parameters exist in database on startup
+    try {
+      const defaultSettings = [
+        { key: 'ai_always_reply', label: 'AI Selalu Membalas (24/7)', value: 'true' },
+        { key: 'business_hours_start', label: 'Jam Mulai Kerja (WIB)', value: '08' },
+        { key: 'business_hours_end', label: 'Jam Selesai Kerja (WIB)', value: '17' },
+        { key: 'business_workdays', label: 'Hari Kerja (0=Minggu, 1=Senin, dst)', value: '1,2,3,4,5,6' }
+      ];
+      
+      for (const setting of defaultSettings) {
+        const existing = await db('company_info').where('key', setting.key).first();
+        if (!existing) {
+          await db('company_info').insert({
+            key: setting.key,
+            label: setting.label,
+            value: setting.value,
+            created_at: new Date(),
+            updated_at: new Date()
+          });
+          logger.info(`Added missing business hours setting on startup: ${setting.key}`);
+        }
+      }
+    } catch (e) {
+      logger.error('Failed to initialize business hours settings on startup:', e);
+    }
   });
 };
 

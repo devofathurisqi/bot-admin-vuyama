@@ -22,17 +22,41 @@ const logToDb = async (level, message) => {
 /**
  * Check if the message arrives outside business hours (Monday-Saturday, 08:00 - 17:00 WIB)
  */
-const checkBusinessHours = () => {
-  const now = new Date();
-  // Convert to Jakarta Time (WIB)
-  const wibString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
-  const wibDate = new Date(wibString);
-  const day = wibDate.getDay(); // 0 = Sunday, 1-6 = Mon-Sat
-  const hours = wibDate.getHours();
-  
-  const isSunday = day === 0;
-  const isWorkingTime = !isSunday && (hours >= 8 && hours < 17);
-  return isWorkingTime;
+const checkBusinessHours = async () => {
+  try {
+    const alwaysReplyRow = await db('company_info').where('key', 'ai_always_reply').first();
+    const alwaysReply = alwaysReplyRow ? alwaysReplyRow.value === 'true' : false;
+    if (alwaysReply) {
+      return true; // AI always replies, so bypass the off-hours check
+    }
+
+    const startRow = await db('company_info').where('key', 'business_hours_start').first();
+    const endRow = await db('company_info').where('key', 'business_hours_end').first();
+    const workdaysRow = await db('company_info').where('key', 'business_workdays').first();
+
+    const startHour = startRow ? parseInt(startRow.value) || 8 : 8;
+    const endHour = endRow ? parseInt(endRow.value) || 17 : 17;
+    const workdays = workdaysRow ? workdaysRow.value.split(',').map(d => parseInt(d.trim())) : [1, 2, 3, 4, 5, 6];
+
+    const now = new Date();
+    const wibString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    const wibDate = new Date(wibString);
+    const day = wibDate.getDay();
+    const hours = wibDate.getHours();
+
+    const isWorkingDay = workdays.includes(day);
+    const isWorkingTime = isWorkingDay && (hours >= startHour && hours < endHour);
+    return isWorkingTime;
+  } catch (error) {
+    logger.error('Error checking business hours from database:', error);
+    // Fallback to Monday-Saturday 08-17
+    const now = new Date();
+    const wibString = now.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    const wibDate = new Date(wibString);
+    const day = wibDate.getDay();
+    const hours = wibDate.getHours();
+    return day !== 0 && (hours >= 8 && hours < 17);
+  }
 };
 
 /**
@@ -271,10 +295,14 @@ ${text}
 const generateResponse = async (phoneNumber, userMessage, customerState, imageBuffer = null, imageMime = null) => {
   try {
     // 1. Calculate business hours check and prepend notice if outside hours
-    const isWorkingHours = checkBusinessHours();
+    const isWorkingHours = await checkBusinessHours();
     let offHoursNotice = "";
     if (!isWorkingHours) {
-      offHoursNotice = "*(Pesan Otomatis Di Luar Jam Kerja)*\nHalo Kak! Saat ini CS kami sedang di luar jam operasional (Senin - Sabtu, 08:00 - 17:00). Kakak tetap bisa bertanya atau mengisi format order, dan asisten AI kami (Vumin) akan membantu menjawab sementara ya kak... 😊 Kami akan memproses dan mem-follow up chat Kakak secara manual setelah jam operasional aktif kembali. Terima kasih atas pengertiannya Kak! 🙏\n\n";
+      const startRow = await db('company_info').where('key', 'business_hours_start').first();
+      const endRow = await db('company_info').where('key', 'business_hours_end').first();
+      const startHour = startRow ? startRow.value : '08';
+      const endHour = endRow ? endRow.value : '17';
+      offHoursNotice = `*(Pesan Otomatis Di Luar Jam Kerja)*\nHalo Kak! Saat ini CS kami sedang di luar jam operasional (Senin - Sabtu, ${startHour}:00 - ${endHour}:00). Kakak tetap bisa bertanya atau mengisi format order, dan asisten AI kami (Vumin) akan membantu menjawab sementara ya kak... 😊 Kami akan memproses dan mem-follow up chat Kakak secara manual setelah jam operasional aktif kembali. Terima kasih atas pengertiannya Kak! 🙏\n\n`;
     }
 
     // 2. Update/fetch memory

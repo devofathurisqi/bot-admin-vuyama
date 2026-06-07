@@ -260,7 +260,11 @@ async function recreateDatabase() {
       ketentuan_garansi: 'Ketentuan Garansi',
       deskripsi_singkat: 'Deskripsi Singkat',
       visi_misi: 'Visi & Misi',
-      website: 'Website'
+      website: 'Website',
+      ai_always_reply: 'AI Selalu Membalas (24/7)',
+      business_hours_start: 'Jam Mulai Kerja (WIB)',
+      business_hours_end: 'Jam Selesai Kerja (WIB)',
+      business_workdays: 'Hari Kerja (0=Minggu, 1=Senin, dst)'
     };
 
     const companyData = Object.entries(knowledge.company).map(([key, value]) => ({
@@ -268,6 +272,21 @@ async function recreateDatabase() {
       label: companyLabels[key] || key,
       value
     }));
+
+    // Append default business hours keys if they don't exist in knowledge
+    if (!companyData.some(d => d.key === 'ai_always_reply')) {
+      companyData.push({ key: 'ai_always_reply', label: companyLabels.ai_always_reply, value: 'true' });
+    }
+    if (!companyData.some(d => d.key === 'business_hours_start')) {
+      companyData.push({ key: 'business_hours_start', label: companyLabels.business_hours_start, value: '08' });
+    }
+    if (!companyData.some(d => d.key === 'business_hours_end')) {
+      companyData.push({ key: 'business_hours_end', label: companyLabels.business_hours_end, value: '17' });
+    }
+    if (!companyData.some(d => d.key === 'business_workdays')) {
+      companyData.push({ key: 'business_workdays', label: companyLabels.business_workdays, value: '1,2,3,4,5,6' });
+    }
+
     await db('company_info').insert(companyData);
 
     // B. Seed products
