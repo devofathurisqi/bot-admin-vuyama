@@ -23,8 +23,10 @@ window.MediaTab = ({
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const colorFileInputRef = React.useRef(null);
   
-  // Local filter for stock colors
+  // Local filter & pagination for stock colors to prevent browser rendering lag
   const [colorFilter, setColorFilter] = React.useState('Semua');
+  const [colorPage, setColorPage] = React.useState(1);
+  const colorLimit = 10;
 
   if (activeTab !== 'media') return null;
 
@@ -54,10 +56,20 @@ window.MediaTab = ({
     if (colorFileInputRef.current) colorFileInputRef.current.value = '';
   };
 
-  const filteredColors = stockColors.filter(c => {
-    if (colorFilter === 'Semua') return true;
-    return c.category?.toLowerCase() === colorFilter.toLowerCase();
-  });
+  const filteredColors = React.useMemo(() => {
+    return stockColors.filter(c => {
+      if (colorFilter === 'Semua') return true;
+      return c.category?.toLowerCase() === colorFilter.toLowerCase();
+    });
+  }, [stockColors, colorFilter]);
+
+  const paginatedColors = React.useMemo(() => {
+    const start = (colorPage - 1) * colorLimit;
+    return filteredColors.slice(start, start + colorLimit);
+  }, [filteredColors, colorPage]);
+
+  const totalColorPages = Math.ceil(filteredColors.length / colorLimit);
+  const safeColorPages = isFinite(totalColorPages) && totalColorPages > 0 ? totalColorPages : 1;
 
   // Safe pagination calculations to match ProductTab
   const totalItems = (mediaPagination && typeof mediaPagination.total === 'number') ? mediaPagination.total : 0;
@@ -442,7 +454,10 @@ window.MediaTab = ({
             {['Semua', 'Mukena', 'Hijab', 'Label', 'General'].map(cat => (
               <button
                 key={cat}
-                onClick={() => setColorFilter(cat)}
+                onClick={() => {
+                  setColorFilter(cat);
+                  setColorPage(1);
+                }}
                 className={`px-3 py-1.5 rounded-full font-bold text-[10px] tracking-wide uppercase transition duration-200 ${
                   colorFilter === cat
                     ? 'bg-brand-600 text-white shadow-sm'
@@ -456,7 +471,7 @@ window.MediaTab = ({
 
           {/* Swatches Color Board Grid Card Layout */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6 text-gray-850 dark:text-gray-250">
-            {filteredColors.map(color => (
+            {paginatedColors.map(color => (
               <div
                 key={color.id}
                 className="group relative rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between transition duration-300 hover:shadow-lg h-[310px]"
@@ -543,6 +558,53 @@ window.MediaTab = ({
               </div>
             )}
           </div>
+
+          {/* Color Board Pagination Controls */}
+          {filteredColors.length > colorLimit && (
+            <div className="flex flex-col sm:flex-row items-center justify-between border-t border-darkbg-border pt-6 mt-8 gap-4 select-none">
+              <span className="text-xs text-gray-500 font-medium">
+                Showing <strong className="text-gray-800 dark:text-white font-extrabold">{((colorPage - 1) * colorLimit) + 1}</strong> to <strong className="text-gray-800 dark:text-white font-extrabold">{Math.min(colorPage * colorLimit, filteredColors.length)}</strong> of <strong className="text-gray-800 dark:text-white font-extrabold">{filteredColors.length}</strong> colors
+              </span>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setColorPage(prev => Math.max(prev - 1, 1))}
+                  disabled={colorPage <= 1}
+                  className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-850 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
+                >
+                  Previous
+                </button>
+
+                {Array.from({ length: safeColorPages }).map((_, idx) => {
+                  const pNum = idx + 1;
+                  return (
+                    <button
+                      key={pNum}
+                      type="button"
+                      onClick={() => setColorPage(pNum)}
+                      className={`w-9 h-9 rounded-xl font-bold text-xs transition flex items-center justify-center ${
+                        colorPage === pNum
+                          ? 'bg-brand-600 text-white shadow-md shadow-brand-500/15'
+                          : 'bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => setColorPage(prev => Math.min(prev + 1, safeColorPages))}
+                  disabled={colorPage >= safeColorPages}
+                  className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-850 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       <input

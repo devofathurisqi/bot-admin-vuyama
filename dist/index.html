@@ -100,9 +100,9 @@
       background: var(--scrollbar-thumb-hover);
     }
 
-    /* Smooth transition */
-    * {
-      transition-property: background-color, border-color, text-decoration-color, fill, stroke;
+    /* Smooth transition - optimized for specific interactive components to prevent global DOM layout thrashing */
+    button, a, input, select, textarea, .hover-transition {
+      transition-property: background-color, border-color, text-decoration-color, fill, stroke, opacity;
       transition-duration: 200ms;
       transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     }

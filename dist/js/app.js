@@ -261,15 +261,13 @@ window.App = () => {
     activeChatRef.current = activeChat;
   }, [activeChat]);
 
-  // On Initial Mount only - Connect socket and load starting states
+  // On Initial Mount only - Connect socket and load starting states (lazy load media on tab switch)
   useEffect(() => {
     fetchBotStatus();
     fetchCustomers();
     fetchOrders();
     fetchComplaints();
     fetchBlockedNumbers();
-    fetchMedia();
-    fetchStockColors();
     fetchLogs();
     fetchSettings();
 
@@ -312,7 +310,7 @@ window.App = () => {
     });
 
     socket.on('new_log', (log) => {
-      setLogs(prev => [log, ...prev]);
+      setLogs(prev => [log, ...prev].slice(0, 200));
     });
 
     return () => {
@@ -340,10 +338,18 @@ window.App = () => {
     fetchProducts(productPage);
   }, [productPage, debouncedProductSearch, productCategory]);
 
-  // Triggers media fetch when page, debounced search, or tag updates
+  // Lazy load media and stock colors only when Media tab is active to prevent startup lag
   useEffect(() => {
-    fetchMedia(mediaPage);
-  }, [mediaPage, debouncedMediaSearch, mediaSubTab]);
+    if (activeTab === 'media') {
+      fetchMedia(mediaPage);
+    }
+  }, [activeTab, mediaPage, debouncedMediaSearch, mediaSubTab]);
+
+  useEffect(() => {
+    if (activeTab === 'media') {
+      fetchStockColors();
+    }
+  }, [activeTab]);
 
   // Scroll to bottom of chat window
   useEffect(() => {
