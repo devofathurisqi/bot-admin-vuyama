@@ -882,7 +882,6 @@ window.App = () => {
                   { id: 'orders', name: 'Orders Board', icon: Icons.Orders, count: orders.filter(o => o.status === 'PENDING').length },
                   { id: 'complaints', name: 'Complaints Queue', icon: Icons.Complaints, count: complaints.filter(c => c.status === 'OPEN').length },
                   { id: 'blocked', name: 'Blocked Bot', icon: Icons.Blocked },
-                  { id: 'media', name: 'Media Gallery', icon: Icons.Media },
                   { id: 'logs', name: 'Bot Console', icon: Icons.Logs },
                   { id: 'settings', name: 'Settings Editor', icon: Icons.Settings }
                 ].map(item => (
@@ -945,7 +944,6 @@ window.App = () => {
               { id: 'orders', name: 'Orders Board', icon: Icons.Orders, count: orders.filter(o => o.status === 'PENDING').length },
               { id: 'complaints', name: 'Complaints Queue', icon: Icons.Complaints, count: complaints.filter(c => c.status === 'OPEN').length },
               { id: 'blocked', name: 'Blocked Bot', icon: Icons.Blocked },
-              { id: 'media', name: 'Media Gallery', icon: Icons.Media },
               { id: 'logs', name: 'Bot Console', icon: Icons.Logs },
               { id: 'settings', name: 'Settings Editor', icon: Icons.Settings }
             ].map(item => (
@@ -1102,32 +1100,7 @@ window.App = () => {
             handleBlockManual={handleBlockManual}
             handleUnblock={handleUnblock}
           />
-          <MediaTab
-            activeTab={activeTab}
-            media={media}
-            galleryInputRef={galleryInputRef}
-            handleMediaUpload={handleMediaUpload}
-            handleDeleteMedia={handleDeleteMedia}
-            stockColors={stockColors}
-            handleCreateStockColor={handleCreateStockColor}
-            handleToggleStockColorStatus={handleToggleStockColorStatus}
-            handleDeleteStockColor={handleDeleteStockColor}
-            handleSyncKnowledge={handleSyncKnowledge}
-            mediaSubTab={mediaSubTab}
-            setMediaSubTab={(val) => {
-              setMediaSubTab(val);
-              setMediaPage(1);
-            }}
-            mediaSearch={mediaSearch}
-            setMediaSearch={(val) => {
-              setMediaSearch(val);
-              setMediaPage(1);
-            }}
-            mediaPage={mediaPage}
-            setMediaPage={setMediaPage}
-            mediaPagination={mediaPagination}
-            mediaLoading={mediaLoading}
-          />
+
           <LogsTab
             activeTab={activeTab}
             logs={logs}
