@@ -1,3 +1,24 @@
+// Skeleton Loader for Media Cards (Defined outside parent component to prevent reference recreation/remount lag)
+const SkeletonMediaGrid = () => {
+  return (
+    <React.Fragment>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div key={i} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between h-[210px] animate-pulse">
+          <div className="h-32 bg-gray-200 dark:bg-gray-800" />
+          <div className="p-3.5 space-y-2 flex-1">
+            <div className="h-3 w-3/4 bg-gray-200 dark:bg-gray-800 rounded" />
+            <div className="h-2 w-1/4 bg-gray-200 dark:bg-gray-800 rounded" />
+          </div>
+          <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex justify-between">
+            <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
+            <div className="h-5 w-6 bg-gray-200 dark:bg-gray-800 rounded" />
+          </div>
+        </div>
+      ))}
+    </React.Fragment>
+  );
+};
+
 window.MediaTab = ({
   activeTab,
   media = [],
@@ -79,26 +100,7 @@ window.MediaTab = ({
   // Unconditional hook declarations must precede any conditional/early returns
   if (activeTab !== 'media') return null;
 
-  // Skeleton Loader for Media Cards
-  const SkeletonMediaGrid = () => {
-    return (
-      <React.Fragment>
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between h-[210px] animate-pulse">
-            <div className="h-32 bg-gray-200 dark:bg-gray-800" />
-            <div className="p-3.5 space-y-2 flex-1">
-              <div className="h-3 w-3/4 bg-gray-200 dark:bg-gray-800 rounded" />
-              <div className="h-2 w-1/4 bg-gray-200 dark:bg-gray-800 rounded" />
-            </div>
-            <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex justify-between">
-              <div className="h-5 w-16 bg-gray-200 dark:bg-gray-800 rounded" />
-              <div className="h-5 w-6 bg-gray-200 dark:bg-gray-800 rounded" />
-            </div>
-          </div>
-        ))}
-      </React.Fragment>
-    );
-  };
+  // (SkeletonMediaGrid moved outside the parent component for optimization)
 
   return (
     <div className="space-y-6 text-xs text-slate-300">

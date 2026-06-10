@@ -27,15 +27,18 @@ window.Icons = {
 };
 
 // Global Premium Image with Skeleton Loader & Blur-in Transition (DOM-stable loop-free version)
-// Global Premium Image with Skeleton Loader (Stateful React-safe version)
+// Global Premium Image with Skeleton Loader (Stateful React-safe derived-prop version)
 window.ImageWithSkeleton = ({ src, alt, className = "", containerClassName = "", ...props }) => {
+  const [prevSrc, setPrevSrc] = React.useState(src);
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState(false);
 
-  React.useEffect(() => {
+  // Reset state during render if src prop changes, avoiding useEffect race conditions on mount
+  if (src !== prevSrc) {
+    setPrevSrc(src);
     setLoaded(false);
     setError(false);
-  }, [src]);
+  }
 
   return (
     <div className={`relative w-full h-full overflow-hidden flex items-center justify-center ${
