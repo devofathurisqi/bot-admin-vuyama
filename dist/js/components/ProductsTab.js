@@ -42,7 +42,7 @@ const SkeletonGrid = () => {
 };
 
 // Premium Individual Product Card with Carousel and Lazy Loading
-const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct }) => {
+const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct, onOpenDetail }) => {
   const [currentImgIndex, setCurrentImgIndex] = React.useState(0);
   const images = p.image ? p.image.split(',').map(img => img.trim()).filter(Boolean) : [];
   let variantsList = [];
@@ -76,7 +76,10 @@ const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct }) => {
   };
 
   return (
-    <div className="rounded-3xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative group text-gray-800 dark:text-gray-200 h-[520px]">
+    <div 
+      onClick={() => onOpenDetail(p.id)}
+      className="rounded-3xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative group text-gray-800 dark:text-gray-200 h-[520px] cursor-pointer"
+    >
       
       {/* PRODUCT IMAGE OR CAROUSEL */}
       <div className="h-72 w-full bg-gray-100 dark:bg-gray-900 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative select-none">
@@ -161,7 +164,7 @@ const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct }) => {
             <span className="text-gray-300 dark:text-gray-700 font-extrabold text-[10px]">•</span>
             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{p.sub_category || 'General'}</span>
           </div>
-          <h3 className="font-extrabold text-base leading-snug line-clamp-2 text-slate-800 dark:text-white animate-fade-in" title={p.name}>{p.name}</h3>
+          <h3 className="font-extrabold text-base leading-snug line-clamp-2 text-slate-800 dark:text-white" title={p.name}>{p.name}</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">{p.description || 'Tidak ada deskripsi.'}</p>
         </div>
 
@@ -211,26 +214,397 @@ const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct }) => {
       <div className="p-4 bg-gray-50 dark:bg-gray-800/10 border-t border-darkbg-border flex items-center justify-end space-x-2.5 shrink-0 rounded-b-3xl">
         <button 
           type="button"
-          onClick={() => handleEditProductClick(p)} 
-          className="p-2 rounded-xl bg-gray-200/80 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-white hover:bg-brand-600 transition duration-200 flex items-center justify-center"
-          title="Penyuntingan Produk"
+          onClick={(e) => { e.stopPropagation(); onOpenDetail(p.id); }} 
+          className="px-3.5 py-2 rounded-xl bg-gray-200/80 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-white transition duration-200 flex items-center space-x-1 font-bold text-[10px] uppercase tracking-wider"
+          title="Detail Produk & Warna"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          <span>Detail</span>
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
         </button>
         <button 
           type="button"
-          onClick={() => handleDeleteProduct(p.id)} 
+          onClick={(e) => { e.stopPropagation(); handleEditProductClick(p); }} 
+          className="p-2 rounded-xl bg-gray-200/80 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-white hover:bg-brand-600 transition duration-200 flex items-center justify-center"
+          title="Penyuntingan Produk"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+        </button>
+        <button 
+          type="button"
+          onClick={(e) => { e.stopPropagation(); handleDeleteProduct(p.id); }} 
           className="p-2 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition duration-200 flex items-center justify-center"
           title="Hapus Produk"
         >
-          <Icons.Trash />
+          <Icons.Trash className="w-4 h-4" />
         </button>
       </div>
     </div>
   );
 };
 
-// Main ProductsTab
+// Premium Product Detail Page Component
+const ProductDetailPage = ({
+  product,
+  onBack,
+  handleEditProductClick,
+  handleDeleteProduct,
+  stockColors,
+  handleCreateStockColor,
+  handleToggleStockColorStatus,
+  handleDeleteStockColor,
+  handleSyncKnowledge,
+  fetchStockColors
+}) => {
+  const [currentImgIndex, setCurrentImgIndex] = React.useState(0);
+  const [isColorFormOpen, setIsColorFormOpen] = React.useState(false);
+  const [newColorName, setNewColorName] = React.useState('');
+  const [isSyncing, setIsSyncing] = React.useState(false);
+  const colorFileInputRef = React.useRef(null);
+
+  const images = product.image ? product.image.split(',').map(img => img.trim()).filter(Boolean) : [];
+  
+  let variantsList = [];
+  try {
+    variantsList = Array.isArray(product.variants) ? product.variants : (typeof product.variants === 'string' ? JSON.parse(product.variants || '[]') : []);
+  } catch (e) {
+    variantsList = [];
+  }
+
+  let tiersList = [];
+  try {
+    tiersList = Array.isArray(product.wholesale_tiers) ? product.wholesale_tiers : (typeof product.wholesale_tiers === 'string' ? JSON.parse(product.wholesale_tiers || '[]') : []);
+  } catch (e) {
+    tiersList = [];
+  }
+
+  // Filter stock colors specific to this product
+  const productColors = React.useMemo(() => {
+    return stockColors.filter(c => c.product_id === product.id);
+  }, [stockColors, product.id]);
+
+  const handleCreateSwatch = async (e) => {
+    e.preventDefault();
+    if (!newColorName.trim()) {
+      alert('Nama warna wajib diisi!');
+      return;
+    }
+    const file = colorFileInputRef.current?.files[0];
+    if (!file) {
+      alert('Gambar swatch warna wajib diunggah!');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('color_name', newColorName.trim());
+    formData.append('category', product.category || 'Mukena');
+    formData.append('product_id', product.id);
+    formData.append('is_ready', 'true');
+
+    await handleCreateStockColor(formData);
+
+    // Reset Form & reload
+    setNewColorName('');
+    setIsColorFormOpen(false);
+    if (colorFileInputRef.current) colorFileInputRef.current.value = '';
+    fetchStockColors();
+  };
+
+  const handleSyncClick = async () => {
+    setIsSyncing(true);
+    await handleSyncKnowledge();
+    setIsSyncing(false);
+  };
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      {/* Detail Header bar */}
+      <div className="flex items-center justify-between border-b border-darkbg-border pb-5 gap-4">
+        <div className="flex items-center space-x-3.5">
+          <button
+            onClick={onBack}
+            className="p-2.5 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border text-gray-500 hover:text-gray-800 dark:hover:text-white transition shadow-sm hover:shadow"
+            title="Kembali ke Daftar Produk"
+          >
+            <Icons.ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <span className="text-[10px] text-brand-600 dark:text-brand-400 font-extrabold uppercase tracking-widest">{product.category}</span>
+            <h2 className="text-xl font-extrabold text-gray-800 dark:text-white truncate max-w-lg md:max-w-xl">{product.name}</h2>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-3 shrink-0">
+          <button
+            onClick={() => handleEditProductClick(product)}
+            className="px-4 py-2.5 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border text-gray-700 dark:text-gray-300 font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-800 transition flex items-center space-x-2 shadow-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            <span>Edit</span>
+          </button>
+          <button
+            onClick={() => { handleDeleteProduct(product.id); onBack(); }}
+            className="px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs transition flex items-center space-x-2 shadow-md shadow-rose-500/10"
+          >
+            <Icons.Trash className="w-4 h-4" />
+            <span>Hapus</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Grid Split Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        {/* Left Column: Media & Product Details (5 columns) */}
+        <div className="lg:col-span-5 space-y-6">
+          <div className="rounded-3xl bg-white dark:bg-darkbg-card border border-gray-150 dark:border-darkbg-border overflow-hidden shadow-sm flex flex-col p-6 space-y-5">
+            {/* Carousel display box */}
+            <div className="h-80 w-full bg-gray-50 dark:bg-gray-950 flex items-center justify-center overflow-hidden rounded-2xl relative select-none border border-darkbg-border">
+              {images.length > 0 ? (
+                <React.Fragment>
+                  <window.ImageWithSkeleton
+                    src={images[currentImgIndex]}
+                    alt={`${product.name} - ${currentImgIndex + 1}`}
+                    className="w-full h-full object-contain p-4"
+                  />
+                  {currentImgIndex > 0 && (
+                    <button
+                      onClick={() => setCurrentImgIndex(currentImgIndex - 1)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-800 dark:text-white flex items-center justify-center shadow-lg transition duration-200"
+                    >
+                      ❮
+                    </button>
+                  )}
+                  {currentImgIndex < images.length - 1 && (
+                    <button
+                      onClick={() => setCurrentImgIndex(currentImgIndex + 1)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-800 dark:text-white flex items-center justify-center shadow-lg transition duration-200"
+                    >
+                      ❯
+                    </button>
+                  )}
+                </React.Fragment>
+              ) : (
+                <div className="text-gray-400 font-bold uppercase text-[10px] tracking-widest select-none">No Preview Image</div>
+              )}
+            </div>
+
+            {/* Carousel dots indicators */}
+            {images.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                {images.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentImgIndex(idx)}
+                    className={`w-2.5 h-2.5 rounded-full transition ${idx === currentImgIndex ? 'bg-brand-600 scale-125' : 'bg-gray-300 dark:bg-gray-700 hover:bg-gray-400'}`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Product description */}
+            <div className="space-y-2.5">
+              <h3 className="font-extrabold text-sm text-slate-800 dark:text-white uppercase tracking-wider border-b border-darkbg-border pb-2">Deskripsi Produk</h3>
+              <p className="text-xs text-gray-600 dark:text-gray-450 leading-relaxed whitespace-pre-line">
+                {product.description || 'Tidak ada deskripsi produk.'}
+              </p>
+            </div>
+
+            {/* Spec grid */}
+            <div className="border-t border-darkbg-border pt-4 grid grid-cols-2 gap-4 text-xs font-semibold text-gray-500 dark:text-gray-400">
+              <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-darkbg-border">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Category</span>
+                <strong className="text-gray-800 dark:text-white font-extrabold text-sm">{product.category}</strong>
+              </div>
+              <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-darkbg-border">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Sub Category</span>
+                <strong className="text-gray-800 dark:text-white font-extrabold text-sm">{product.sub_category || 'Umum'}</strong>
+              </div>
+              <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-darkbg-border">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Retail Price</span>
+                <strong className="text-brand-600 dark:text-brand-400 font-extrabold text-sm">
+                  {variantsList.length > 0 ? 'Multi-varian' : `Rp ${product.price_retail.toLocaleString('id-ID')}`}
+                </strong>
+              </div>
+              <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-darkbg-border">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Reseller Price</span>
+                <strong className="text-brand-600 dark:text-brand-400 font-extrabold text-sm">
+                  {variantsList.length > 0 ? 'Multi-varian' : `Rp ${product.price_reseller.toLocaleString('id-ID')}`}
+                </strong>
+              </div>
+              <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-darkbg-border">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Total Stok</span>
+                <strong className="text-gray-850 dark:text-gray-200 font-extrabold text-sm">
+                  {variantsList.length > 0 ? (
+                    variantsList.reduce((acc, v) => acc + (v.sizes && v.sizes.length > 0 ? v.sizes.reduce((si, s) => si + (s.stock || 0), 0) : (v.stock || 0)), 0) + ' pcs'
+                  ) : (
+                    `${product.stock} pcs`
+                  )}
+                </strong>
+              </div>
+              <div className="p-3 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-darkbg-border">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block mb-0.5">Berat / Material</span>
+                <strong className="text-gray-850 dark:text-gray-200 font-extrabold text-sm">
+                  {product.weight}g / {product.material || '-'}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Colors Swatches Board (7 columns) */}
+        <div className="lg:col-span-7 space-y-6">
+          <div className="rounded-3xl bg-white dark:bg-darkbg-card border border-gray-150 dark:border-darkbg-border overflow-hidden shadow-sm p-6 space-y-5">
+            
+            {/* Swatch Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-darkbg-border pb-4">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center space-x-2">
+                  <Icons.Palette className="w-5 h-5 text-indigo-500" />
+                  <span>Color Swatches ({productColors.length})</span>
+                </h3>
+                <p className="text-[10px] text-gray-500 font-medium">Manage daily fabric stock colors specifically for this product.</p>
+              </div>
+
+              <div className="flex items-center space-x-2 self-end sm:self-auto">
+                <button
+                  onClick={handleSyncClick}
+                  disabled={isSyncing}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500 text-indigo-650 dark:text-indigo-400 hover:text-white border border-indigo-500/20 font-bold text-[10px] uppercase tracking-wider transition flex items-center space-x-1.5 disabled:opacity-50"
+                  title="Sync Swatches to AI Database"
+                >
+                  <Icons.Refresh className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>Sync AI</span>
+                </button>
+                <button
+                  onClick={() => setIsColorFormOpen(!isColorFormOpen)}
+                  className="px-3.5 py-2 rounded-xl bg-brand-650 hover:bg-brand-600 text-white font-bold text-[10px] uppercase tracking-wider transition flex items-center space-x-1 shadow shadow-brand-500/10"
+                >
+                  <span>Add Swatch</span>
+                  <Icons.Plus className={`w-3.5 h-3.5 transform transition duration-200 ${isColorFormOpen ? 'rotate-45' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Toggleable Swatch Upload Form */}
+            {isColorFormOpen && (
+              <form onSubmit={handleCreateSwatch} className="p-5 rounded-2xl border border-indigo-100 dark:border-darkbg-border bg-indigo-50/25 dark:bg-gray-900/20 space-y-4 max-w-xl animate-fadeIn">
+                <h4 className="font-extrabold text-xs text-brand-650 dark:text-brand-400 uppercase tracking-wider leading-none">Add Fabric Swatch Color</h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Color Name</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Milo, Sage Green, Black"
+                      value={newColorName}
+                      onChange={(e) => setNewColorName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border rounded-xl border-gray-300 dark:border-gray-700 bg-transparent text-gray-800 dark:text-white font-medium focus:outline-none focus:border-brand-500 transition text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Upload Swatch Photo</label>
+                    <input
+                      type="file"
+                      required
+                      ref={colorFileInputRef}
+                      accept="image/*"
+                      className="text-xs text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-gray-200 file:dark:bg-gray-800 file:text-gray-700 file:dark:text-white hover:file:bg-brand-500/10 cursor-pointer w-full"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-brand-650 hover:bg-brand-600 text-white font-bold text-xs tracking-wider uppercase transition shadow-md shadow-brand-500/15"
+                >
+                  Save Color Swatch
+                </button>
+              </form>
+            )}
+
+            {/* Swatches Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+              {productColors.map(color => (
+                <div
+                  key={color.id}
+                  className="group relative rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between transition duration-300 hover:shadow-md h-[270px]"
+                >
+                  {/* Fabric image box */}
+                  <div className="h-36 bg-slate-900 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative select-none">
+                    <window.ImageWithSkeleton
+                      src={color.image_path}
+                      alt={color.color_name}
+                      className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
+                    />
+
+                    {/* ❌ OUT OF STOCK CROSS OVERLAY */}
+                    {!color.is_ready && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-[0.5px] flex flex-col items-center justify-center text-rose-500 space-y-1 select-none z-10 animate-fadeIn">
+                        <div className="w-9 h-9 rounded-full border-[2.5px] border-rose-500 flex items-center justify-center text-xl font-black leading-none bg-rose-950/20">
+                          ✕
+                        </div>
+                        <span className="text-[8px] font-black tracking-wider uppercase bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded-full text-rose-400">
+                          STOCK KOSONG
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Metadata info */}
+                  <div className="p-3 space-y-1 flex-1 min-w-0 flex flex-col justify-center border-b border-darkbg-border">
+                    <h4 className="font-extrabold text-xs text-slate-800 dark:text-white truncate" title={color.color_name}>
+                      {color.color_name}
+                    </h4>
+                    <span className={`text-[8px] font-black uppercase tracking-wider block ${color.is_ready ? 'text-green-500' : 'text-rose-500'}`}>
+                      {color.is_ready ? '● READY STOCK' : '● STOK KOSONG'}
+                    </span>
+                  </div>
+
+                  {/* Action controls */}
+                  <div className="p-2 bg-gray-50 dark:bg-gray-800/20 flex items-center justify-between gap-2 shrink-0">
+                    <button
+                      onClick={() => handleToggleStockColorStatus(color.id, color.is_ready)}
+                      className={`px-2 py-1.5 rounded-lg text-[8px] font-extrabold uppercase transition duration-150 flex-1 text-center font-bold tracking-wide ${
+                        color.is_ready
+                          ? 'bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white'
+                          : 'bg-green-600/10 hover:bg-green-600 text-green-600 hover:text-white'
+                      }`}
+                    >
+                      {color.is_ready ? '❌ Coret' : '✓ Ready'}
+                    </button>
+                    
+                    <button
+                      onClick={() => handleDeleteStockColor(color.id)}
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition border border-transparent hover:border-rose-500/25 shrink-0"
+                      title="Hapus Warna"
+                    >
+                      <Icons.Trash className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {productColors.length === 0 && (
+                <div className="col-span-full py-12 px-4 text-center border border-dashed border-darkbg-border rounded-2xl flex flex-col items-center justify-center space-y-2 text-gray-500">
+                  <Icons.Palette className="w-8 h-8 text-gray-400 animate-pulse" />
+                  <p className="font-medium text-xs">Belum ada pilihan warna swatch untuk produk ini.</p>
+                  <p className="text-[10px] text-gray-400">Gunakan tombol 'Add Swatch' di atas untuk mengunggah.</p>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  );
+};
+
+// Main ProductsTab Component
 window.ProductsTab = ({
   activeTab,
   products,
@@ -246,16 +620,45 @@ window.ProductsTab = ({
   setProductForm,
   setProductModalOpen,
   handleEditProductClick,
-  handleDeleteProduct
+  handleDeleteProduct,
+  stockColors,
+  handleCreateStockColor,
+  handleToggleStockColorStatus,
+  handleDeleteStockColor,
+  handleSyncKnowledge,
+  fetchStockColors
 }) => {
+  const [selectedProductId, setSelectedProductId] = React.useState(null);
+
   if (activeTab !== 'products') return null;
 
-  // Safe pagination calculations to prevent crashes or infinite loops
+  // Safe pagination calculations
   const totalItems = (productPagination && typeof productPagination.total === 'number') ? productPagination.total : 0;
   const paginationLimit = (productPagination && typeof productPagination.limit === 'number' && productPagination.limit > 0) ? productPagination.limit : 9;
   const currentPage = (productPagination && typeof productPagination.page === 'number') ? productPagination.page : 1;
   const totalPages = Math.ceil(totalItems / paginationLimit);
   const safePages = isFinite(totalPages) && totalPages > 0 ? totalPages : 1;
+
+  // Derive the selected product from the products state
+  const selectedProduct = products.find(p => p.id === selectedProductId);
+
+  // If a product has been selected, display the Product Detail Page instead of the list grid
+  if (selectedProductId && selectedProduct) {
+    return (
+      <ProductDetailPage
+        product={selectedProduct}
+        onBack={() => setSelectedProductId(null)}
+        handleEditProductClick={handleEditProductClick}
+        handleDeleteProduct={handleDeleteProduct}
+        stockColors={stockColors}
+        handleCreateStockColor={handleCreateStockColor}
+        handleToggleStockColorStatus={handleToggleStockColorStatus}
+        handleDeleteStockColor={handleDeleteStockColor}
+        handleSyncKnowledge={handleSyncKnowledge}
+        fetchStockColors={fetchStockColors}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 text-xs text-slate-300">
@@ -335,6 +738,7 @@ window.ProductsTab = ({
                 p={p} 
                 handleEditProductClick={handleEditProductClick} 
                 handleDeleteProduct={handleDeleteProduct} 
+                onOpenDetail={setSelectedProductId}
               />
             ))}
             {products.length === 0 && (

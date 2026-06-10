@@ -180,6 +180,7 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
     const reseller = await db('reseller_program').orderBy('id', 'asc');
     const faq = await db('faq').orderBy('id', 'asc');
     const stockColors = await db('stock_colors').orderBy('id', 'asc');
+    const mediaGallery = await db('media_gallery').orderBy('created_at', 'desc');
 
     // Clean and structure the retrieved data
     const cleanCompanyInfo = companyInfo.reduce((acc, c) => {
@@ -228,7 +229,15 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
       color_name: c.color_name,
       category: c.category,
       image_path: c.image_path,
-      is_ready: c.is_ready
+      is_ready: c.is_ready,
+      product_id: c.product_id || null
+    }));
+
+    const cleanMedia = mediaGallery.map(m => ({
+      name: m.original_name,
+      filepath: m.filepath,
+      mime_type: m.mime_type,
+      tag: m.tag || 'general'
     }));
 
     // Dynamically scan the data/pdf directory for uploaded documents
@@ -287,6 +296,7 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
       documents: availableDocs,
       color_stock_files: colorStockFiles,
       stock_colors: cleanStockColors,
+      media_gallery: cleanMedia,
       product_aliases: productAliases
     };
   } catch (error) {
@@ -300,6 +310,7 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
       documents: [],
       color_stock_files: [],
       stock_colors: [],
+      media_gallery: [],
       product_aliases: {}
     };
   }

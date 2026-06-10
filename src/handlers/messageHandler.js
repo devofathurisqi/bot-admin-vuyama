@@ -158,10 +158,12 @@ INFORMASI KHUSUS PENGIRIMAN GAMBAR PRODUK (PENTING):
 Every product in the database has images. Proactively send them. Look at KNOWLEDGE BASE.
 If multiple paths exist in images array, send ALL of them using multiple tags: \`[SEND_IMAGE: path1] [SEND_IMAGE: path2]\`.
 
-INFORMASI KHUSUS PENGIRIMAN DOKUMEN PDF (PENTING):
-If catalog, reseller pricing or wide catalog lists are asked, attach a catalog PDF.
-Use paths from \`documents\` list in knowledge base.
-Example: [SEND_DOCUMENT: /pdf/PRICELIST (KHUSUS RESELLER) Update Mei 2026.pdf]
+INFORMASI KHUSUS PENGIRIMAN DOKUMEN PDF & PROMO GAMBAR/KONTEN (PENTING):
+If catalog, reseller pricing, promos, or other marketing files are asked, you can send them using:
+- [SEND_DOCUMENT: filepath] (if PDF)
+- [SEND_IMAGE: filepath] (if Image)
+Use paths from both \`documents\` and \`media_gallery\` lists in the KNOWLEDGE BASE.
+Example: [SEND_DOCUMENT: /pdf/PRICELIST (KHUSUS RESELLER) Update Mei 2026.pdf] or [SEND_DOCUMENT: /media/others/katalog_promo.pdf]
 
 INFORMASI KHUSUS MULTI-VARIAN & TIERED PRICING / GROSIR (PENTING):
 Explain variants and tiered pricing if available.
@@ -185,6 +187,7 @@ ${JSON.stringify({
       documents: context.documents,
       color_stock_files: context.color_stock_files,
       stock_colors: context.stock_colors,
+      media_gallery: context.media_gallery,
       product_aliases: context.product_aliases,
       pdf_pricelist_official: pdfPricelistOfficial
     }, null, 2)}

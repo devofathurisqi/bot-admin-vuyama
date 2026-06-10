@@ -346,7 +346,7 @@ window.App = () => {
   }, [activeTab, mediaPage, debouncedMediaSearch, mediaSubTab]);
 
   useEffect(() => {
-    if (activeTab === 'media') {
+    if (activeTab === 'media' || activeTab === 'products') {
       fetchStockColors();
     }
   }, [activeTab]);
@@ -1043,6 +1043,12 @@ window.App = () => {
             setProductModalOpen={setProductModalOpen}
             handleEditProductClick={handleEditProductClick}
             handleDeleteProduct={handleDeleteProduct}
+            stockColors={stockColors}
+            handleCreateStockColor={handleCreateStockColor}
+            handleToggleStockColorStatus={handleToggleStockColorStatus}
+            handleDeleteStockColor={handleDeleteStockColor}
+            handleSyncKnowledge={handleSyncKnowledge}
+            fetchStockColors={fetchStockColors}
           />
           <LiveChatTab
             activeTab={activeTab}
@@ -1102,16 +1108,6 @@ window.App = () => {
             galleryInputRef={galleryInputRef}
             handleMediaUpload={handleMediaUpload}
             handleDeleteMedia={handleDeleteMedia}
-            stockColors={stockColors}
-            handleCreateStockColor={handleCreateStockColor}
-            handleToggleStockColorStatus={handleToggleStockColorStatus}
-            handleDeleteStockColor={handleDeleteStockColor}
-            handleSyncKnowledge={handleSyncKnowledge}
-            mediaSubTab={mediaSubTab}
-            setMediaSubTab={(val) => {
-              setMediaSubTab(val);
-              setMediaPage(1);
-            }}
             mediaSearch={mediaSearch}
             setMediaSearch={(val) => {
               setMediaSearch(val);

@@ -558,9 +558,16 @@ client.on('message_create', async (msg) => {
         let absoluteDocPath = null;
         if (docPath.startsWith('/pdf/')) {
           absoluteDocPath = path.join(__dirname, '../data/pdf', path.basename(docPath));
+        } else if (docPath.startsWith('/media/')) {
+          const rel = docPath.replace(/^\/media\/?/, '');
+          absoluteDocPath = path.join(__dirname, '../data/media', rel);
         } else {
           const p1 = path.join(__dirname, '../data/pdf', path.basename(docPath));
+          const p2 = path.join(__dirname, '../data/media', path.basename(docPath));
+          const p3 = path.join(__dirname, '../data/media/others', path.basename(docPath));
           if (fs.existsSync(p1)) absoluteDocPath = p1;
+          else if (fs.existsSync(p2)) absoluteDocPath = p2;
+          else if (fs.existsSync(p3)) absoluteDocPath = p3;
         }
 
         if (absoluteDocPath && fs.existsSync(absoluteDocPath)) {

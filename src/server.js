@@ -1094,9 +1094,11 @@ app.delete('/api/media/:id', async (req, res) => {
 // 8b. Stock Colors Swatch Board API
 app.get('/api/stock-colors', async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, product_id } = req.query;
     let query = db('stock_colors');
-    if (category) {
+    if (product_id) {
+      query = query.where('product_id', product_id);
+    } else if (category) {
       query = query.whereILike('category', `%${category}%`);
     }
     const colors = await query.orderBy('created_at', 'desc');
@@ -1108,7 +1110,7 @@ app.get('/api/stock-colors', async (req, res) => {
 
 app.post('/api/stock-colors', uploadStockColorFile.single('file'), async (req, res) => {
   try {
-    const { color_name, category, is_ready } = req.body;
+    const { color_name, category, is_ready, product_id } = req.body;
     let image_path = '';
 
     if (req.file) {
@@ -1124,6 +1126,7 @@ app.post('/api/stock-colors', uploadStockColorFile.single('file'), async (req, r
       category: category || 'General',
       image_path,
       is_ready: is_ready === 'false' || is_ready === false ? false : true,
+      product_id: product_id || null,
       created_at: new Date(),
       updated_at: new Date()
     };
@@ -1132,7 +1135,7 @@ app.post('/api/stock-colors', uploadStockColorFile.single('file'), async (req, r
 
     await db('audit_logs').insert({
       action: 'ADD_STOCK_COLOR',
-      details: `Added stock color swatch: ${color_name} for category ${category}`
+      details: `Added stock color swatch: ${color_name} for category ${category}${product_id ? ` and product ${product_id}` : ''}`
     });
 
     res.json({ success: true, data: inserted });
@@ -1144,7 +1147,7 @@ app.post('/api/stock-colors', uploadStockColorFile.single('file'), async (req, r
 app.put('/api/stock-colors/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { color_name, category, is_ready } = req.body;
+    const { color_name, category, is_ready, product_id } = req.body;
     
     const original = await db('stock_colors').where('id', id).first();
     if (!original) {
@@ -1158,6 +1161,9 @@ app.put('/api/stock-colors/:id', async (req, res) => {
     if (category !== undefined) updatePayload.category = category;
     if (is_ready !== undefined) {
       updatePayload.is_ready = is_ready === 'false' || is_ready === false ? false : true;
+    }
+    if (product_id !== undefined) {
+      updatePayload.product_id = product_id || null;
     }
 
     const [updated] = await db('stock_colors')
@@ -1247,7 +1253,8 @@ app.post('/api/stock-colors/sync-knowledge', async (req, res) => {
       color_name: c.color_name,
       category: c.category,
       is_ready: c.is_ready,
-      image_path: c.image_path
+      image_path: c.image_path,
+      product_id: c.product_id || null
     }));
     backupData.color_stock_files = colorStockFiles;
     backupData.metadata.last_update = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -1452,6 +1459,20 @@ const PORT = process.env.PORT || 5000;
 const startServer = () => {
   server.listen(PORT, async () => {
     logger.info(`Backend API and WebSockets running on port ${PORT}`);
+
+    // Ensure product_id column exists on stock_colors table (automatic migration)
+    try {
+      const hasProductId = await db.schema.hasColumn('stock_colors', 'product_id');
+      if (!hasProductId) {
+        logger.info('Adding product_id column to stock_colors table...');
+        await db.schema.table('stock_colors', table => {
+          table.string('product_id', 50).nullable().references('id').inTable('products').onDelete('CASCADE');
+        });
+        logger.info('Successfully added product_id column to stock_colors.');
+      }
+    } catch (e) {
+      logger.error('Failed to run schema update for stock_colors product_id:', e);
+    }
     
     // Sync physical media folder files into database media_gallery table
     try {

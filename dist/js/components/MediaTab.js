@@ -1,8 +1,8 @@
-// Skeleton Loader for Media Cards (Defined outside parent component to prevent reference recreation/remount lag)
+// Skeleton Loader for Media Cards (Defined outside parent component to prevent remount lag)
 const SkeletonMediaGrid = () => {
   return (
     <React.Fragment>
-      {[1, 2, 3, 4, 5].map((i) => (
+      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
         <div key={i} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between h-[210px] animate-pulse">
           <div className="h-32 bg-gray-200 dark:bg-gray-800" />
           <div className="p-3.5 space-y-2 flex-1">
@@ -25,13 +25,6 @@ window.MediaTab = ({
   galleryInputRef,
   handleMediaUpload,
   handleDeleteMedia,
-  stockColors = [],
-  handleCreateStockColor,
-  handleToggleStockColorStatus,
-  handleDeleteStockColor,
-  handleSyncKnowledge,
-  mediaSubTab,
-  setMediaSubTab,
   mediaSearch,
   setMediaSearch,
   mediaPage,
@@ -39,293 +32,166 @@ window.MediaTab = ({
   mediaPagination,
   mediaLoading
 }) => {
-  const [newColorName, setNewColorName] = React.useState('');
-  const [newColorCategory, setNewColorCategory] = React.useState('Mukena');
-  const [isFormOpen, setIsFormOpen] = React.useState(false);
-  const colorFileInputRef = React.useRef(null);
-  
-  // Local filter & pagination for stock colors to prevent browser rendering lag
-  const [colorFilter, setColorFilter] = React.useState('Semua');
-  const [colorPage, setColorPage] = React.useState(1);
-  const colorLimit = 10;
+  // Local filter for PDF/Documents vs Images
+  const [fileTypeFilter, setFileTypeFilter] = React.useState('all'); // all, pdf, image
 
-  const handleSubmitColor = async (e) => {
-    e.preventDefault();
-    if (!newColorName.trim()) {
-      alert('Nama warna wajib diisi!');
-      return;
-    }
-    const file = colorFileInputRef.current?.files[0];
-    if (!file) {
-      alert('Gambar swatch warna wajib diunggah!');
-      return;
-    }
+  if (activeTab !== 'media') return null;
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('color_name', newColorName.trim());
-    formData.append('category', newColorCategory);
-    formData.append('is_ready', 'true');
-
-    await handleCreateStockColor(formData);
-
-    // Reset Form
-    setNewColorName('');
-    setIsFormOpen(false);
-    if (colorFileInputRef.current) colorFileInputRef.current.value = '';
-  };
-
-  const filteredColors = React.useMemo(() => {
-    return stockColors.filter(c => {
-      if (colorFilter === 'Semua') return true;
-      return c.category?.toLowerCase() === colorFilter.toLowerCase();
+  // Filter media locally to avoid lag and provide instant response
+  const filteredMedia = React.useMemo(() => {
+    return media.filter(item => {
+      const mime = item.mime_type || '';
+      if (fileTypeFilter === 'pdf') {
+        return mime.toLowerCase().includes('pdf') || mime.toLowerCase().includes('document');
+      }
+      if (fileTypeFilter === 'image') {
+        return mime.toLowerCase().startsWith('image/');
+      }
+      return true;
     });
-  }, [stockColors, colorFilter]);
+  }, [media, fileTypeFilter]);
 
-  const paginatedColors = React.useMemo(() => {
-    const start = (colorPage - 1) * colorLimit;
-    return filteredColors.slice(start, start + colorLimit);
-  }, [filteredColors, colorPage]);
-
-  const totalColorPages = Math.ceil(filteredColors.length / colorLimit);
-  const safeColorPages = isFinite(totalColorPages) && totalColorPages > 0 ? totalColorPages : 1;
-
-  // Safe pagination calculations to match ProductTab
+  // Safe pagination calculations
   const totalItems = (mediaPagination && typeof mediaPagination.total === 'number') ? mediaPagination.total : 0;
   const paginationLimit = (mediaPagination && typeof mediaPagination.limit === 'number' && mediaPagination.limit > 0) ? mediaPagination.limit : 12;
   const currentPage = (mediaPagination && typeof mediaPagination.page === 'number') ? mediaPagination.page : 1;
   const totalPages = Math.ceil(totalItems / paginationLimit);
   const safePages = isFinite(totalPages) && totalPages > 0 ? totalPages : 1;
 
-  // Unconditional hook declarations must precede any conditional/early returns
-  if (activeTab !== 'media') return null;
-
-  // (SkeletonMediaGrid moved outside the parent component for optimization)
-
   return (
     <div className="space-y-6 text-xs text-slate-300">
       
-      {/* Tab Header & Switcher */}
+      {/* Tab Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-darkbg-border pb-5 gap-4">
         <div className="space-y-1">
-          <h2 className="text-xl font-extrabold font-sans text-gray-800 dark:text-white">Media & Stock Board</h2>
+          <h2 className="text-xl font-extrabold font-sans text-gray-800 dark:text-white">Promo & Content Library</h2>
           <p className="text-xs text-gray-500 font-medium">
-            Kelola berkas katalog, gambar, dokumen, serta papan status stok warna kain harian Anda.
+            Upload brochures, catalogs, promo banners, or custom PDFs. The AI bot will dynamically search and attach these files when chatting with customers.
           </p>
         </div>
 
-        {/* Sub-tab Switcher Buttons */}
-        <div className="p-1 rounded-xl bg-gray-100 dark:bg-darkbg-card border border-darkbg-border flex items-center space-x-1 shrink-0 w-fit self-start md:self-auto">
-          <button
-            onClick={() => setMediaSubTab('color_stock')}
-            className={`px-4 py-2 rounded-lg font-bold text-xs transition duration-200 flex items-center space-x-2 ${
-              mediaSubTab === 'color_stock'
-                ? 'bg-white dark:bg-gray-800 text-brand-500 dark:text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-white'
-            }`}
-          >
-            <Icons.Palette />
-            <span>Color Stock</span>
-          </button>
-          <button
-            onClick={() => setMediaSubTab('gallery')}
-            className={`px-4 py-2 rounded-lg font-bold text-xs transition duration-200 flex items-center space-x-2 ${
-              mediaSubTab === 'gallery'
-                ? 'bg-white dark:bg-gray-800 text-brand-500 dark:text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-white'
-            }`}
-          >
-            <Icons.Folder />
-            <span>Others</span>
-          </button>
-          <button
-            onClick={() => setMediaSubTab('colors')}
-            className={`px-4 py-2 rounded-lg font-bold text-xs transition duration-200 flex items-center space-x-2 ${
-              mediaSubTab === 'colors'
-                ? 'bg-white dark:bg-gray-800 text-brand-500 dark:text-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-700 dark:hover:text-white'
-            }`}
-          >
-            <Icons.Check />
-            <span>Stock Color Board</span>
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            galleryInputRef.current.tagToUpload = 'general';
+            galleryInputRef.current.click();
+          }}
+          className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition shrink-0 self-start md:self-auto"
+        >
+          <Icons.Upload className="w-4 h-4" />
+          <span>Upload File</span>
+        </button>
       </div>
 
       {/* FILTER & SEARCH BAR */}
-      {mediaSubTab !== 'colors' && (
+      <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
-          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-500"><Icons.Search /></span>
+          <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-gray-500"><Icons.Search className="w-4 h-4" /></span>
           <input
             type="text"
             value={mediaSearch}
             onChange={(e) => setMediaSearch(e.target.value)}
-            placeholder="Search media files by name..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-medium text-sm focus:outline-none focus:border-brand-500 transition text-gray-800 dark:text-white text-xs"
+            placeholder="Search files by name..."
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-medium text-xs focus:outline-none focus:border-brand-500 transition text-gray-800 dark:text-white"
           />
         </div>
-      )}
 
-      {/* ============================================================== */}
-      {/* 1A. COLOR STOCK FILES SUB-TAB */}
-      {/* ============================================================== */}
-      {mediaSubTab === 'color_stock' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-extrabold text-gray-750 dark:text-gray-200 flex items-center space-x-2">
-              <span className="w-1.5 h-3 rounded bg-indigo-500"></span>
-              <span>Color Stock Compilation Folder (`data/media/color_stock`)</span>
-            </h3>
+        {/* File Type Filter Tabs */}
+        <div className="p-1 rounded-xl bg-gray-100 dark:bg-darkbg-card border border-darkbg-border flex items-center space-x-1 shrink-0 w-fit">
+          {[
+            { id: 'all', label: 'All Files', icon: Icons.Folder },
+            { id: 'pdf', label: 'PDFs & Docs', icon: Icons.Logs },
+            { id: 'image', label: 'Images & Promos', icon: Icons.Media }
+          ].map(tab => (
             <button
-              onClick={() => {
-                galleryInputRef.current.tagToUpload = 'color_stock';
-                galleryInputRef.current.click();
-              }}
-              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/15 flex items-center space-x-2 transition"
+              key={tab.id}
+              onClick={() => setFileTypeFilter(tab.id)}
+              className={`px-3.5 py-2 rounded-lg font-bold text-[10px] uppercase transition duration-200 flex items-center space-x-1.5 ${
+                fileTypeFilter === tab.id
+                  ? 'bg-white dark:bg-gray-800 text-brand-600 dark:text-white shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-white'
+              }`}
             >
-              <Icons.Upload />
-              <span>Upload Color Stock File</span>
+              <tab.icon className="w-3.5 h-3.5" />
+              <span>{tab.label}</span>
             </button>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          <div className={`grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6 text-gray-800 dark:text-gray-250 transition-opacity duration-200 ${mediaLoading ? 'opacity-50 pointer-events-none' : ''}`}>
-            {mediaLoading && media.length === 0 ? (
-              <SkeletonMediaGrid />
-            ) : (
-              <React.Fragment>
-                {media.map(item => (
-                  <div key={item.id} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between group h-[225px]">
-                    
-                    {/* File Preview */}
-                    <div className="h-32 bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative shrink-0">
+      {/* MEDIA GRID LIST */}
+      <div className={`grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6 text-gray-800 dark:text-gray-250 transition-opacity duration-200 ${mediaLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+        {mediaLoading && media.length === 0 ? (
+          <SkeletonMediaGrid />
+        ) : (
+          <React.Fragment>
+            {filteredMedia.map(item => {
+              const isPdf = item.mime_type?.toLowerCase().includes('pdf') || item.original_name?.toLowerCase().endsWith('.pdf');
+              return (
+                <div key={item.id} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between group h-[235px] hover:shadow-lg transition duration-200">
+                  
+                  {/* File Preview */}
+                  <div className="h-32 bg-gray-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative shrink-0">
+                    {!isPdf && item.filepath ? (
                       <window.ImageWithSkeleton src={item.filepath} alt={item.original_name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] font-extrabold bg-indigo-600/90 text-white uppercase tracking-wide">
-                        Color Stock
-                      </span>
-                    </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center space-y-2 text-rose-500 dark:text-rose-400">
+                        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                        <span className="font-extrabold text-[9px] uppercase tracking-widest leading-none bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded">PDF DOCUMENT</span>
+                      </div>
+                    )}
 
-                    {/* File Meta */}
-                    <div className="p-3.5 space-y-1 flex-1 min-w-0">
-                      <h4 className="font-bold text-xs truncate text-gray-850 dark:text-white" title={item.original_name}>{item.original_name}</h4>
-                      <span className="text-[9px] text-gray-500 font-semibold block">{(item.size / 1024).toFixed(1)} KB</span>
-                    </div>
-
-                    {/* Copy URL & Delete */}
-                    <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between shrink-0">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(window.location.origin + item.filepath);
-                          alert('Link media stock warna berhasil dicopy!');
-                        }}
-                        className="px-2.5 py-1 rounded text-[9px] font-extrabold bg-gray-850 dark:bg-gray-800 text-gray-400 hover:text-white transition"
-                      >
-                        Copy Link
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMedia(item.id)}
-                        className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 transition"
-                      >
-                        <Icons.Trash />
-                      </button>
-                    </div>
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] font-extrabold bg-brand-600/90 text-white uppercase tracking-wide">
+                      {item.tag || 'general'}
+                    </span>
                   </div>
-                ))}
-                {media.length === 0 && (
-                  <p className="col-span-full p-12 text-center text-gray-500">Belum ada file stock warna terunggah di folder `color_stock`.</p>
-                )}
-              </React.Fragment>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* ============================================================== */}
-      {/* 1B. OTHERS FILES GALLERY SUB-TAB */}
-      {/* ============================================================== */}
-      {mediaSubTab === 'gallery' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-extrabold text-gray-750 dark:text-gray-200 flex items-center space-x-2">
-              <span className="w-1.5 h-3 rounded bg-brand-500"></span>
-              <span>Others Files Gallery (`data/media/others`)</span>
-            </h3>
-            <button
-              onClick={() => {
-                galleryInputRef.current.tagToUpload = 'general';
-                galleryInputRef.current.click();
-              }}
-              className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition"
-            >
-              <Icons.Upload />
-              <span>Upload Media File</span>
-            </button>
-          </div>
-
-          <div className={`grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-6 text-gray-800 dark:text-gray-250 transition-opacity duration-200 ${mediaLoading ? 'opacity-50 pointer-events-none' : ''}`}>
-            {mediaLoading && media.length === 0 ? (
-              <SkeletonMediaGrid />
-            ) : (
-              <React.Fragment>
-                {media.map(item => (
-                  <div key={item.id} className="rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between group h-[225px]">
-                    
-                    {/* File Preview */}
-                    <div className="h-32 bg-gray-800 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative shrink-0">
-                      {item.mime_type.startsWith('image') ? (
-                        <window.ImageWithSkeleton src={item.filepath} alt={item.original_name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-brand-400 font-extrabold uppercase text-[10px] tracking-widest leading-none">PDF / DOC</div>
-                      )}
-
-                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[8px] font-extrabold bg-brand-600/90 text-white uppercase tracking-wide">
-                        {item.tag}
-                      </span>
-                    </div>
-
-                    {/* File Meta */}
-                    <div className="p-3.5 space-y-1 flex-1 min-w-0">
-                      <h4 className="font-bold text-xs truncate text-gray-850 dark:text-white" title={item.original_name}>{item.original_name}</h4>
-                      <span className="text-[9px] text-gray-500 font-semibold block">{(item.size / 1024).toFixed(1)} KB</span>
-                    </div>
-
-                    {/* Copy URL & Delete */}
-                    <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between shrink-0">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(window.location.origin + item.filepath);
-                          alert('Link media berhasil dicopy!');
-                        }}
-                        className="px-2.5 py-1 rounded text-[9px] font-extrabold bg-gray-850 dark:bg-gray-800 text-gray-400 hover:text-white transition"
-                      >
-                        Copy Link
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMedia(item.id)}
-                        className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 transition"
-                      >
-                        <Icons.Trash />
-                      </button>
-                    </div>
+                  {/* File Meta */}
+                  <div className="p-3.5 space-y-1 flex-1 min-w-0 flex flex-col justify-center">
+                    <h4 className="font-bold text-xs truncate text-slate-800 dark:text-white" title={item.original_name}>{item.original_name}</h4>
+                    <span className="text-[9px] text-gray-500 font-semibold block">{(item.size / 1024).toFixed(1)} KB</span>
                   </div>
-                ))}
-                {media.length === 0 && (
-                  <p className="col-span-full p-12 text-center text-gray-500">Belum ada file terunggah.</p>
-                )}
-              </React.Fragment>
+
+                  {/* Copy URL & Delete */}
+                  <div className="p-2 border-t border-darkbg-border bg-gray-50 dark:bg-gray-800/40 flex items-center justify-between shrink-0">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.origin + item.filepath);
+                        alert('Link media berhasil dicopy!');
+                      }}
+                      className="px-2.5 py-1 rounded text-[9px] font-extrabold bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-300 hover:bg-brand-600 hover:text-white dark:hover:text-white transition"
+                    >
+                      Copy Link
+                    </button>
+                    <button
+                      onClick={() => handleDeleteMedia(item.id)}
+                      className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 transition"
+                      title="Hapus Media"
+                    >
+                      <Icons.Trash className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {filteredMedia.length === 0 && (
+              <div className="col-span-full p-12 text-center border border-dashed border-darkbg-border rounded-2xl">
+                <p className="text-gray-500 font-medium">No files found matching this criteria.</p>
+              </div>
             )}
-          </div>
-        </div>
-      )}
+          </React.Fragment>
+        )}
+      </div>
 
       {/* PAGINATION CONTROLS */}
-      {mediaSubTab !== 'colors' && totalItems > paginationLimit && (
+      {totalItems > paginationLimit && (
         <div className="flex flex-col sm:flex-row items-center justify-between border-t border-darkbg-border pt-6 mt-8 gap-4 select-none">
           <span className="text-xs text-gray-500 font-medium">
             Showing <strong className="text-gray-800 dark:text-white font-extrabold">{((currentPage - 1) * paginationLimit) + 1}</strong> to <strong className="text-gray-800 dark:text-white font-extrabold">{Math.min(currentPage * paginationLimit, totalItems)}</strong> of <strong className="text-gray-800 dark:text-white font-extrabold">{totalItems}</strong> files
           </span>
 
           <div className="flex items-center space-x-2">
-            {/* Prev Button */}
             <button
               type="button"
               onClick={() => setMediaPage(prev => Math.max(prev - 1, 1))}
@@ -335,7 +201,6 @@ window.MediaTab = ({
               Previous
             </button>
 
-            {/* Page Numbers */}
             {Array.from({ length: safePages }).map((_, idx) => {
               const pNum = idx + 1;
               return (
@@ -354,7 +219,6 @@ window.MediaTab = ({
               );
             })}
 
-            {/* Next Button */}
             <button
               type="button"
               onClick={() => setMediaPage(prev => Math.min(prev + 1, safePages))}
@@ -367,249 +231,6 @@ window.MediaTab = ({
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* 2. STOCK COLOR BOARD SUB-TAB */}
-      {/* ============================================================== */}
-      {mediaSubTab === 'colors' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <h3 className="text-sm font-extrabold text-gray-750 dark:text-gray-200 flex items-center space-x-2">
-              <span className="w-1.5 h-3 rounded bg-brand-500"></span>
-              <span>Stock Color Swatch Board</span>
-            </h3>
-            
-            <div className="flex items-center space-x-2 self-end sm:self-auto">
-              <button
-                onClick={handleSyncKnowledge}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-500/15 flex items-center space-x-2 transition"
-                title="Sinkronisasi Informasi Stok Warna ke Backup Wawasan AI"
-              >
-                <Icons.Refresh className="w-4 h-4" />
-                <span>Sync Knowledge</span>
-              </button>
-              
-              <button
-                onClick={() => setIsFormOpen(!isFormOpen)}
-                className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-500/15 flex items-center space-x-2 transition"
-              >
-                <span>{isFormOpen ? 'Tutup Form' : 'Tambah Swatch Warna'}</span>
-                <Icons.Plus className={`transform transition duration-200 ${isFormOpen ? 'rotate-45' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          {/* Form to Add Swatch Color */}
-          {isFormOpen && (
-            <form onSubmit={handleSubmitColor} className="p-5 rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card shadow-sm space-y-4 max-w-xl animate-fadeIn text-gray-800 dark:text-gray-250">
-              <h4 className="font-extrabold text-xs text-brand-600 dark:text-brand-400 uppercase tracking-widest leading-none">Tambah Swatch Warna Baru</h4>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nama Warna</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Milo, Soft Pink, Navy"
-                    value={newColorName}
-                    onChange={(e) => setNewColorName(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl border-gray-300 dark:border-gray-700 bg-transparent dark:text-white font-medium focus:outline-none focus:border-brand-500 transition text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Kategori Produk</label>
-                  <select
-                    value={newColorCategory}
-                    onChange={(e) => setNewColorCategory(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-xl border-gray-300 dark:border-gray-700 bg-white dark:bg-darkbg-card dark:text-white font-medium focus:outline-none focus:border-brand-500 transition text-xs"
-                  >
-                    <option value="Mukena">Mukena</option>
-                    <option value="Hijab">Hijab</option>
-                    <option value="Label">Label</option>
-                    <option value="General">Lainnya / Umum</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Unggah Gambar Swatch Kain</label>
-                <div className="flex items-center space-x-3">
-                  <input
-                    type="file"
-                    required
-                    ref={colorFileInputRef}
-                    accept="image/*"
-                    className="text-xs text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-gray-150 file:dark:bg-gray-800 file:text-gray-700 file:dark:text-white hover:file:bg-brand-500/10 cursor-pointer w-full"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs tracking-wider uppercase transition shadow-md shadow-brand-500/10"
-              >
-                Simpan Swatch Warna
-              </button>
-            </form>
-          )}
-
-          {/* Category Filter Swapper */}
-          <div className="flex flex-wrap items-center gap-2">
-            {['Semua', 'Mukena', 'Hijab', 'Label', 'General'].map(cat => (
-              <button
-                key={cat}
-                onClick={() => {
-                  setColorFilter(cat);
-                  setColorPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-full font-bold text-[10px] tracking-wide uppercase transition duration-200 ${
-                  colorFilter === cat
-                    ? 'bg-brand-600 text-white shadow-sm'
-                    : 'bg-white dark:bg-darkbg-card border border-darkbg-border text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                {cat === 'General' ? 'Lainnya' : cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Swatches Color Board Grid Card Layout */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-6 text-gray-850 dark:text-gray-250">
-            {paginatedColors.map(color => (
-              <div
-                key={color.id}
-                className="group relative rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between transition duration-300 hover:shadow-lg h-[310px]"
-              >
-                
-                {/* Swatch fabric photo box container */}
-                <div className="h-44 bg-slate-900 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative select-none">
-                  <window.ImageWithSkeleton
-                    src={color.image_path}
-                    alt={color.color_name}
-                    className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
-                  />
-
-                  {/* Category Pill Tag */}
-                  <span className="absolute top-3 left-3 px-2 py-0.5 rounded text-[8px] font-extrabold bg-brand-600/90 text-white uppercase tracking-wide z-20">
-                    {color.category}
-                  </span>
-
-                  {/* ❌ OUT OF STOCK STRIKE/CROSS OVERLAY */}
-                  {!color.is_ready && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-[0.5px] flex flex-col items-center justify-center text-rose-500 space-y-2 select-none z-10 animate-fadeIn">
-                      {/* Big Cross Icon */}
-                      <div className="w-12 h-12 rounded-full border-[3px] border-rose-500 flex items-center justify-center text-3xl font-black leading-none drop-shadow-md select-none bg-rose-950/20">
-                        ✕
-                      </div>
-                      <span className="text-[9px] font-black tracking-widest uppercase bg-rose-500/10 border border-rose-500/30 px-3 py-1 rounded-full text-rose-400 drop-shadow">
-                        STOCK KOSONG
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Color swatch metadata details */}
-                <div className="p-3.5 flex items-center justify-between border-b border-darkbg-border bg-gray-50 dark:bg-transparent flex-1">
-                  <div className="space-y-1 truncate">
-                    <h4 className="font-extrabold text-xs text-gray-900 dark:text-white truncate" title={color.color_name}>
-                      {color.color_name}
-                    </h4>
-                    <span className={`text-[8px] font-black uppercase tracking-wider ${color.is_ready ? 'text-green-500' : 'text-rose-500'}`}>
-                      {color.is_ready ? '● READY STOCK' : '● STOK KOSONG'}
-                    </span>
-                  </div>
-                  
-                  {/* Quick Copy Link Button */}
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.origin + color.image_path);
-                      alert(`Link gambar warna ${color.color_name} berhasil dicopy!`);
-                    }}
-                    className="p-1.5 rounded-lg bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-300 hover:bg-brand-500 hover:text-white dark:hover:bg-brand-600 transition"
-                    title="Copy Link Swatch Gambar"
-                  >
-                    <Icons.Copy className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Swatch Controls: Toggle Ready or Delete Color Swatch Card */}
-                <div className="p-2 bg-gray-100/40 dark:bg-gray-800/20 flex items-center justify-between shrink-0">
-                  <button
-                    onClick={() => handleToggleStockColorStatus(color.id, color.is_ready)}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-extrabold uppercase transition duration-200 flex-1 mr-2 text-center ${
-                      color.is_ready
-                        ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                        : 'bg-green-600 hover:bg-green-500 text-white'
-                    }`}
-                  >
-                    {color.is_ready ? '❌ Coret (Kosong)' : '✓ Aktifkan (Ready)'}
-                  </button>
-                  
-                  <button
-                    onClick={() => handleDeleteStockColor(color.id)}
-                    className="p-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition border border-transparent hover:border-rose-500/20"
-                    title="Hapus Warna"
-                  >
-                    <Icons.Trash className="w-4 h-4" />
-                  </button>
-                </div>
-
-              </div>
-            ))}
-            {filteredColors.length === 0 && (
-              <div className="col-span-full p-12 text-center border border-dashed border-darkbg-border rounded-2xl">
-                <p className="text-gray-500 font-medium">Belum ada swatch warna kain terdaftar untuk kategori ini.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Color Board Pagination Controls */}
-          {filteredColors.length > colorLimit && (
-            <div className="flex flex-col sm:flex-row items-center justify-between border-t border-darkbg-border pt-6 mt-8 gap-4 select-none">
-              <span className="text-xs text-gray-500 font-medium">
-                Showing <strong className="text-gray-800 dark:text-white font-extrabold">{((colorPage - 1) * colorLimit) + 1}</strong> to <strong className="text-gray-800 dark:text-white font-extrabold">{Math.min(colorPage * colorLimit, filteredColors.length)}</strong> of <strong className="text-gray-800 dark:text-white font-extrabold">{filteredColors.length}</strong> colors
-              </span>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setColorPage(prev => Math.max(prev - 1, 1))}
-                  disabled={colorPage <= 1}
-                  className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-850 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
-                >
-                  Previous
-                </button>
-
-                {Array.from({ length: safeColorPages }).map((_, idx) => {
-                  const pNum = idx + 1;
-                  return (
-                    <button
-                      key={pNum}
-                      type="button"
-                      onClick={() => setColorPage(pNum)}
-                      className={`w-9 h-9 rounded-xl font-bold text-xs transition flex items-center justify-center ${
-                        colorPage === pNum
-                          ? 'bg-brand-600 text-white shadow-md shadow-brand-500/15'
-                          : 'bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }`}
-                    >
-                      {pNum}
-                    </button>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => setColorPage(prev => Math.min(prev + 1, safeColorPages))}
-                  disabled={colorPage >= safeColorPages}
-                  className="px-3.5 py-2 rounded-xl bg-white dark:bg-darkbg-card border border-gray-200 dark:border-darkbg-border font-bold text-xs hover:bg-gray-50 dark:hover:bg-gray-850 disabled:opacity-40 disabled:cursor-not-allowed transition text-gray-700 dark:text-gray-300"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
       <input
         type="file"
         ref={galleryInputRef}

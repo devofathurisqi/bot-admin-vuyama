@@ -203,6 +203,7 @@ async function recreateDatabase() {
       table.string('category', 100).notNullable();
       table.string('image_path', 255).notNullable();
       table.boolean('is_ready').notNullable().defaultTo(true);
+      table.string('product_id', 50).nullable().references('id').inTable('products').onDelete('CASCADE');
       table.timestamp('created_at').defaultTo(db.fn.now());
       table.timestamp('updated_at').defaultTo(db.fn.now());
     });
