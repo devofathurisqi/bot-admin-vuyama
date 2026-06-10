@@ -77,7 +77,7 @@ const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct, onOpenDet
 
   return (
     <div 
-      onClick={() => onOpenDetail(p.id)}
+      onDoubleClick={() => onOpenDetail(p.id)}
       className="rounded-3xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 relative group text-gray-800 dark:text-gray-200 h-[520px] cursor-pointer"
     >
       
