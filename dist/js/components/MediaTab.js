@@ -28,8 +28,6 @@ window.MediaTab = ({
   const [colorPage, setColorPage] = React.useState(1);
   const colorLimit = 10;
 
-  if (activeTab !== 'media') return null;
-
   const handleSubmitColor = async (e) => {
     e.preventDefault();
     if (!newColorName.trim()) {
@@ -77,6 +75,9 @@ window.MediaTab = ({
   const currentPage = (mediaPagination && typeof mediaPagination.page === 'number') ? mediaPagination.page : 1;
   const totalPages = Math.ceil(totalItems / paginationLimit);
   const safePages = isFinite(totalPages) && totalPages > 0 ? totalPages : 1;
+
+  // Unconditional hook declarations must precede any conditional/early returns
+  if (activeTab !== 'media') return null;
 
   // Skeleton Loader for Media Cards
   const SkeletonMediaGrid = () => {
