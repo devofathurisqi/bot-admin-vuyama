@@ -293,7 +293,7 @@ const processSingleRequest = async (request) => {
 
   // Handle outgoing lock prevention
   const { pendingOutgoingMessages, asyncGenerateAndSendPdf } = require('../bot');
-  const key = `${phoneNumber}:${response.response}`;
+  const key = `${phoneNumber}:${replyText}`;
   if (pendingOutgoingMessages) {
     pendingOutgoingMessages.add(key);
   }
@@ -345,6 +345,14 @@ const processSingleRequest = async (request) => {
                 const productName = path.basename(imagePath).replace(/\s+Color\s+Stock\.[a-zA-Z0-9]+$/i, '').trim();
                 caption = `Pilihan stok warna harian untuk ${productName} kak... 😊`;
               }
+              
+              // Track this outgoing media message to prevent double-logging
+              const mediaKey = `${phoneNumber}:${caption}`;
+              if (pendingOutgoingMessages) {
+                pendingOutgoingMessages.add(mediaKey);
+                setTimeout(() => pendingOutgoingMessages.delete(mediaKey), 8000);
+              }
+
               await whatsappClient.sendMessage(phoneNumber, media, caption ? { caption } : undefined);
               logger.info(`[QueueWorker][Response-Sent] Sent image swatch "${imagePath}" to ${phoneNumber}`);
             } catch (mediaErr) {
@@ -389,6 +397,14 @@ const processSingleRequest = async (request) => {
       if (absoluteDocPath && fs.existsSync(absoluteDocPath)) {
         try {
           const media = MessageMedia.fromFilePath(absoluteDocPath);
+          
+          // Track this outgoing document message to prevent double-logging
+          const docKey = `${phoneNumber}:`;
+          if (pendingOutgoingMessages) {
+            pendingOutgoingMessages.add(docKey);
+            setTimeout(() => pendingOutgoingMessages.delete(docKey), 8000);
+          }
+
           await whatsappClient.sendMessage(phoneNumber, media);
           logger.info(`[QueueWorker] Sent document "${docPath}" to ${phoneNumber}`);
         } catch (docErr) {
@@ -404,8 +420,38 @@ const processSingleRequest = async (request) => {
   }
 
   // 5. Save bot response to CRM database conversations
+  let dbMessage = replyText || '';
+  const attachments = [];
+
+  if (imgMatches.length > 0) {
+    attachments.push(`[BOT MENGIRIM GAMBAR: ${imgMatches.length} pcs]`);
+  }
+  if (docMatches.length > 0) {
+    attachments.push(`[BOT MENGIRIM DOKUMEN: ${docMatches.length} pcs]`);
+  }
+  if (isComp) {
+    attachments.push('[BOT MENGIRIM PDF PERBANDINGAN]');
+  }
+  if (isInvoice) {
+    attachments.push('[BOT MENGIRIM PDF INVOICE]');
+  }
+  if (resellerLevel) {
+    attachments.push(`[BOT MENGIRIM PDF WELCOME GUIDE: ${resellerLevel}]`);
+  }
+
+  if (attachments.length > 0) {
+    if (dbMessage) {
+      dbMessage += '\n\n' + attachments.join('\n');
+    } else {
+      dbMessage = attachments.join('\n');
+    }
+  }
+
+  if (!dbMessage) {
+    dbMessage = '[Dokumen/Gambar Terkirim]';
+  }
+
   const dbMessageType = isImage ? 'image' : 'text';
-  const dbMessage = replyText || '[Dokumen/Gambar Terkirim]';
 
   await db('conversations').insert({
     phone_number: phoneNumber,

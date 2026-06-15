@@ -11,8 +11,71 @@ const { emitEvent } = require('./utils/socket');
 const fs = require('fs');
 const path = require('path');
 
-// Set to track programmatically sent messages to prevent duplicates in CRM live chat
-const pendingOutgoingMessages = new Set();
+// Smart Tracker to prevent duplicate logging in CRM
+class PendingMessagesTracker {
+  constructor() {
+    this.list = [];
+  }
+
+  add(key) {
+    this.list.push({ key, timestamp: Date.now() });
+    
+    // Automatically prune after 15 seconds to avoid memory leaks
+    setTimeout(() => {
+      this.delete(key);
+    }, 15000);
+  }
+
+  has(key) {
+    this._pruneExpired();
+    return this._findIndex(key) !== -1;
+  }
+
+  delete(key) {
+    this._pruneExpired();
+    const idx = this._findIndex(key);
+    if (idx !== -1) {
+      this.list.splice(idx, 1);
+      return true;
+    }
+    return false;
+  }
+
+  _findIndex(key) {
+    const parts = key.split(':');
+    const phoneNumber = parts[0];
+    const messageText = parts.slice(1).join(':');
+
+    const normPhone = this._normalizePhone(phoneNumber);
+    const normText = this._normalizeText(messageText);
+
+    return this.list.findIndex(item => {
+      const itemParts = item.key.split(':');
+      const itemPhone = itemParts[0];
+      const itemText = itemParts.slice(1).join(':');
+
+      return this._normalizePhone(itemPhone) === normPhone && this._normalizeText(itemText) === normText;
+    });
+  }
+
+  _pruneExpired() {
+    const now = Date.now();
+    this.list = this.list.filter(item => now - item.timestamp < 15000);
+  }
+
+  _normalizePhone(phone) {
+    if (!phone) return '';
+    return phone.replace(/[^0-9]/g, '');
+  }
+
+  _normalizeText(text) {
+    if (!text) return '';
+    return text.toLowerCase().replace(/[^a-z0-9]/gi, '');
+  }
+}
+
+const pendingOutgoingMessages = new PendingMessagesTracker();
+
 
 // Initialize WhatsApp client
 const client = new Client({
@@ -111,7 +174,44 @@ const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) 
 
     if (pdfPath && fs.existsSync(pdfPath)) {
       const media = MessageMedia.fromFilePath(pdfPath);
+      
+      // Prevent double logging of dynamic PDFs
+      const pdfKey = `${phoneNumber}:`;
+      pendingOutgoingMessages.add(pdfKey);
+      setTimeout(() => pendingOutgoingMessages.delete(pdfKey), 8000);
+
       await client.sendMessage(phoneNumber, media);
+
+      // Log manually sent PDFs to database conversations history
+      if (options.logToConversations) {
+        let dbMessage = '';
+        if (type === 'invoice') {
+          dbMessage = '[BOT MENGIRIM PDF INVOICE]';
+        } else if (type === 'welcome_guide') {
+          dbMessage = `[BOT MENGIRIM PDF WELCOME GUIDE: ${options.resellerLevel || 'Silver'}]`;
+        } else {
+          dbMessage = '[BOT MENGIRIM PDF PERBANDINGAN]';
+        }
+
+        const timestamp = new Date();
+        await db('conversations').insert({
+          phone_number: phoneNumber,
+          message: dbMessage,
+          sender: 'agent',
+          message_type: 'document',
+          status: 'sent',
+          timestamp
+        });
+
+        emitEvent('incoming_message', {
+          phone_number: phoneNumber,
+          message: dbMessage,
+          sender: 'agent',
+          message_type: 'document',
+          status: 'sent',
+          timestamp
+        });
+      }
       
       const successMsg = `[PDF CS Vuyama] Dokumen PDF ${type} berhasil dikirim ke ${phoneNumber}!`;
       logger.info(successMsg);
@@ -206,12 +306,40 @@ client.on('message_create', async (msg) => {
         });
       }
 
+      // Detect manual outgoing media sent from physical phone
+      let finalOutText = messageText;
+      let outMessageType = 'text';
+
+      if (msg.hasMedia) {
+        const isImg = msg.type === 'image';
+        const isDoc = msg.type === 'document';
+        const isVid = msg.type === 'video';
+        const isAud = msg.type === 'audio';
+
+        if (isImg) {
+          outMessageType = 'image';
+          finalOutText = '[Gambar]' + (messageText ? ` ${messageText}` : '');
+        } else if (isDoc) {
+          outMessageType = 'document';
+          finalOutText = '[Dokumen]' + (messageText ? ` ${messageText}` : '');
+        } else if (isVid) {
+          outMessageType = 'document';
+          finalOutText = '[Video]' + (messageText ? ` ${messageText}` : '');
+        } else if (isAud) {
+          outMessageType = 'document';
+          finalOutText = '[Audio]';
+        } else {
+          outMessageType = 'document';
+          finalOutText = '[Media]' + (messageText ? ` ${messageText}` : '');
+        }
+      }
+
       // Add to conversation history as 'agent'
       await db('conversations').insert({
         phone_number: phoneNumber,
-        message: messageText,
+        message: finalOutText || '',
         sender: 'agent',
-        message_type: 'text',
+        message_type: outMessageType,
         status: 'sent',
         timestamp: new Date()
       });
@@ -219,9 +347,9 @@ client.on('message_create', async (msg) => {
       // Stream to dashboard client so Live Chat is 100% in sync
       emitEvent('incoming_message', {
         phone_number: phoneNumber,
-        message: messageText,
+        message: finalOutText || '',
         sender: 'agent',
-        message_type: 'text',
+        message_type: outMessageType,
         status: 'sent',
         timestamp: new Date()
       });
@@ -242,27 +370,50 @@ client.on('message_create', async (msg) => {
     // ==========================================
     logger.info(`Pesan masuk dari ${phoneNumber}: "${messageText}"`);
 
-    // 1. Download media if image
-    let imageBuffer = null;
-    let imageMime = null;
+    // 1. Download media if image or document
+    let mediaBuffer = null;
+    let mediaMime = null;
     let finalMessageText = messageText;
     let isImage = false;
+    let isDocument = false;
     let relativeUrl = null;
 
-    if (msg.hasMedia && msg.type === 'image') {
+    if (msg.hasMedia) {
       try {
         const media = await msg.downloadMedia();
         if (media) {
-          isImage = true;
-          imageMime = media.mimetype;
-          imageBuffer = Buffer.from(media.data, 'base64');
-          const ext = imageMime.split('/')[1] || 'png';
-          const filename = `incoming-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
-          const diskPath = path.join(__dirname, '../learn/images', filename);
-          fs.writeFileSync(diskPath, imageBuffer);
-          relativeUrl = `/uploads/${filename}`;
-          finalMessageText = `[Gambar: ${relativeUrl}]` + (messageText ? ` ${messageText}` : '');
-          logger.info(`Downloaded and saved incoming media to ${diskPath}`);
+          mediaMime = media.mimetype;
+          const isImg = msg.type === 'image' || mediaMime.startsWith('image/');
+          const isDoc = msg.type === 'document' || mediaMime.includes('pdf') || mediaMime.includes('document') || mediaMime.includes('sheet') || mediaMime.includes('excel');
+
+          if (isImg) {
+            isImage = true;
+            mediaBuffer = Buffer.from(media.data, 'base64');
+            const ext = mediaMime.split('/')[1] || 'png';
+            const filename = `incoming-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+            const diskPath = path.join(__dirname, '../learn/images', filename);
+            fs.writeFileSync(diskPath, mediaBuffer);
+            relativeUrl = `/uploads/${filename}`;
+            finalMessageText = `[Gambar: ${relativeUrl}]` + (messageText ? ` ${messageText}` : '');
+            logger.info(`Downloaded and saved incoming image to ${diskPath}`);
+          } else if (isDoc) {
+            isDocument = true;
+            let ext = 'pdf';
+            if (media.filename && media.filename.includes('.')) {
+              ext = media.filename.split('.').pop();
+            } else {
+              ext = mediaMime.split('/')[1] || 'pdf';
+            }
+            ext = ext.split(';')[0].trim();
+            const filename = `incoming-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+            const diskPath = path.join(__dirname, '../learn/images', filename);
+            fs.writeFileSync(diskPath, Buffer.from(media.data, 'base64'));
+            relativeUrl = `/uploads/${filename}`;
+            finalMessageText = `[Dokumen: ${relativeUrl}]` + (messageText ? ` ${messageText}` : '');
+            logger.info(`Downloaded and saved incoming document to ${diskPath}`);
+          } else {
+            finalMessageText = `[Media: ${msg.type}]` + (messageText ? ` ${messageText}` : '');
+          }
         }
       } catch (err) {
         logger.error('Failed to download incoming media:', err);
@@ -297,11 +448,12 @@ client.on('message_create', async (msg) => {
     }
 
     // Save incoming message to database
+    const dbMsgType = isImage ? 'image' : (isDocument ? 'document' : 'text');
     await db('conversations').insert({
       phone_number: phoneNumber,
       message: finalMessageText || '',
       sender: 'customer',
-      message_type: isImage ? 'image' : 'text',
+      message_type: dbMsgType,
       status: 'received',
       timestamp: new Date()
     });
@@ -311,7 +463,7 @@ client.on('message_create', async (msg) => {
       phone_number: phoneNumber,
       message: finalMessageText || '',
       sender: 'customer',
-      message_type: isImage ? 'image' : 'text',
+      message_type: dbMsgType,
       status: 'received',
       timestamp: new Date()
     });
@@ -325,9 +477,9 @@ client.on('message_create', async (msg) => {
       phone_number: phoneNumber,
       message_id: msg.id.id || `msg-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
       message_body: messageText || '',
-      message_type: isImage ? 'image' : 'text',
+      message_type: dbMsgType,
       media_path: relativeUrl,
-      media_mime: imageMime,
+      media_mime: mediaMime,
       status: 'PENDING',
       retry_count: 0
     }).onConflict('message_id').ignore();

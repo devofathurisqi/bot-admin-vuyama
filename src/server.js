@@ -418,7 +418,7 @@ app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (re
       return res.status(400).json({ success: false, error: 'phoneNumber is required.' });
     }
     
-    const { client } = require('./bot');
+    const { client, pendingOutgoingMessages } = require('./bot');
     const { MessageMedia } = require('whatsapp-web.js');
 
     const isImage = req.file.mimetype.startsWith('image/');
@@ -435,7 +435,19 @@ app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (re
 
     // Send via WhatsApp client
     const media = MessageMedia.fromFilePath(absolutePath);
-    await client.sendMessage(phoneNumber, media);
+    
+    const mediaKey = `${phoneNumber}:`;
+    if (pendingOutgoingMessages) {
+      pendingOutgoingMessages.add(mediaKey);
+    }
+
+    try {
+      await client.sendMessage(phoneNumber, media);
+    } finally {
+      if (pendingOutgoingMessages) {
+        setTimeout(() => pendingOutgoingMessages.delete(mediaKey), 8000);
+      }
+    }
 
     // Save to CRM Database Conversations
     const tag = isImage ? 'Gambar' : 'Dokumen';
@@ -791,7 +803,7 @@ app.post('/api/whatsapp/send-pdf/invoice', async (req, res) => {
     }
 
     // Trigger PDF invoice sending
-    await asyncGenerateAndSendPdf(client, order.phone_number, 'invoice', { orderId });
+    await asyncGenerateAndSendPdf(client, order.phone_number, 'invoice', { orderId, logToConversations: true });
     res.json({ success: true, message: 'PDF invoice generation triggered successfully.' });
   } catch (error) {
     logger.error('Error in send-pdf/invoice endpoint:', error);
@@ -812,7 +824,7 @@ app.post('/api/whatsapp/send-pdf/welcome', async (req, res) => {
       return res.status(400).json({ success: false, error: 'WhatsApp client or Puppeteer browser not active.' });
     }
 
-    await asyncGenerateAndSendPdf(client, phoneNumber, 'welcome_guide', { resellerLevel });
+    await asyncGenerateAndSendPdf(client, phoneNumber, 'welcome_guide', { resellerLevel, logToConversations: true });
     res.json({ success: true, message: 'PDF Welcome Guide generation triggered successfully.' });
   } catch (error) {
     logger.error('Error in send-pdf/welcome endpoint:', error);
