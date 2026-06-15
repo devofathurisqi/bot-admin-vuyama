@@ -11,6 +11,12 @@ const logger = require('./utils/logger');
 const { exec } = require('child_process');
 
 const triggerBackupSync = () => {
+  try {
+    const { invalidateKnowledgeCache } = require('./services/knowledge');
+    invalidateKnowledgeCache();
+  } catch (e) {
+    logger.error('Failed to invalidate knowledge cache:', e);
+  }
   exec('node scratch/sync_backup.js', (err, stdout, stderr) => {
     if (err) {
       logger.error('Error running sync_backup.js:', err);
@@ -1472,6 +1478,32 @@ const startServer = () => {
       }
     } catch (e) {
       logger.error('Failed to run schema update for stock_colors product_id:', e);
+    }
+
+    // Ensure chat_request_queue table exists (automatic migration)
+    try {
+      const hasQueueTable = await db.schema.hasTable('chat_request_queue');
+      if (!hasQueueTable) {
+        logger.info('Creating chat_request_queue table...');
+        await db.schema.createTable('chat_request_queue', table => {
+          table.increments('id').primary();
+          table.string('phone_number', 50).notNullable();
+          table.string('message_id', 150).nullable().unique();
+          table.text('message_body').nullable();
+          table.string('message_type', 50).defaultTo('text');
+          table.string('media_path', 255).nullable();
+          table.string('media_mime', 100).nullable();
+          table.string('status', 50).defaultTo('PENDING').index();
+          table.integer('retry_count').defaultTo(0);
+          table.text('error_message').nullable();
+          table.timestamp('processed_at').nullable();
+          table.timestamp('completed_at').nullable();
+          table.timestamps(true, true);
+        });
+        logger.info('Successfully created chat_request_queue table.');
+      }
+    } catch (e) {
+      logger.error('Failed to run schema update for chat_request_queue:', e);
     }
     
     // Sync physical media folder files into database media_gallery table

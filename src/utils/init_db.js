@@ -24,7 +24,8 @@ async function recreateDatabase() {
       'stock_colors',
       'media_gallery',
       'customers',
-      'faq'
+      'faq',
+      'chat_request_queue'
     ];
 
     for (const table of tablesToDrop) {
@@ -118,6 +119,24 @@ async function recreateDatabase() {
       table.string('message_type', 50).notNullable().defaultTo('text'); // text, image, document
       table.string('status', 50).notNullable().defaultTo('sent'); // received, sent
       table.timestamp('timestamp').defaultTo(db.fn.now());
+    });
+
+    // 7b. Create chat_request_queue table
+    logger.info('Creating chat_request_queue table...');
+    await db.schema.createTable('chat_request_queue', (table) => {
+      table.increments('id').primary();
+      table.string('phone_number', 50).notNullable();
+      table.string('message_id', 150).nullable().unique();
+      table.text('message_body').nullable();
+      table.string('message_type', 50).defaultTo('text');
+      table.string('media_path', 255).nullable();
+      table.string('media_mime', 100).nullable();
+      table.string('status', 50).defaultTo('PENDING').index();
+      table.integer('retry_count').defaultTo(0);
+      table.text('error_message').nullable();
+      table.timestamp('processed_at').nullable();
+      table.timestamp('completed_at').nullable();
+      table.timestamps(true, true);
     });
 
     // 8. Create orders table (Relational Metadata Header)

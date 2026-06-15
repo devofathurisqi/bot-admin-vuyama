@@ -3,6 +3,8 @@ const path = require('path');
 const db = require('../utils/db');
 const logger = require('../utils/logger');
 
+let cachedContext = null;
+
 /**
  * DB Retrieval: Get all company profile info as an object mapping keys to values
  */
@@ -172,7 +174,11 @@ const getFAQCategories = async () => {
  * Dynamically analyzes the user message and history to select the precise tables and records to retrieve.
  */
 const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
+  if (cachedContext) {
+    return cachedContext;
+  }
   try {
+    logger.info('Compiling knowledge context (Cache Miss)...');
     // Query all database catalog tables
     const companyInfo = await db('company_info').orderBy('id', 'asc');
     const products = await db('products').orderBy('id', 'asc');
@@ -287,7 +293,7 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
       'pashmina-modal': '/media/color_stock/Pashmina Modal Viscoe Color Stock.png'
     };
 
-    return {
+    cachedContext = {
       company: cleanCompanyInfo,
       products: cleanProducts,
       services: cleanServices,
@@ -299,6 +305,8 @@ const retrieveKnowledgeContext = async (userMessage, phoneNumber) => {
       media_gallery: cleanMedia,
       product_aliases: productAliases
     };
+
+    return cachedContext;
   } catch (error) {
     logger.error('Error compiling consolidated knowledge context:', error);
     return {
@@ -477,6 +485,11 @@ const findMatchingFaq = async (userMessage) => {
   return null;
 };
 
+const invalidateKnowledgeCache = () => {
+  cachedContext = null;
+  logger.info('Knowledge cache invalidated.');
+};
+
 module.exports = {
   getCompanyInfo,
   getAllProducts,
@@ -489,5 +502,6 @@ module.exports = {
   searchFAQ,
   getFAQCategories,
   retrieveKnowledgeContext,
-  findMatchingFaq
+  findMatchingFaq,
+  invalidateKnowledgeCache
 };

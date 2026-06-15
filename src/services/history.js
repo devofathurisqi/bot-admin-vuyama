@@ -81,27 +81,6 @@ const updateOrder = async (orderId, updates) => {
   return db('orders').where('id', orderId).update(updates);
 };
 
-// Create escalation
-const createEscalation = async (phoneNumber, reason, conversationId) => {
-  return db('escalations').insert({
-    phone_number: phoneNumber,
-    reason,
-    conversation_id: conversationId,
-    status: 'open', // open, assigned, resolved
-    created_at: new Date().toISOString()
-  });
-};
-
-// Get escalations
-const getEscalations = async () => {
-  return db('escalations').where('status', 'open');
-};
-
-// Update escalation
-const updateEscalation = async (escalationId, updates) => {
-  return db('escalations').where('id', escalationId).update(updates);
-};
-
 module.exports = {
   addMessage,
   getHistory,
@@ -112,8 +91,5 @@ module.exports = {
   updateConversationStatus,
   getOrders,
   createOrder,
-  updateOrder,
-  createEscalation,
-  getEscalations,
-  updateEscalation
+  updateOrder
 };

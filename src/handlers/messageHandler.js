@@ -312,6 +312,15 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
     logger.info(`Updating 3-day time-based memory for customer ${phoneNumber}`);
     const memoryAnalysis = await memory.updateMemory(phoneNumber, userMessage);
 
+    // Short-circuit: if intent is not clear, reply with pre-drafted clarification question
+    if (memoryAnalysis && memoryAnalysis.is_intent_clear === false && memoryAnalysis.clarification_question) {
+      await logToDb('info', `Customer intent unclear for ${phoneNumber}. Replying with clarification question.`);
+      return {
+        intent: 'clarification',
+        response: offHoursNotice + memoryAnalysis.clarification_question
+      };
+    }
+
     // 3. COMPLAINT DETECTION FLOW (Keyword + intent)
     const isComplaint = isComplaintMessage(userMessage) || memoryAnalysis.extracted_intent === 'COMPLAINT';
     if (isComplaint) {
@@ -427,14 +436,6 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
         updated_at: new Date()
       });
 
-      const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
-      if (!existingBlock) {
-        await db('blocked_numbers').insert({
-          phone_number: phoneNumber,
-          reason: 'Mengisi Format Order Otomatis'
-        });
-      }
-
       const rawOrder = await db('orders').where('id', orderId).first();
       const items = await db('order_items').where('order_id', orderId);
       const updatedOrder = {
@@ -473,14 +474,6 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
         total: 0
       }).returning('id');
       const orderId = orderIdObj ? orderIdObj.id : null;
-
-      const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
-      if (!existingBlock) {
-        await db('blocked_numbers').insert({
-          phone_number: phoneNumber,
-          reason: 'Mengisi Format Order (Bot Terjeda)'
-        });
-      }
 
       await db('customers').where('phone_number', phoneNumber).update({
         status: 'ORDER_PENDING',
