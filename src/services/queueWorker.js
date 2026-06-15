@@ -121,6 +121,8 @@ const processSingleRequest = async (request) => {
   const messageText = request.message_body || '';
   const isImage = request.message_type === 'image';
 
+  logger.info(`[QueueWorker][Incoming-Request] Phone: ${phoneNumber}, Message ID: ${request.id}, Type: ${request.message_type}, Body: "${messageText.substring(0, 50)}"`);
+
   // 1. Check if customer is blocked, paused, or muted
   const customer = await db('customers').where('phone_number', phoneNumber).first();
   if (!customer) {
@@ -132,11 +134,11 @@ const processSingleRequest = async (request) => {
   const isMutedStatus = ['WAITING_HUMAN', 'ORDER_PENDING', 'ORDER_CONFIRMED'].includes(customer.status);
 
   if (isBlocked || isPaused || isMutedStatus) {
-    logger.info(`[QueueWorker] Bot CS is muted/paused for ${phoneNumber}. Checking if order format needs parsing.`);
+    logger.info(`[QueueWorker][Muted] Bot is muted for ${phoneNumber}. Blocked: ${!!isBlocked}, Paused: ${!!isPaused}, MutedStatus: ${customer.status}`);
     
     // OPTIMIZATION: If muted user sends filled order format, still parse it for order board but keep bot silent
     if (messageHandler.isFilledOrderFormat(messageText)) {
-      logger.info(`[QueueWorker] Muted customer ${phoneNumber} sent filled order format. Parsing for order board...`);
+      logger.info(`[QueueWorker][Order-Parsing] Muted customer ${phoneNumber} sent filled order format. Parsing for order board...`);
       const parsed = await messageHandler.parseOrderFormatWithGemini(messageText);
       const existingPendingOrder = await db('orders')
         .where('phone_number', phoneNumber)
@@ -227,6 +229,7 @@ const processSingleRequest = async (request) => {
       emitEvent('order_updated', updatedOrder);
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
+      logger.info(`[QueueWorker][Order-Parsing-Success] Successfully parsed order format while muted for ${phoneNumber}`);
     }
     return; // Bot stays silent
   }
@@ -239,10 +242,12 @@ const processSingleRequest = async (request) => {
     if (fs.existsSync(absolutePath)) {
       imageBuffer = fs.readFileSync(absolutePath);
       imageMime = request.media_mime;
+      logger.info(`[QueueWorker][Media-Loaded] Loaded incoming image from disk: ${request.media_path}`);
     }
   }
 
   // 3. Generate response
+  logger.info(`[QueueWorker][AI-Request] Calling Gemini generateResponse for ${phoneNumber}...`);
   const response = await messageHandler.generateResponse(
     phoneNumber,
     messageText,
@@ -250,6 +255,7 @@ const processSingleRequest = async (request) => {
     imageBuffer,
     imageMime
   );
+  logger.info(`[QueueWorker][AI-Response] Received response from Gemini. Intent: ${response.intent || 'unknown'}`);
 
   // 4. Send response to WhatsApp
   const imgRegex = /\[SEND_IMAGE:\s*([^\]]+)\]/gi;
@@ -304,11 +310,12 @@ const processSingleRequest = async (request) => {
       } catch (e) {}
 
       sentMsg = await whatsappClient.sendMessage(phoneNumber, replyText);
-      logger.info(`[QueueWorker] Sent text response to ${phoneNumber}: "${replyText.substring(0, 50)}..."`);
+      logger.info(`[QueueWorker][Response-Sent] Sent text response to ${phoneNumber}: "${replyText.substring(0, 40)}..."`);
     }
 
     // B. Send images
     if (imgMatches.length > 0) {
+      logger.info(`[QueueWorker][Media-Send] Triggering async sending of ${imgMatches.length} images to ${phoneNumber}`);
       (async () => {
         await new Promise(resolve => setTimeout(resolve, 2500));
         
@@ -339,7 +346,7 @@ const processSingleRequest = async (request) => {
                 caption = `Pilihan stok warna harian untuk ${productName} kak... 😊`;
               }
               await whatsappClient.sendMessage(phoneNumber, media, caption ? { caption } : undefined);
-              logger.info(`[QueueWorker] Sent image "${imagePath}" to ${phoneNumber}`);
+              logger.info(`[QueueWorker][Response-Sent] Sent image swatch "${imagePath}" to ${phoneNumber}`);
             } catch (mediaErr) {
               logger.error(`[QueueWorker] Failed to send image ${imagePath}:`, mediaErr);
             }
