@@ -9,7 +9,8 @@ window.OrdersTab = ({
   setConfirmModalOpen,
   handleUpdateOrderTotal,
   handleUpdateOrderStatus,
-  handleDeleteOrder
+  handleDeleteOrder,
+  handleOpenEditOrderModal
 }) => {
   if (activeTab !== 'orders') return null;
 
@@ -76,9 +77,20 @@ window.OrdersTab = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between border-b border-darkbg-border pb-2.5">
                 <span className="text-xs font-bold text-brand-400">Order ID: #{order.id}</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${order.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 animate-pulse' : order.status === 'CONFIRMED' ? 'bg-indigo-500/10 text-indigo-400' : order.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-500' : order.status === 'SHIPPED' ? 'bg-blue-500/10 text-blue-400' : order.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                  {order.status}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${order.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500 animate-pulse' : order.status === 'CONFIRMED' ? 'bg-indigo-500/10 text-indigo-400' : order.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-500' : order.status === 'SHIPPED' ? 'bg-blue-500/10 text-blue-400' : order.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                    {order.status}
+                  </span>
+                  {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+                    <button 
+                      onClick={() => handleOpenEditOrderModal(order)} 
+                      className="p-1 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-white transition"
+                      title="Edit Order"
+                    >
+                      ✎
+                    </button>
+                  )}
+                </div>
               </div>
 
               <h3 className="font-extrabold text-sm">{order.customer_name}</h3>

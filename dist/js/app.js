@@ -82,6 +82,10 @@ window.App = () => {
   const [selectedConfirmOrder, setSelectedConfirmOrder] = useState(null);
   const [confirmForm, setConfirmForm] = useState({ productId: '', quantity: 1, total: 0, remark: '' });
 
+  // Order edit modal states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedEditOrder, setSelectedEditOrder] = useState(null);
+
   // Automatic final price calculation for completed orders
   useEffect(() => {
     if (confirmForm.productId) {
@@ -668,6 +672,32 @@ window.App = () => {
     }
   };
 
+  const handleOpenEditOrderModal = (order) => {
+    setSelectedEditOrder(order);
+    setEditModalOpen(true);
+  };
+
+  const handleEditOrderSubmit = async (id, payload) => {
+    try {
+      const res = await fetch(`/api/orders/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const d = await res.json();
+      if (d.success) {
+        setEditModalOpen(false);
+        setSelectedEditOrder(null);
+        fetchOrders();
+        showToast('Rincian order board berhasil diperbarui!');
+      } else {
+        showToast(`Gagal memperbarui order: ${d.error}`, 'error');
+      }
+    } catch (err) {
+      showToast('Error memperbarui order.', 'error');
+    }
+  };
+
   // Media Gallery Upload
   const handleMediaUpload = async (e) => {
     const file = e.target.files[0];
@@ -1087,6 +1117,7 @@ window.App = () => {
             handleUpdateOrderTotal={handleUpdateOrderTotal}
             handleUpdateOrderStatus={handleUpdateOrderStatus}
             handleDeleteOrder={handleDeleteOrder}
+            handleOpenEditOrderModal={handleOpenEditOrderModal}
           />
           <ComplaintsTab
             activeTab={activeTab}
@@ -1139,6 +1170,16 @@ window.App = () => {
         setConfirmForm={setConfirmForm}
         products={products}
         handleConfirmPurchaseSubmit={handleConfirmPurchaseSubmit}
+      />
+
+      {/* ==================== EDIT ORDER DIALOG MODAL ==================== */}
+      <EditOrderModal
+        editModalOpen={editModalOpen}
+        setEditModalOpen={setEditModalOpen}
+        selectedEditOrder={selectedEditOrder}
+        setSelectedEditOrder={setSelectedEditOrder}
+        products={products}
+        handleEditOrderSubmit={handleEditOrderSubmit}
       />
 
       {/* ==================== CUSTOM TOAST NOTIFICATION ==================== */}

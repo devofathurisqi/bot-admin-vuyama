@@ -114,6 +114,7 @@ ATURAN KHUSUS OPERASIONAL BISNIS VUYAMA (MUTLAK Wajib Dipatuhi):
     Alamat lengkap kec & kab: 
     No HP: 
     Pesanan: 
+    Quantity: 
 
     Pengirim
     Nama toko:
@@ -243,12 +244,13 @@ Do NOT output markdown code fences (like \`\`\`json) or any other explanation. J
 
 Schema keys:
 - customer_name: (from Nama)
-- address: (from Alamat Lengkap)
+- address: (from Alamat Lengkap / Alamat lengkap kec & kab)
 - phone: (from No HP)
 - pesanan_raw: (from Pesanan)
+- quantity: (from Quantity, extract as integer, default to 1 if not specified or invalid)
 - brand_name: (from Nama Brand)
 - label_size: (from Ukuran Label)
-- label_shape: (from Bentuk)
+- label_shape: (from Bentuk / Label / Tata letak)
 - ink_color: (from Warna Tinta)
 - label_color: (from Warna Label)
 - font: (from Font)
@@ -268,7 +270,13 @@ ${text}
     if (cleaned.endsWith('```')) cleaned = cleaned.replace(/```$/, '');
     cleaned = cleaned.trim();
 
-    return JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    if (parsed.quantity) {
+      parsed.quantity = parseInt(parsed.quantity) || 1;
+    } else {
+      parsed.quantity = 1;
+    }
+    return parsed;
   } catch (err) {
     logger.error('Gemini order parsing failed, using regex fallback:', err);
 
@@ -279,12 +287,13 @@ ${text}
 
     return {
       customer_name: getMatch(/Nama\s*:\s*(.*)/i),
-      address: getMatch(/Alamat Lengkap\s*:\s*(.*)/i),
+      address: getMatch(/Alamat\s*(?:Lengkap|lengkap kec & kab)\s*:\s*(.*)/i),
       phone: getMatch(/No HP\s*:\s*(.*)/i),
       pesanan_raw: getMatch(/Pesanan\s*:\s*(.*)/i),
+      quantity: parseInt(getMatch(/Quantity\s*:\s*(\d+)/i)) || 1,
       brand_name: getMatch(/Nama Brand\s*:\s*(.*)/i),
       label_size: getMatch(/Ukuran Label\s*:\s*(.*)/i),
-      label_shape: getMatch(/Bentuk\s*:\s*(.*)/i),
+      label_shape: getMatch(/Bentuk\s*:\s*(.*)/i) || getMatch(/Label\s*:\s*(.*)/i) || getMatch(/Tata letak\s*:\s*(.*)/i),
       ink_color: getMatch(/Warna Tinta\s*:\s*(.*)/i),
       label_color: getMatch(/Warna Label\s*:\s*(.*)/i),
       font: getMatch(/Font\s*:\s*(.*)/i)
@@ -394,6 +403,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
         if (existingItem) {
           await db('order_items').where('id', existingItem.id).update({
             product_name: parsed.pesanan_raw || 'Label Custom',
+            quantity: parsed.quantity || existingItem.quantity || 1,
             custom_specs: JSON.stringify(customSpecs),
             updated_at: new Date()
           });
@@ -401,7 +411,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
           await db('order_items').insert({
             order_id: orderId,
             product_name: parsed.pesanan_raw || 'Label Custom',
-            quantity: 1,
+            quantity: parsed.quantity || 1,
             price: 0,
             subtotal: 0,
             custom_specs: JSON.stringify(customSpecs)
@@ -423,7 +433,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
         await db('order_items').insert({
           order_id: orderId,
           product_name: parsed.pesanan_raw || 'Label Custom',
-          quantity: 1,
+          quantity: parsed.quantity || 1,
           price: 0,
           subtotal: 0,
           custom_specs: JSON.stringify(customSpecs)
@@ -493,7 +503,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
 
       return {
         intent: 'order_intent',
-        response: offHoursNotice + `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
+        response: offHoursNotice + `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\nQuantity :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
       };
     }
 

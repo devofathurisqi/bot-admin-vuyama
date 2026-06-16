@@ -1432,7 +1432,7 @@
     {
       "category": "Format Order",
       "question": "Format order DROPSHIP Manual",
-      "answer": "Silahkan diisi format order Dropship Manual\nNama: \nAlamat lengkap kec & kab: \nNo HP: \nPesanan: \n\nPengirim\nNama toko:\nNo. Hp:\n\nsertakan apabila menggunakan label,\nNama brand:-\nUkuran label:-\nLabel:-\nWarna label:-\nFont:-\nTata letak:-"
+      "answer": "Silahkan diisi format order Dropship Manual\nNama: \nAlamat lengkap kec & kab: \nNo HP: \nPesanan: \nQuantity: \n\nPengirim\nNama toko:\nNo. Hp:\n\nsertakan apabila menggunakan label,\nNama brand:-\nUkuran label:-\nLabel:-\nWarna label:-\nFont:-\nTata letak:-"
     },
     {
       "category": "Layanan",

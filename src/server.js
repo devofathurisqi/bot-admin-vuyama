@@ -584,7 +584,7 @@ app.get('/api/orders', async (req, res) => {
 app.put('/api/orders/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, total } = req.body;
+    const { status, total, customer_name, address, phone, items, custom_specs } = req.body;
 
     const existingOrder = await db('orders').where('id', id).first();
     if (!existingOrder) {
@@ -597,13 +597,56 @@ app.put('/api/orders/:id', async (req, res) => {
     const updates = { updated_at: new Date() };
     if (status !== undefined) updates.status = status;
     if (total !== undefined) updates.total = parseFloat(total) || 0;
+    if (customer_name !== undefined) updates.customer_name = customer_name;
+    if (address !== undefined) updates.address = address;
+    if (phone !== undefined) updates.phone = phone;
 
     await db('orders').where('id', id).update(updates);
+
+    // Update order items if provided
+    if (items && Array.isArray(items)) {
+      // Delete existing order items
+      await db('order_items').where('order_id', id).del();
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const itemQty = parseInt(item.quantity) || 1;
+        const itemPrice = parseFloat(item.price) || 0.0;
+        const itemSubtotal = itemQty * itemPrice;
+
+        // If this is the first item, we can attach the custom specs
+        let specsObj = item.custom_specs || {};
+        if (i === 0 && custom_specs) {
+          specsObj = { ...specsObj, ...custom_specs };
+        }
+
+        await db('order_items').insert({
+          order_id: id,
+          product_id: item.productId || item.product_id || null,
+          product_name: item.product_name || 'Item Pesanan',
+          quantity: itemQty,
+          price: itemPrice,
+          subtotal: itemSubtotal,
+          custom_specs: JSON.stringify(specsObj)
+        });
+      }
+    }
+
+    // Invalidate cached invoice PDF
+    const cachedPdfPath = path.join(__dirname, '../data/pdf', `invoice_${id}.pdf`);
+    if (fs.existsSync(cachedPdfPath)) {
+      try {
+        fs.unlinkSync(cachedPdfPath);
+        logger.info(`Invalidated cached invoice PDF for order #${id}`);
+      } catch (err) {
+        logger.error(`Failed to delete cached invoice PDF for order #${id}:`, err);
+      }
+    }
 
     // Write audit log
     await db('audit_logs').insert({
       action: 'UPDATE_ORDER',
-      details: `Updated order ID ${id} to status: ${status}`
+      details: `Updated order ID ${id} (Status: ${status || existingOrder.status}, Total: ${total || existingOrder.total})`
     });
 
     const rawOrder = await db('orders').where('id', id).first();

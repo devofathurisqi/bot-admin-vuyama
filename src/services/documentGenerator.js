@@ -96,10 +96,31 @@ HTML & CSS Styling Rules (Strict):
  * Generate a premium order invoice summary PDF
  */
 const generateInvoicePdf = async (browser, orderId) => {
+  // Force delete cached file if it exists to ensure regeneration with latest edits
+  const filename = `invoice_${orderId}.pdf`;
+  const outputPath = path.join(__dirname, '../../data/pdf', filename);
+  if (fs.existsSync(outputPath)) {
+    try {
+      fs.unlinkSync(outputPath);
+      logger.info(`Deleted cached invoice PDF for order #${orderId} to force recreation.`);
+    } catch (err) {
+      logger.error(`Error deleting cached invoice PDF for order #${orderId}:`, err);
+    }
+  }
+
   const order = await db('orders').where('id', orderId).first();
   if (!order) {
     throw new Error(`Order ID ${orderId} not found`);
   }
+
+  // Map database status to client status requirements
+  let invoiceStatus = order.status;
+  if (order.status === 'PENDING') invoiceStatus = 'Pending';
+  else if (order.status === 'CONFIRMED') invoiceStatus = 'Confirm';
+  else if (order.status === 'PAID') invoiceStatus = 'Paid';
+  else if (order.status === 'SHIPPED') invoiceStatus = 'Shipped';
+  else if (order.status === 'COMPLETED') invoiceStatus = 'Completed';
+  else if (order.status === 'CANCELLED') invoiceStatus = 'Cancelled';
 
   // Fetch bank details from company_info dynamically
   const paymentMethod = await db('company_info').where('key', 'metode_pembayaran').first();
@@ -312,8 +333,8 @@ const generateInvoicePdf = async (browser, orderId) => {
         <p><strong>#INV-${order.id}</strong></p>
         <h3>Tanggal Pemesanan</h3>
         <p>${new Date(order.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        <h3>Status Pembayaran</h3>
-        <p><strong>${order.status === 'PAID' || order.status === 'COMPLETED' ? 'Lunas' : 'PENDING'}</strong></p>
+        <h3>Status</h3>
+        <p><strong>${invoiceStatus}</strong></p>
       </div>
     </div>
     
