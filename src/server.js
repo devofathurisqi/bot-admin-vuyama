@@ -1511,6 +1511,9 @@ const frontendDist = path.join(__dirname, '../dist');
 if (fs.existsSync(frontendDist)) {
   app.use(express.static(frontendDist));
   app.get('*', (req, res) => {
+    if (path.extname(req.path)) {
+      return res.status(404).send('Not Found');
+    }
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 }
