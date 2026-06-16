@@ -1,4 +1,19 @@
 const { useState, useEffect, useRef } = React;
+const {
+  Icons,
+  ToastNotification,
+  ConfirmOrderModal,
+  EditOrderModal,
+  ProductModal,
+  DashboardTab,
+  ProductsTab,
+  LiveChatTab,
+  OrdersTab,
+  ComplaintsTab,
+  BlockedTab,
+  LogsTab,
+  SettingsTab
+} = window;
 
 window.App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
