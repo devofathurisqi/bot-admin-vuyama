@@ -47,9 +47,17 @@ Latest Message from Customer: "${latestMessage}"
 INTENT CLARITY RULES:
 - Set "is_intent_clear" to false if:
   * The customer says words like "iya", "yang itu", "jadi gimana?", "jadi gimana kak?", "terus?", "mau donk", "ooh gitu" without specifying what product/service/offer they mean.
-  * The customer is asking to order but has not specified what they want to order and you cannot infer it from the 3-day context.
-  * The customer's request is ambiguous or vague, or refers to some previous context that is missing or not fully specified (e.g. "warnanya ready?", "ukurannya apa aja?" without mentioning what hijab/mukena they are referring to).
-- Set "is_intent_clear" to true if the query is clear, standard FAQ, greeting, or is complete.
+  * The customer's request is ambiguous, vague, or refers to some previous context that is missing or not fully specified (e.g. "warnanya ready?", "ukurannya apa aja?" without mentioning what hijab/mukena they are referring to).
+- Set "is_intent_clear" to true if:
+  * The customer is asking to order/buy products in general or asking how to order (e.g. "mau order", "cara pesan gimana", "saya mau beli mukena", "cara ordernya gimana kak") so the system can send them the format order template.
+  * The query is clear, standard FAQ, greeting, or is complete.
+
+HUMAN TAKEOVER RULES:
+- Set "requires_human_takeover" to true if:
+  * The customer is asking about shipping status, package tracking, resi/receipt number inquiries (e.g. "paket sudah sampai mana?", "kok paket belum sampai?", "resi berapa?", "mana resinya?", "minta no resi").
+  * The customer explicitly requests a human administrator, manager, or live agent (e.g. "mau bicara sama admin", "hubungin orang asli dong").
+  * The customer is asking about custom database details not present in the catalog (e.g. checking label inventory count in the warehouse).
+- Otherwise, set "requires_human_takeover" to false.
 
 CLARIFICATION QUESTION RULES:
 - The question must be written in a warm, friendly, natural Indonesian language matching the Vuyama CS tone.
@@ -61,6 +69,7 @@ You MUST return a JSON object with the following fields:
   "summary": "String (max 3-4 sentences summarizing recent discussions, focusing on details relevant for the admin/AI to know)",
   "extracted_intent": "GREETING | PRODUCT_INQUIRY | ORDER_INTENT | ORDER_FORMAT | DROPSHIP_INFO | LABEL_INFO | SHIPPING_INFO | COMPLAINT | OTHER",
   "is_intent_clear": true/false,
+  "requires_human_takeover": true/false,
   "clarification_question": "String (or null if is_intent_clear is true)",
   "conversation_state": "greeting | product_discussion | reseller_inquiry | order_drafting | complaint_escalation | idle"
 }`;
@@ -79,6 +88,7 @@ You MUST return a JSON object with the following fields:
       summary: parsed.summary || '',
       extracted_intent: parsed.extracted_intent || 'OTHER',
       is_intent_clear: parsed.is_intent_clear !== false,
+      requires_human_takeover: parsed.requires_human_takeover === true,
       clarification_question: parsed.is_intent_clear === false ? (parsed.clarification_question || 'Bisa dijelaskan lebih detail kak agar kami bantu dengan tepat? 😊') : null,
       conversation_state: parsed.conversation_state || 'idle'
     };
@@ -97,6 +107,7 @@ const getFallbackAnalysis = (latestMessage, currentMemory) => {
   // Basic heuristic analysis
   let intent = 'OTHER';
   let isClear = true;
+  let requiresTakeover = false;
   let clarification = null;
   let state = currentMemory ? currentMemory.conversation_state : 'idle';
 
@@ -106,6 +117,10 @@ const getFallbackAnalysis = (latestMessage, currentMemory) => {
   } else if (/komplain|kecewa|salah kirim|jelek|lambat/i.test(normalized)) {
     intent = 'COMPLAINT';
     state = 'complaint_escalation';
+    requiresTakeover = true;
+  } else if (/resi|lacak|sampai mana|belum sampai/i.test(normalized)) {
+    intent = 'SHIPPING_INFO';
+    requiresTakeover = true;
   } else if (/cara order|order|pesan|format/i.test(normalized)) {
     intent = 'ORDER_INTENT';
     state = 'order_drafting';
@@ -119,6 +134,7 @@ const getFallbackAnalysis = (latestMessage, currentMemory) => {
     summary: currentMemory ? currentMemory.summary : 'Percakapan berlangsung.',
     extracted_intent: intent,
     is_intent_clear: isClear,
+    requires_human_takeover: requiresTakeover,
     clarification_question: clarification,
     conversation_state: state
   };

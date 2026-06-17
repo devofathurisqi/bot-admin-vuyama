@@ -389,7 +389,7 @@ window.LiveChatTab = ({
 
                 const isBlocked = blockedNumbers.some(b => b.phone_number === activeChat);
                 const isPaused = customer.paused_until && new Date(customer.paused_until) > new Date();
-                const isTransactional = ['ORDER_PENDING', 'ORDER_CONFIRMED', 'COMPLAINT'].includes(customer.status);
+                const isTransactional = ['ORDER_PENDING', 'ORDER_CONFIRMED', 'COMPLAINT', 'WAITING_HUMAN'].includes(customer.status);
 
                 let pauseTimeLeft = '';
                 if (isPaused) {
@@ -424,7 +424,11 @@ window.LiveChatTab = ({
                         <span>🚫</span>
                         <span>Bot Mati (CS Manusia Aktif)</span>
                       </div>
-                      <p className="text-[10px] text-gray-500 leading-normal">Bot dinonaktifkan secara otomatis karena customer sedang bertransaksi / komplain.</p>
+                      <p className="text-[10px] text-gray-500 leading-normal">
+                        {customer.status === 'WAITING_HUMAN' 
+                          ? 'Bot dinonaktifkan karena butuh bantuan manusia (waiting_human).' 
+                          : 'Bot dinonaktifkan secara otomatis karena customer sedang bertransaksi / komplain.'}
+                      </p>
                       <button
                         onClick={() => handleChangeCustomerStatus(activeChat, 'NORMAL')}
                         className="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-extrabold text-[10px] transition duration-150"

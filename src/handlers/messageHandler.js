@@ -321,15 +321,6 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
     logger.info(`Updating 3-day time-based memory for customer ${phoneNumber}`);
     const memoryAnalysis = await memory.updateMemory(phoneNumber, userMessage);
 
-    // Short-circuit: if intent is not clear, reply with pre-drafted clarification question
-    if (memoryAnalysis && memoryAnalysis.is_intent_clear === false && memoryAnalysis.clarification_question) {
-      await logToDb('info', `Customer intent unclear for ${phoneNumber}. Replying with clarification question.`);
-      return {
-        intent: 'clarification',
-        response: offHoursNotice + memoryAnalysis.clarification_question
-      };
-    }
-
     // 3. COMPLAINT DETECTION FLOW (Keyword + intent)
     const isComplaint = isComplaintMessage(userMessage) || memoryAnalysis.extracted_intent === 'COMPLAINT';
     if (isComplaint) {
@@ -469,7 +460,7 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       };
     }
 
-    const isOrderIntent = isOrderIntentMessage(userMessage) || memoryAnalysis.extracted_intent === 'ORDER_INTENT';
+    const isOrderIntent = memoryAnalysis && memoryAnalysis.extracted_intent === 'ORDER_INTENT' && memoryAnalysis.is_intent_clear === true;
     if (isOrderIntent) {
       await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
       
@@ -507,6 +498,30 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       };
     }
 
+    // Takeover check: if the query requires human takeover (missing data/features), transition status to WAITING_HUMAN and keep bot silent
+    if (memoryAnalysis && memoryAnalysis.requires_human_takeover === true) {
+      await logToDb('info', `Takeover required for ${phoneNumber} due to missing data/feature in request. Status set to WAITING_HUMAN.`);
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'WAITING_HUMAN',
+        updated_at: new Date()
+      });
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+      return {
+        intent: 'waiting_human',
+        response: ''
+      };
+    }
+
+    // Short-circuit: if intent is not clear (but doesn't require immediate takeover), reply with clarification question to ask back
+    if (memoryAnalysis && memoryAnalysis.is_intent_clear === false && memoryAnalysis.clarification_question) {
+      await logToDb('info', `Customer intent unclear for ${phoneNumber}. Replying with clarification question to ask back.`);
+      return {
+        intent: 'clarification',
+        response: offHoursNotice + memoryAnalysis.clarification_question
+      };
+    }
+
     // 5. Normal AI chat flow
     const systemPrompt = await buildDynamicSystemPrompt(userMessage, phoneNumber, memoryAnalysis);
     
@@ -526,15 +541,44 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       cleanedResponse = cleanedResponse.substring(6).trim();
     }
 
+    const isConfused = !cleanedResponse || 
+      cleanedResponse.toLowerCase().includes('cek dulu') || 
+      cleanedResponse.toLowerCase().includes('tanya admin') || 
+      cleanedResponse.toLowerCase().includes('hubungi admin');
+
+    if (isConfused) {
+      await logToDb('info', `Bot response indicates confusion/checking for ${phoneNumber}. Changing status to WAITING_HUMAN and keeping bot silent.`);
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'WAITING_HUMAN',
+        updated_at: new Date()
+      });
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+      return {
+        intent: 'waiting_human',
+        response: ''
+      };
+    }
+
     return {
       intent: 'ai_reply',
       response: offHoursNotice + (cleanedResponse || 'Boleh kak, ada yang bisa dibantu? 😊')
     };
   } catch (error) {
     logger.error('Error generating response:', error);
+    try {
+      await db('customers').where('phone_number', phoneNumber).update({
+        status: 'WAITING_HUMAN',
+        updated_at: new Date()
+      });
+      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
+      emitEvent('customer_updated', updatedCustomer);
+    } catch (dbErr) {
+      logger.error('Error updating customer status to WAITING_HUMAN on error:', dbErr);
+    }
     return {
       intent: 'error',
-      response: 'Duh maaf banget kak, untuk data tersebut akan kami cek dulu ya kak... 🙏'
+      response: ''
     };
   }
 };

@@ -257,6 +257,12 @@ const processSingleRequest = async (request) => {
   );
   logger.info(`[QueueWorker][AI-Response] Received response from Gemini. Intent: ${response.intent || 'unknown'}`);
 
+  // Short circuit if the bot is silent (unclear intent, error, or waiting_human)
+  if (response.intent === 'waiting_human' || response.intent === 'error' || !response.response) {
+    logger.info(`[QueueWorker][Silent] Bot is silent for customer ${phoneNumber} (Intent: ${response.intent}). Handoff triggered / No message sent.`);
+    return;
+  }
+
   // 4. Send response to WhatsApp
   const imgRegex = /\[SEND_IMAGE:\s*([^\]]+)\]/gi;
   const docRegex = /\[SEND_DOCUMENT:\s*([^\]]+)\]/gi;

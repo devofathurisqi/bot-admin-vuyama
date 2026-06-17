@@ -12,7 +12,8 @@ const {
   ComplaintsTab,
   BlockedTab,
   LogsTab,
-  SettingsTab
+  SettingsTab,
+  BroadcastTab
 } = window;
 
 window.App = () => {
@@ -925,6 +926,7 @@ window.App = () => {
                   { id: 'products', name: 'Products', icon: Icons.Products },
                   { id: 'customers', name: 'Live Chat CRM', icon: Icons.Customers, count: customers.reduce((acc, c) => acc + (c.unread_count || 0), 0) },
                   { id: 'orders', name: 'Orders Board', icon: Icons.Orders, count: orders.filter(o => o.status === 'PENDING').length },
+                  { id: 'broadcast', name: 'Broadcast Hub', icon: Icons.Broadcast },
                   { id: 'complaints', name: 'Complaints Queue', icon: Icons.Complaints, count: complaints.filter(c => c.status === 'OPEN').length },
                   { id: 'blocked', name: 'Blocked Bot', icon: Icons.Blocked },
                   { id: 'logs', name: 'Bot Console', icon: Icons.Logs },
@@ -987,6 +989,7 @@ window.App = () => {
               { id: 'products', name: 'Products', icon: Icons.Products },
               { id: 'customers', name: 'Live Chat CRM', icon: Icons.Customers, count: customers.reduce((acc, c) => acc + (c.unread_count || 0), 0) },
               { id: 'orders', name: 'Orders Board', icon: Icons.Orders, count: orders.filter(o => o.status === 'PENDING').length },
+              { id: 'broadcast', name: 'Broadcast Hub', icon: Icons.Broadcast },
               { id: 'complaints', name: 'Complaints Queue', icon: Icons.Complaints, count: complaints.filter(c => c.status === 'OPEN').length },
               { id: 'blocked', name: 'Blocked Bot', icon: Icons.Blocked },
               { id: 'logs', name: 'Bot Console', icon: Icons.Logs },
@@ -1146,7 +1149,10 @@ window.App = () => {
             handleBlockManual={handleBlockManual}
             handleUnblock={handleUnblock}
           />
-
+          <BroadcastTab
+            activeTab={activeTab}
+            showToast={showToast}
+          />
           <LogsTab
             activeTab={activeTab}
             logs={logs}

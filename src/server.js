@@ -494,6 +494,157 @@ app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (re
   }
 });
 
+// Broadcasting: Fetch all active chats/groups
+app.get('/api/whatsapp/chats', async (req, res) => {
+  try {
+    const { client } = require('./bot');
+    if (!client) {
+      return res.status(400).json({ success: false, error: 'WhatsApp client not active.' });
+    }
+    const chats = await client.getChats();
+    const formatted = chats.map(c => ({
+      id: c.id._serialized,
+      name: c.name || c.id.user,
+      isGroup: c.isGroup,
+      isReadOnly: c.isReadOnly || false
+    }));
+    res.json({ success: true, data: formatted });
+  } catch (error) {
+    logger.error('Error fetching chats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Broadcasting: Send message to list of recipients (background worker)
+app.post('/api/whatsapp/broadcast', uploadGalleryFile.single('file'), async (req, res) => {
+  try {
+    const { message, recipients: recipientsRaw } = req.body;
+    let recipients = [];
+    if (typeof recipientsRaw === 'string') {
+      recipients = JSON.parse(recipientsRaw);
+    } else if (Array.isArray(recipientsRaw)) {
+      recipients = recipientsRaw;
+    }
+
+    if (!recipients || recipients.length === 0) {
+      return res.status(400).json({ success: false, error: 'Target penerima (recipients) wajib diisi.' });
+    }
+
+    const { client } = require('./bot');
+    if (!client) {
+      return res.status(400).json({ success: false, error: 'WhatsApp client tidak aktif.' });
+    }
+
+    let media = null;
+    let relativeUrl = null;
+    let fileType = 'text';
+
+    if (req.file) {
+      const { MessageMedia } = require('whatsapp-web.js');
+      const isImage = req.file.mimetype.startsWith('image/');
+      const isColorStock = req.file.destination.includes('color_stock');
+      const filepath = isColorStock 
+        ? `/media/color_stock/${req.file.filename}` 
+        : `/media/others/${req.file.filename}`;
+
+      const absolutePath = path.join(__dirname, '..', filepath);
+      if (fs.existsSync(absolutePath)) {
+        media = MessageMedia.fromFilePath(absolutePath);
+        relativeUrl = filepath;
+        fileType = isImage ? 'image' : 'document';
+      }
+    }
+
+    res.json({ success: true, message: `Broadcasting dimulai ke ${recipients.length} penerima.` });
+
+    // Run sending in the background
+    (async () => {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const target of recipients) {
+        try {
+          // 1. Ensure target customer exists in CRM
+          let customer = await db('customers').where('phone_number', target).first();
+          if (!customer) {
+            let name = target.split('@')[0];
+            try {
+              const chat = await client.getChatById(target);
+              name = chat.name || name;
+            } catch (e) {}
+
+            await db('customers').insert({
+              phone_number: target,
+              name,
+              status: 'NORMAL',
+              unread_count: 0,
+              last_message_at: new Date()
+            });
+          }
+
+          // 2. Send message
+          if (media) {
+            await client.sendMessage(target, media, message ? { caption: message } : undefined);
+          } else {
+            await client.sendMessage(target, message);
+          }
+
+          // 3. Save to CRM Database Conversations
+          const finalMsgText = media 
+            ? `[${fileType === 'image' ? 'Gambar' : 'Dokumen'}: ${relativeUrl}]` + (message ? ` ${message}` : '')
+            : message;
+
+          const timestamp = new Date();
+          await db('conversations').insert({
+            phone_number: target,
+            message: finalMsgText,
+            sender: 'agent',
+            message_type: fileType,
+            status: 'sent',
+            timestamp
+          });
+
+          // 4. Update customer last message time
+          await db('customers').where('phone_number', target).update({
+            last_message_at: timestamp
+          });
+
+          // 5. Broadcast manually sent message to dashboard live chat
+          emitEvent('incoming_message', {
+            phone_number: target,
+            message: finalMsgText,
+            sender: 'agent',
+            message_type: fileType,
+            status: 'sent',
+            timestamp
+          });
+
+          successCount++;
+          // Delay to prevent getting blocked by WhatsApp
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (sendErr) {
+          logger.error(`Failed to send broadcast to ${target}:`, sendErr);
+          failCount++;
+        }
+      }
+
+      const summaryMsg = `[Broadcast] Selesai mengirim pesan ke ${successCount} berhasil, ${failCount} gagal.`;
+      logger.info(summaryMsg);
+      await logToDb('info', summaryMsg);
+
+      await db('audit_logs').insert({
+        action: 'BROADCAST_MESSAGE',
+        details: `Broadcasted to ${successCount} successful, ${failCount} failed. Message preview: "${message ? message.substring(0, 50) : ''}"`
+      });
+
+    })().catch(err => logger.error('Error in background broadcast loop:', err));
+
+  } catch (error) {
+    logger.error('Error starting broadcast:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.put('/api/customers/:phoneNumber', async (req, res) => {
   try {
     const { phoneNumber } = req.params;
