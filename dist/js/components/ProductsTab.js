@@ -284,10 +284,6 @@ const ProductDetailPage = ({
 
   const handleCreateSwatch = async (e) => {
     e.preventDefault();
-    if (!newColorName.trim()) {
-      alert('Nama warna wajib diisi!');
-      return;
-    }
     const file = colorFileInputRef.current?.files[0];
     if (!file) {
       alert('Gambar swatch warna wajib diunggah!');
@@ -296,7 +292,7 @@ const ProductDetailPage = ({
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('color_name', newColorName.trim());
+    formData.append('color_name', 'Stok Warna');
     formData.append('category', product.category || 'Mukena');
     formData.append('product_id', product.id);
     formData.append('is_ready', 'true');
@@ -304,7 +300,6 @@ const ProductDetailPage = ({
     await handleCreateStockColor(formData);
 
     // Reset Form & reload
-    setNewColorName('');
     setIsColorFormOpen(false);
     if (colorFileInputRef.current) colorFileInputRef.current.value = '';
     fetchStockColors();
@@ -491,28 +486,15 @@ const ProductDetailPage = ({
               <form onSubmit={handleCreateSwatch} className="p-5 rounded-2xl border border-indigo-100 dark:border-darkbg-border bg-indigo-50/25 dark:bg-gray-900/20 space-y-4 max-w-xl animate-fadeIn">
                 <h4 className="font-extrabold text-xs text-brand-650 dark:text-brand-400 uppercase tracking-wider leading-none">Add Fabric Swatch Color</h4>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Color Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Milo, Sage Green, Black"
-                      value={newColorName}
-                      onChange={(e) => setNewColorName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border rounded-xl border-gray-300 dark:border-gray-700 bg-transparent text-gray-800 dark:text-white font-medium focus:outline-none focus:border-brand-500 transition text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Upload Swatch Photo</label>
-                    <input
-                      type="file"
-                      required
-                      ref={colorFileInputRef}
-                      accept="image/*"
-                      className="text-xs text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-gray-200 file:dark:bg-gray-800 file:text-gray-700 file:dark:text-white hover:file:bg-brand-500/10 cursor-pointer w-full"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Upload Swatch Photo</label>
+                  <input
+                    type="file"
+                    required
+                    ref={colorFileInputRef}
+                    accept="image/*"
+                    className="text-xs text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-gray-200 file:dark:bg-gray-800 file:text-gray-700 file:dark:text-white hover:file:bg-brand-500/10 cursor-pointer w-full"
+                  />
                 </div>
 
                 <button
@@ -529,58 +511,26 @@ const ProductDetailPage = ({
               {productColors.map(color => (
                 <div
                   key={color.id}
-                  className="group relative rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between transition duration-300 hover:shadow-md h-[270px]"
+                  className="group relative rounded-2xl border border-darkbg-border bg-white dark:bg-darkbg-card overflow-hidden shadow-sm flex flex-col justify-between transition duration-300 hover:shadow-md h-[200px]"
                 >
                   {/* Fabric image box */}
-                  <div className="h-36 bg-slate-900 flex items-center justify-center overflow-hidden border-b border-darkbg-border relative select-none">
+                  <div className="flex-1 bg-slate-900 flex items-center justify-center overflow-hidden relative select-none">
                     <window.ImageWithSkeleton
                       src={color.image_path}
-                      alt={color.color_name}
+                      alt="Color Swatch"
                       className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
                     />
-
-                    {/* ❌ OUT OF STOCK CROSS OVERLAY */}
-                    {!color.is_ready && (
-                      <div className="absolute inset-0 bg-black/60 backdrop-blur-[0.5px] flex flex-col items-center justify-center text-rose-500 space-y-1 select-none z-10 animate-fadeIn">
-                        <div className="w-9 h-9 rounded-full border-[2.5px] border-rose-500 flex items-center justify-center text-xl font-black leading-none bg-rose-950/20">
-                          ✕
-                        </div>
-                        <span className="text-[8px] font-black tracking-wider uppercase bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded-full text-rose-400">
-                          STOCK KOSONG
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Metadata info */}
-                  <div className="p-3 space-y-1 flex-1 min-w-0 flex flex-col justify-center border-b border-darkbg-border">
-                    <h4 className="font-extrabold text-xs text-slate-800 dark:text-white truncate" title={color.color_name}>
-                      {color.color_name}
-                    </h4>
-                    <span className={`text-[8px] font-black uppercase tracking-wider block ${color.is_ready ? 'text-green-500' : 'text-rose-500'}`}>
-                      {color.is_ready ? '● READY STOCK' : '● STOK KOSONG'}
-                    </span>
                   </div>
 
                   {/* Action controls */}
-                  <div className="p-2 bg-gray-50 dark:bg-gray-800/20 flex items-center justify-between gap-2 shrink-0">
-                    <button
-                      onClick={() => handleToggleStockColorStatus(color.id, color.is_ready)}
-                      className={`px-2 py-1.5 rounded-lg text-[8px] font-extrabold uppercase transition duration-150 flex-1 text-center font-bold tracking-wide ${
-                        color.is_ready
-                          ? 'bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white'
-                          : 'bg-green-600/10 hover:bg-green-600 text-green-600 hover:text-white'
-                      }`}
-                    >
-                      {color.is_ready ? '❌ Coret' : '✓ Ready'}
-                    </button>
-                    
+                  <div className="p-2 bg-gray-50 dark:bg-gray-850/20 flex items-center justify-end shrink-0 border-t border-darkbg-border">
                     <button
                       onClick={() => handleDeleteStockColor(color.id)}
-                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition border border-transparent hover:border-rose-500/25 shrink-0"
+                      className="w-full py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white transition duration-200 flex items-center justify-center space-x-1 font-bold text-[10px] uppercase tracking-wider"
                       title="Hapus Warna"
                     >
                       <Icons.Trash className="w-3.5 h-3.5" />
+                      <span>Hapus Warna</span>
                     </button>
                   </div>
                 </div>
