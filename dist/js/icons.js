@@ -28,43 +28,28 @@ window.Icons = {
 };// Global Premium Image with Skeleton Loader (Stateful React-safe derived-prop version)
 window.ImageWithSkeleton = ({ src, alt, className = "", containerClassName = "", ...props }) => {
   const [loaded, setLoaded] = React.useState(false);
-  const [error, setError] = React.useState(false);
-
-  // Reset states safely when src changes, preventing rendering-loop side-effects
-  React.useEffect(() => {
-    setLoaded(false);
-    setError(false);
-  }, [src]);
 
   return (
-    <div className={`relative w-full h-full overflow-hidden flex items-center justify-center ${
-      !loaded && !error ? 'bg-gray-200 dark:bg-gray-800 animate-pulse' : ''
+    <div className={`relative w-full h-full overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-850 ${
+      !loaded ? 'animate-pulse' : ''
     } ${containerClassName}`}>
-      {!error ? (
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          onLoad={() => setLoaded(true)}
-          onError={() => setError(true)}
-          style={{
-            opacity: loaded ? 1 : 0,
-            transition: 'opacity 0.4s ease-in-out',
-            width: '100%',
-            height: '100%',
-            objectFit: props.style?.objectFit || 'cover'
-          }}
-          className={className}
-          {...props}
-        />
-      ) : (
-        <div className="text-gray-400 dark:text-gray-600 flex flex-col items-center justify-center p-2 text-[10px] w-full h-full bg-gray-100 dark:bg-gray-800/20">
-          <svg className="w-6 h-6 mb-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span className="text-[8px] truncate max-w-full font-semibold px-2">{alt}</span>
-        </div>
-      )}
+      <img
+        src={src || ''}
+        alt={alt}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        style={{
+          opacity: loaded ? 1 : 0,
+          transition: 'opacity 0.25s ease-in-out',
+          width: '100%',
+          height: '100%',
+          objectFit: props.style?.objectFit || 'cover',
+          ...props.style
+        }}
+        className={className}
+        {...props}
+      />
     </div>
   );
 };
