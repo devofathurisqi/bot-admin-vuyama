@@ -1,22 +1,26 @@
 {
   "metadata": {
     "title": "Katalog Resmi Vuyama Hijab & Mukena - Update Mei 2026",
-    "last_update": "8 Juni 2026",
+    "last_update": "18 Juni 2026",
     "status": "Official Database Sync"
   },
   "company": {
-    "nama_perusahaan": "Vuyama Hijab & Mukena",
     "alamat": "Lingkungan Palamanis RT 02/05 No. 69 B Cirimekar Cibinong Bogor 16917",
-    "kontak": "0812-3456-7890",
-    "whatsapp_cs": "82113294501",
     "instagram": "vuyama.id",
     "jam_operasional": "Senin - Sabtu: 08:00 - 17:00. Minggu: Libur.",
     "metode_pembayaran": "Transfer bank ke rekening resmi Vuyama:\n- BCA: 167-160453-4 a.n. Pramesthy Kaulaswara Annur\n- BRI: 2221-01010648-50-1 a.n. Pramesthy Kaulaswara Annur",
-    "area_layanan": "Seluruh Indonesia (J&T, Shopee Express, JNT Cargo & Lion Parcel)",
     "ketentuan_garansi": "Garansi 7 hari setelah barang diterima jika ada cacat produksi atau kurang (wajib video unboxing).",
-    "deskripsi_singkat": "Produsen Mukena & Kerudung White Label",
     "visi_misi": "Visi: Membuka jalan bagi siapa saja untuk memiliki brand fashion muslim sendiri, dengan Vuyama sebagai produsen terdepan di Indonesia.",
-    "website": "https://vuyama-linktree.vercel.app/profile"
+    "website": "https://vuyama-linktree.vercel.app/profile",
+    "ai_always_reply": "true",
+    "business_hours_end": "17",
+    "business_workdays": "1,2,3,4,5,6",
+    "nama_perusahaan": "Vuyama Indonesia",
+    "kontak": "Bisa hubungi salah satu customer service kami ya,\nCS Renita 085339095119 \nCS Alya 082113294501\nCS Putri 085882450652",
+    "business_hours_start": "09",
+    "deskripsi_singkat": "Produsen Mukena & Kerudung White Label yang bisa bantu kamu bikin brand sendiri!",
+    "area_layanan": "Seluruh Indonesia (J&T, Shopee Express, JNT Cargo & Lion Parcel). Kami melayani pengiriman internasional ke seluruh negeri. Harap konsultasi dengan customer service kami untuk ekspedisi dan biayanya. ",
+    "whatsapp_cs": "CS Renita 085339095119 \nCS Alya 082113294501\nCS Putri 085882450652"
   },
   "products": [
     {
@@ -24,9 +28,9 @@
       "name": "Gana Instant (Bamboo Spandex)",
       "category": "Hijab",
       "sub_category": "Instant",
-      "description": "Hijab Gana Instant dari bahan Bamboo Spandex yang nyaman dan flowy.",
+      "description": "Hijab Gana Instant dari bahan Bamboo Spandex yang nyaman dan flowy. Pashmina Oval Instan tanpa pentul.",
       "price_retail": 55000,
-      "price_reseller": 42000,
+      "price_reseller": 43500,
       "color": [
         "Various Spandex Colors"
       ],
@@ -35,22 +39,28 @@
       ],
       "material": "Bamboo Spandex",
       "weight": 115,
-      "stock": 300,
-      "image": null,
+      "stock": 299,
+      "image": "",
       "status": "Tersedia",
       "variants": [],
       "wholesale_tiers": [
         {
           "price": 42000,
-          "min_qty": 10
+          "min_qty": 10,
+          "price_retail": 43500,
+          "price_reseller": 43500
         },
         {
           "price": 41000,
-          "min_qty": 200
+          "min_qty": 200,
+          "price_retail": 42500,
+          "price_reseller": 42500
         },
         {
           "price": 40000,
-          "min_qty": 800
+          "min_qty": 800,
+          "price_retail": 41000,
+          "price_reseller": 41000
         }
       ]
     },
@@ -70,7 +80,7 @@
       ],
       "material": "Art Carton 310gr",
       "weight": 40,
-      "stock": 999,
+      "stock": 998,
       "image": null,
       "status": "Tersedia",
       "variants": [],
@@ -162,7 +172,7 @@
       ],
       "material": "Modal Tencel",
       "weight": 25,
-      "stock": 500,
+      "stock": 499,
       "image": null,
       "status": "Tersedia",
       "variants": [],
@@ -200,7 +210,7 @@
       ],
       "material": "Akrilik",
       "weight": 1,
-      "stock": 9999,
+      "stock": 9998,
       "image": null,
       "status": "Tersedia",
       "variants": [],
@@ -230,7 +240,7 @@
       ],
       "material": "Akrilik",
       "weight": 1,
-      "stock": 9999,
+      "stock": 9998,
       "image": null,
       "status": "Tersedia",
       "variants": [],
@@ -1432,7 +1442,7 @@
     {
       "category": "Format Order",
       "question": "Format order DROPSHIP Manual",
-      "answer": "Silahkan diisi format order Dropship Manual\nNama: \nAlamat lengkap kec & kab: \nNo HP: \nPesanan: \nQuantity: \n\nPengirim\nNama toko:\nNo. Hp:\n\nsertakan apabila menggunakan label,\nNama brand:-\nUkuran label:-\nLabel:-\nWarna label:-\nFont:-\nTata letak:-"
+      "answer": "Silahkan diisi format order Dropship Manual\nNama: \nAlamat lengkap kec & kab: \nNo HP: \nPesanan: \n\nPengirim\nNama toko:\nNo. Hp:\n\nsertakan apabila menggunakan label,\nNama brand:-\nUkuran label:-\nLabel:-\nWarna label:-\nFont:-\nTata letak:-"
     },
     {
       "category": "Layanan",

@@ -259,6 +259,7 @@ const ProductDetailPage = ({
   const [isColorFormOpen, setIsColorFormOpen] = React.useState(false);
   const [newColorName, setNewColorName] = React.useState('');
   const [isSyncing, setIsSyncing] = React.useState(false);
+  const [uploadingColor, setUploadingColor] = React.useState(false);
   const colorFileInputRef = React.useRef(null);
 
   const images = product.image ? product.image.split(',').map(img => img.trim()).filter(Boolean) : [];
@@ -284,25 +285,32 @@ const ProductDetailPage = ({
 
   const handleCreateSwatch = async (e) => {
     e.preventDefault();
-    const file = colorFileInputRef.current?.files[0];
-    if (!file) {
+    const originalFile = colorFileInputRef.current?.files[0];
+    if (!originalFile) {
       alert('Gambar swatch warna wajib diunggah!');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('color_name', 'Stok Warna');
-    formData.append('category', product.category || 'Mukena');
-    formData.append('product_id', product.id);
-    formData.append('is_ready', 'true');
+    setUploadingColor(true);
 
-    await handleCreateStockColor(formData);
+    try {
+      const compressedFile = await window.compressImage(originalFile);
+      const formData = new FormData();
+      formData.append('file', compressedFile);
+      formData.append('color_name', 'Stok Warna');
+      formData.append('category', product.category || 'Mukena');
+      formData.append('product_id', product.id);
+      formData.append('is_ready', 'true');
 
-    // Reset Form & reload
-    setIsColorFormOpen(false);
-    if (colorFileInputRef.current) colorFileInputRef.current.value = '';
-    fetchStockColors();
+      await handleCreateStockColor(formData);
+    } catch (err) {
+      // Handled inside handleCreateStockColor
+    } finally {
+      setUploadingColor(false);
+      setIsColorFormOpen(false);
+      if (colorFileInputRef.current) colorFileInputRef.current.value = '';
+      fetchStockColors();
+    }
   };
 
   const handleSyncClick = async () => {
@@ -473,7 +481,7 @@ const ProductDetailPage = ({
                 </button>
                 <button
                   onClick={() => setIsColorFormOpen(!isColorFormOpen)}
-                  className="px-3.5 py-2 rounded-xl bg-brand-650 hover:bg-brand-600 text-white font-bold text-[10px] uppercase tracking-wider transition flex items-center space-x-1 shadow shadow-brand-500/10"
+                  className="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-[10px] uppercase tracking-wider transition flex items-center space-x-1 shadow shadow-brand-500/10"
                 >
                   <span>Add Swatch</span>
                   <Icons.Plus className={`w-3.5 h-3.5 transform transition duration-200 ${isColorFormOpen ? 'rotate-45' : ''}`} />
@@ -484,13 +492,14 @@ const ProductDetailPage = ({
             {/* Toggleable Swatch Upload Form */}
             {isColorFormOpen && (
               <form onSubmit={handleCreateSwatch} className="p-5 rounded-2xl border border-indigo-100 dark:border-darkbg-border bg-indigo-50/25 dark:bg-gray-900/20 space-y-4 max-w-xl animate-fadeIn">
-                <h4 className="font-extrabold text-xs text-brand-650 dark:text-brand-400 uppercase tracking-wider leading-none">Add Fabric Swatch Color</h4>
+                <h4 className="font-extrabold text-xs text-brand-600 dark:text-brand-400 uppercase tracking-wider leading-none">Add Fabric Swatch Color</h4>
                 
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block">Upload Swatch Photo</label>
                   <input
                     type="file"
                     required
+                    disabled={uploadingColor}
                     ref={colorFileInputRef}
                     accept="image/*"
                     className="text-xs text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-[10px] file:font-bold file:bg-gray-200 file:dark:bg-gray-800 file:text-gray-700 file:dark:text-white hover:file:bg-brand-500/10 cursor-pointer w-full"
@@ -499,9 +508,20 @@ const ProductDetailPage = ({
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-brand-650 hover:bg-brand-600 text-white font-bold text-xs tracking-wider uppercase transition shadow-md shadow-brand-500/15"
+                  disabled={uploadingColor}
+                  className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white font-bold text-xs tracking-wider uppercase transition shadow-md shadow-brand-500/15 flex items-center justify-center space-x-2"
                 >
-                  Save Color Swatch
+                  {uploadingColor ? (
+                    <React.Fragment>
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Mengunggah...</span>
+                    </React.Fragment>
+                  ) : (
+                    <span>Save Color Swatch</span>
+                  )}
                 </button>
               </form>
             )}
