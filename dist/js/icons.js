@@ -25,21 +25,16 @@ window.Icons = {
   Palette: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>,
   Copy: (props) => <svg className={props.className || "w-4 h-4"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>,
   Broadcast: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
-};
-
-// Global Premium Image with Skeleton Loader & Blur-in Transition (DOM-stable loop-free version)
-// Global Premium Image with Skeleton Loader (Stateful React-safe derived-prop version)
+};// Global Premium Image with Skeleton Loader (Stateful React-safe derived-prop version)
 window.ImageWithSkeleton = ({ src, alt, className = "", containerClassName = "", ...props }) => {
-  const [prevSrc, setPrevSrc] = React.useState(src);
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState(false);
 
-  // Reset state during render if src prop changes, avoiding useEffect race conditions on mount
-  if (src !== prevSrc) {
-    setPrevSrc(src);
+  // Reset states safely when src changes, preventing rendering-loop side-effects
+  React.useEffect(() => {
     setLoaded(false);
     setError(false);
-  }
+  }, [src]);
 
   return (
     <div className={`relative w-full h-full overflow-hidden flex items-center justify-center ${
