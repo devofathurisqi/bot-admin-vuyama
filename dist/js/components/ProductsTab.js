@@ -86,9 +86,10 @@ const ProductCard = ({ p, handleEditProductClick, handleDeleteProduct, onOpenDet
         {images.length > 0 ? (
           <React.Fragment>
             {/* Active Image with Lazy Load and smooth transitions */}
-             <window.ImageWithSkeleton 
+             <img 
               src={images[currentImgIndex]} 
               alt={`${p.name} - ${currentImgIndex + 1}`} 
+              loading="lazy"
               className="w-full h-full object-contain p-4 transition-all duration-500 scale-100 group-hover:scale-[1.02]" 
             />
 
@@ -365,9 +366,10 @@ const ProductDetailPage = ({
             <div className="h-80 w-full bg-gray-50 dark:bg-gray-950 flex items-center justify-center overflow-hidden rounded-2xl relative select-none border border-darkbg-border">
               {images.length > 0 ? (
                 <React.Fragment>
-                  <window.ImageWithSkeleton
+                  <img
                     src={images[currentImgIndex]}
                     alt={`${product.name} - ${currentImgIndex + 1}`}
+                    loading="lazy"
                     className="w-full h-full object-contain p-4"
                   />
                   {currentImgIndex > 0 && (
@@ -535,9 +537,10 @@ const ProductDetailPage = ({
                 >
                   {/* Fabric image box */}
                   <div className="flex-1 bg-slate-900 flex items-center justify-center overflow-hidden relative select-none">
-                    <window.ImageWithSkeleton
+                    <img
                       src={color.image_path}
                       alt="Color Swatch"
+                      loading="lazy"
                       className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
                     />
                   </div>
