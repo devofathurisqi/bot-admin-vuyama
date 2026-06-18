@@ -1,14 +1,12 @@
-// Plain standard image component wrapper
+// Delegate to global Premium Image with Skeleton Loader component
 const ImageWithSkeleton = ({ src, alt }) => {
   return (
-    <div className="h-32 rounded-xl border border-black/5 dark:border-white/5 overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-      <img
-        src={src}
-        alt={alt}
-        loading="lazy"
-        className="w-full h-full object-cover"
-      />
-    </div>
+    <window.ImageWithSkeleton
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover"
+      containerClassName="h-32 rounded-xl border border-black/5 dark:border-white/5"
+    />
   );
 };
 
