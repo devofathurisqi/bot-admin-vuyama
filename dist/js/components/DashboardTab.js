@@ -60,6 +60,53 @@ window.DashboardTab = ({
         </div>
       </div>
 
+      {/* CUSTOMER BOT STATUSES BREAKDOWN */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Waiting Human */}
+        <div className="p-4 rounded-2xl bg-amber-500/[0.06] dark:bg-amber-500/[0.04] border border-amber-500/20 flex flex-col justify-between shadow-sm transition hover:shadow-md hover:border-amber-500/35 duration-200">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-600 dark:text-amber-400">Waiting Human (Admin)</span>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-2xl font-black text-amber-700 dark:text-amber-300">
+              {customers.filter(c => c.status === 'WAITING_HUMAN').length}
+            </span>
+            <span className="text-base">⏳</span>
+          </div>
+        </div>
+
+        {/* Normal */}
+        <div className="p-4 rounded-2xl bg-emerald-500/[0.06] dark:bg-emerald-500/[0.04] border border-emerald-500/20 flex flex-col justify-between shadow-sm transition hover:shadow-md hover:border-emerald-500/35 duration-200">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Normal (AI Active)</span>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300">
+              {customers.filter(c => c.status === 'NORMAL').length}
+            </span>
+            <span className="text-base">🤖</span>
+          </div>
+        </div>
+
+        {/* Order Pending */}
+        <div className="p-4 rounded-2xl bg-sky-500/[0.06] dark:bg-sky-500/[0.04] border border-sky-500/20 flex flex-col justify-between shadow-sm transition hover:shadow-md hover:border-sky-500/35 duration-200">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-sky-600 dark:text-sky-400">Order Pending (Draft)</span>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-2xl font-black text-sky-700 dark:text-sky-300">
+              {customers.filter(c => c.status === 'ORDER_PENDING').length}
+            </span>
+            <span className="text-base">🛒</span>
+          </div>
+        </div>
+
+        {/* Order Confirmed */}
+        <div className="p-4 rounded-2xl bg-indigo-500/[0.06] dark:bg-indigo-500/[0.04] border border-indigo-500/20 flex flex-col justify-between shadow-sm transition hover:shadow-md hover:border-indigo-500/35 duration-200">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Order Confirmed</span>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-2xl font-black text-indigo-700 dark:text-indigo-300">
+              {customers.filter(c => c.status === 'ORDER_CONFIRMED').length}
+            </span>
+            <span className="text-base">✅</span>
+          </div>
+        </div>
+      </div>
+
       {/* BOTTOM SECTIONS: WA STATUS, LOW STOCK & LIVE FEED */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* WHATSAPP CONNECTION STATUS PANEL */}
