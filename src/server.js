@@ -500,7 +500,7 @@ app.post('/api/whatsapp/send-media', uploadGalleryFile.single('file'), async (re
       ? `/media/color_stock/${req.file.filename}` 
       : `/media/others/${req.file.filename}`;
 
-    const absolutePath = path.join(__dirname, '..', filepath);
+    const absolutePath = req.file.path;
 
     if (!fs.existsSync(absolutePath)) {
       return res.status(400).json({ success: false, error: 'Saved file path not found on disk.' });
@@ -603,7 +603,7 @@ app.post('/api/whatsapp/broadcast', uploadGalleryFile.single('file'), async (req
       return res.status(400).json({ success: false, error: 'Target penerima (recipients) wajib diisi.' });
     }
 
-    const { client } = require('./bot');
+    const { client, pendingOutgoingMessages } = require('./bot');
     if (!client) {
       return res.status(400).json({ success: false, error: 'WhatsApp client tidak aktif.' });
     }
@@ -620,7 +620,7 @@ app.post('/api/whatsapp/broadcast', uploadGalleryFile.single('file'), async (req
         ? `/media/color_stock/${req.file.filename}` 
         : `/media/others/${req.file.filename}`;
 
-      const absolutePath = path.join(__dirname, '..', filepath);
+      const absolutePath = req.file.path;
       if (fs.existsSync(absolutePath)) {
         media = MessageMedia.fromFilePath(absolutePath);
         relativeUrl = filepath;
@@ -656,10 +656,22 @@ app.post('/api/whatsapp/broadcast', uploadGalleryFile.single('file'), async (req
           }
 
           // 2. Send message
-          if (media) {
-            await client.sendMessage(target, media, message ? { caption: message } : undefined);
-          } else {
-            await client.sendMessage(target, message);
+          const trackerKey = `${target}:${message || ''}`;
+          if (pendingOutgoingMessages) {
+            pendingOutgoingMessages.add(trackerKey);
+          }
+
+          try {
+            if (media) {
+              await client.sendMessage(target, media, message ? { caption: message } : undefined);
+            } else {
+              await client.sendMessage(target, message);
+            }
+          } catch (sendErr) {
+            if (pendingOutgoingMessages) {
+              pendingOutgoingMessages.delete(trackerKey);
+            }
+            throw sendErr;
           }
 
           // 3. Save to CRM Database Conversations

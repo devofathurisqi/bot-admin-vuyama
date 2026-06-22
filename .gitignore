@@ -33,3 +33,9 @@ Thumbs.db
 # Build
 build/
 .session
+
+# User uploaded/downloaded media and generated files
+data/media/others/
+data/pdf/
+learn/
+

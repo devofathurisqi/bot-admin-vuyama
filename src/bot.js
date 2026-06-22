@@ -494,6 +494,81 @@ client.on('message_create', async (msg) => {
   }
 });
 
+// Handle group join reachout
+client.on('group_join', async (notification) => {
+  try {
+    const recipients = await notification.getRecipients();
+    for (const contact of recipients) {
+      const name = contact.pushname || contact.name || 'Kak';
+      const phone = contact.id._serialized;
+      
+      const welcomeMessage = `Halo ${name}! Selamat bergabung di grup kami. 😊\n\nKami ingin menginfokan agar selalu berhati-hati terhadap penipuan yang mengatasnamakan admin Vuyama. Admin tidak pernah menghubungi Anda secara pribadi terlebih dahulu untuk meminta data pribadi, password, atau transaksi di luar sistem resmi.\n\nTetap waspada ya!`;
+
+      // Track outgoing message to prevent triggering WAITING_HUMAN for this contact
+      const trackerKey = `${phone}:${welcomeMessage}`;
+      if (pendingOutgoingMessages) {
+        pendingOutgoingMessages.add(trackerKey);
+      }
+
+      try {
+        await client.sendMessage(phone, welcomeMessage);
+      } catch (sendErr) {
+        logger.error(`[Auto Reachout] Failed to send reachout to new member ${phone}:`, sendErr);
+        if (pendingOutgoingMessages) {
+          pendingOutgoingMessages.delete(trackerKey);
+        }
+        continue;
+      }
+
+      // Record to CRM Database Conversations
+      const timestamp = new Date();
+      await db('conversations').insert({
+        phone_number: phone,
+        message: welcomeMessage,
+        sender: 'agent',
+        message_type: 'text',
+        status: 'sent',
+        timestamp
+      });
+
+      // Stream to dashboard Live Chat in real-time
+      emitEvent('incoming_message', {
+        phone_number: phone,
+        message: welcomeMessage,
+        sender: 'agent',
+        message_type: 'text',
+        status: 'sent',
+        timestamp
+      });
+
+      // Check if customer exists in database, if not insert, otherwise update last_message_at
+      const customer = await db('customers').where('phone_number', phone).first();
+      if (!customer) {
+        await db('customers').insert({
+          phone_number: phone,
+          name: contact.pushname || contact.name || 'Customer',
+          status: 'NORMAL',
+          unread_count: 0,
+          last_message_at: timestamp
+        });
+      } else {
+        await db('customers').where('phone_number', phone).update({
+          last_message_at: timestamp,
+          updated_at: new Date()
+        });
+      }
+
+      // Stream updated customer stats to UI
+      const updatedCustomer = await db('customers').where('phone_number', phone).first();
+      emitEvent('customer_updated', updatedCustomer);
+
+      logger.info(`[Auto Reachout] Successfully sent welcome and anti-scam alert to new group member: ${name} (${phone})`);
+    }
+  } catch (err) {
+    logger.error('Error in group_join auto reachout handler:', err);
+  }
+});
+
 // Handle connection issues
 client.on('disconnected', (reason) => {
   const msg = `WhatsApp Disconnected: ${reason}`;
