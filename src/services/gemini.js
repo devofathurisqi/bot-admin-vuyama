@@ -89,11 +89,11 @@ const healthCheck = async () => {
   try {
     if (!API_KEY) return false;
 
-    // Add a 10-second timeout wrapper to prevent indefinite hanging on slow connection establishment
+    // Add a 30-second timeout wrapper to prevent indefinite hanging on slow connection establishment
     const activeModel = genAI.getGenerativeModel({ model: MODEL_NAME });
     const apiCall = activeModel.generateContent("hi");
     const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), 10000)
+      setTimeout(() => reject(new Error('Timeout')), 30000)
     );
 
     await Promise.race([apiCall, timeout]);
