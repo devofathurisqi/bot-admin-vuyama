@@ -14,8 +14,7 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 // Fallback models in case the primary model undergoes high demand or outage
 const FALLBACK_MODELS = [
   MODEL_NAME,
-  'gemini-2.0-flash',
-  'gemini-flash-latest' // Stable alias for 1.5-flash
+  'gemini-2.5-pro'
 ];
 
 /**
@@ -90,11 +89,11 @@ const healthCheck = async () => {
   try {
     if (!API_KEY) return false;
 
-    // Add a 5-second timeout wrapper to prevent indefinite hanging
+    // Add a 10-second timeout wrapper to prevent indefinite hanging on slow connection establishment
     const activeModel = genAI.getGenerativeModel({ model: MODEL_NAME });
     const apiCall = activeModel.generateContent("hi");
     const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout')), 5000)
+      setTimeout(() => reject(new Error('Timeout')), 10000)
     );
 
     await Promise.race([apiCall, timeout]);
@@ -102,7 +101,7 @@ const healthCheck = async () => {
   } catch (error) {
     // If primary failed, try checking if fallback model is responsive
     try {
-      const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
       await fallbackModel.generateContent("hi");
       return true;
     } catch (err) {
