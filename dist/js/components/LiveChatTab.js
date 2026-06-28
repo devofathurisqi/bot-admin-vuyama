@@ -12,6 +12,34 @@ const ImageWithSkeleton = ({ src, alt }) => {
   );
 };
 
+const formatPhoneNumber = (phone) => {
+  if (!phone) return '';
+  
+  // Extract number from JID if present
+  let clean = phone.split('@')[0];
+  
+  // Keep only numbers
+  clean = clean.replace(/[^0-9]/g, '');
+  
+  // Format Indonesian numbers (starts with 62 or 0)
+  if (clean.startsWith('62')) {
+    const rest = clean.slice(2);
+    if (rest.length >= 9) {
+      return `+62 ${rest.slice(0, 3)}-${rest.slice(3, 7)}-${rest.slice(7)}`;
+    }
+    return `+62 ${rest}`;
+  } else if (clean.startsWith('0')) {
+    const rest = clean.slice(1);
+    if (rest.length >= 9) {
+      return `+62 ${rest.slice(0, 3)}-${rest.slice(3, 7)}-${rest.slice(7)}`;
+    }
+    return `+62 ${rest}`;
+  }
+  
+  // General formatting
+  return clean.length > 5 ? `+${clean}` : clean;
+};
+
 window.LiveChatTab = ({
   activeTab,
   customers,
@@ -185,11 +213,11 @@ window.LiveChatTab = ({
 
               <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name || (c.whatsapp_number ? `+${c.whatsapp_number}` : c.phone_number.split('@')[0])}</h4>
+                  <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name && c.name !== 'Customer' ? c.name : formatPhoneNumber(c.whatsapp_number || c.phone_number)}</h4>
                   <span className="text-[9px] text-gray-500 font-semibold">{new Date(c.last_message_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
 
-                <p className="text-[10px] text-gray-500 truncate">{c.whatsapp_number ? `+${c.whatsapp_number}` : c.phone_number.split('@')[0]}</p>
+                <p className="text-[10px] text-gray-500 truncate">{formatPhoneNumber(c.whatsapp_number || c.phone_number)}</p>
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {c.is_pinned && (
@@ -237,11 +265,11 @@ window.LiveChatTab = ({
                 <div className="min-w-0">
                   {(() => {
                     const activeCust = customers.find(c => c.phone_number === activeChat);
-                    const cleanPhone = activeCust?.whatsapp_number ? `+${activeCust.whatsapp_number}` : activeChat.split('@')[0];
+                    const formatted = formatPhoneNumber(activeCust?.whatsapp_number || activeChat);
                     return (
                       <React.Fragment>
-                        <h3 className="font-extrabold text-sm truncate">{activeCust?.name || cleanPhone}</h3>
-                        <p className="text-[10px] text-gray-500 font-semibold truncate">{cleanPhone} {activeCust?.whatsapp_number ? `(${activeChat})` : ''}</p>
+                        <h3 className="font-extrabold text-sm truncate">{activeCust?.name && activeCust.name !== 'Customer' ? activeCust.name : formatted}</h3>
+                        <p className="text-[10px] text-gray-500 font-semibold truncate">{formatted}</p>
                       </React.Fragment>
                     );
                   })()}
@@ -372,11 +400,11 @@ window.LiveChatTab = ({
               </div>
               {(() => {
                 const activeCust = customers.find(c => c.phone_number === activeChat);
-                const cleanPhone = activeCust?.whatsapp_number ? `+${activeCust.whatsapp_number}` : activeChat.split('@')[0];
+                const formatted = formatPhoneNumber(activeCust?.whatsapp_number || activeChat);
                 return (
                   <React.Fragment>
-                    <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white truncate">{activeCust?.name || cleanPhone}</h3>
-                    <p className="text-[10px] text-gray-500 font-semibold truncate">{cleanPhone}</p>
+                    <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white truncate">{activeCust?.name && activeCust.name !== 'Customer' ? activeCust.name : formatted}</h3>
+                    <p className="text-[10px] text-gray-500 font-semibold truncate">{formatted}</p>
                   </React.Fragment>
                 );
               })()}
