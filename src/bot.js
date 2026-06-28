@@ -83,9 +83,20 @@ let client = new Client({
     clientId: config.whatsappSessionName
   }),
   authTimeoutMs: 90000,
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+  },
   puppeteer: {
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote'
+    ]
   }
 });
 
@@ -226,6 +237,72 @@ const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) 
   }
 };
 
+/**
+ * Resolves the phone number from a JID, handling LID resolution.
+ */
+const getPhoneFromJid = async (jid) => {
+  if (!jid) return null;
+  if (jid.endsWith('@c.us')) {
+    return jid.split('@')[0];
+  }
+  
+  // For LID or other JIDs
+  try {
+    if (client && typeof client.getContactLidAndPhone === 'function') {
+      const res = await client.getContactLidAndPhone([jid]);
+      if (res && res[0] && res[0].pn) {
+        return res[0].pn;
+      }
+    }
+  } catch (e) {
+    logger.warn(`Failed mapping LID using getContactLidAndPhone for ${jid}: ${e.message}`);
+  }
+  
+  try {
+    if (client) {
+      const contact = await client.getContactById(jid);
+      if (contact) {
+        const userPart = jid.split('@')[0];
+        if (contact.number && contact.number !== userPart) {
+          return contact.number;
+        }
+      }
+    }
+  } catch (e) {
+    logger.warn(`Failed mapping JID using getContactById for ${jid}: ${e.message}`);
+  }
+  
+  return null;
+};
+
+/**
+ * Resolves name and clean phone number details for a contact.
+ */
+const resolveCustomerInfo = async (jid, contact = null) => {
+  let name = 'Customer';
+  let whatsappNumber = jid.split('@')[0];
+  
+  try {
+    const activeContact = contact || (client ? await client.getContactById(jid) : null);
+    if (activeContact) {
+      name = activeContact.name || activeContact.pushname || 'Customer';
+    }
+  } catch (e) {
+    logger.warn(`Failed to resolve contact name for ${jid}: ${e.message}`);
+  }
+  
+  try {
+    const mappedPhone = await getPhoneFromJid(jid);
+    if (mappedPhone) {
+      whatsappNumber = mappedPhone;
+    }
+  } catch (e) {
+    logger.warn(`Failed to resolve phone number for ${jid}: ${e.message}`);
+  }
+  
+  return { name, whatsappNumber };
+};
+
 // Setup event handlers function
 const setupEventHandlers = () => {
 
@@ -300,27 +377,30 @@ client.on('message_create', async (msg) => {
       // Ensure customer exists in CRM
       let customer = await db('customers').where('phone_number', phoneNumber).first();
       if (!customer) {
-        let name = 'Customer';
-        let whatsappNumber = phoneNumber.split('@')[0];
-        try {
-          const contact = await client.getContactById(phoneNumber);
-          name = contact.pushname || contact.name || 'Customer';
-          whatsappNumber = contact.number || whatsappNumber;
-        } catch (e) {}
-
+        const info = await resolveCustomerInfo(phoneNumber);
         await db('customers').insert({
           phone_number: phoneNumber,
-          name,
-          whatsapp_number: whatsappNumber,
+          name: info.name,
+          whatsapp_number: info.whatsappNumber,
           status: 'NORMAL',
           unread_count: 0,
           last_message_at: new Date()
         });
       } else {
-        await db('customers').where('phone_number', phoneNumber).update({
+        const updates = {
           last_message_at: new Date(),
           updated_at: new Date()
-        });
+        };
+        if (!customer.whatsapp_number || customer.name === 'Customer') {
+          const info = await resolveCustomerInfo(phoneNumber);
+          if (!customer.whatsapp_number && info.whatsappNumber) {
+            updates.whatsapp_number = info.whatsappNumber;
+          }
+          if (customer.name === 'Customer' && info.name !== 'Customer') {
+            updates.name = info.name;
+          }
+        }
+        await db('customers').where('phone_number', phoneNumber).update(updates);
       }
 
       // Detect manual outgoing media sent from physical phone
@@ -440,30 +520,34 @@ client.on('message_create', async (msg) => {
     // 2. Auto-register customer in database CRM if not present
     let customer = await db('customers').where('phone_number', phoneNumber).first();
     if (!customer) {
-      let name = 'Customer';
-      let whatsappNumber = phoneNumber.split('@')[0];
-      try {
-        const contact = await msg.getContact();
-        name = contact.pushname || contact.name || 'Customer';
-        whatsappNumber = contact.number || whatsappNumber;
-      } catch (e) {}
-
+      const contact = await msg.getContact();
+      const info = await resolveCustomerInfo(phoneNumber, contact);
       await db('customers').insert({
         phone_number: phoneNumber,
-        name,
-        whatsapp_number: whatsappNumber,
+        name: info.name,
+        whatsapp_number: info.whatsappNumber,
         status: 'NORMAL',
         unread_count: 1,
         last_message_at: new Date()
       });
-      customer = { phone_number: phoneNumber, name, whatsapp_number: whatsappNumber, status: 'NORMAL', unread_count: 1 };
+      customer = { phone_number: phoneNumber, name: info.name, whatsapp_number: info.whatsappNumber, status: 'NORMAL', unread_count: 1 };
     } else {
       // Update last message time and increment unread count
-      await db('customers').where('phone_number', phoneNumber).update({
+      const updates = {
         unread_count: customer.unread_count + 1,
         last_message_at: new Date(),
         updated_at: new Date()
-      });
+      };
+      if (!customer.whatsapp_number || customer.name === 'Customer') {
+        const info = await resolveCustomerInfo(phoneNumber);
+        if (!customer.whatsapp_number && info.whatsappNumber) {
+          updates.whatsapp_number = info.whatsappNumber;
+        }
+        if (customer.name === 'Customer' && info.name !== 'Customer') {
+          updates.name = info.name;
+        }
+      }
+      await db('customers').where('phone_number', phoneNumber).update(updates);
       customer.unread_count += 1;
     }
 
@@ -564,23 +648,30 @@ client.on('group_join', async (notification) => {
       // Check if customer exists in database, if not insert, otherwise update last_message_at
       const customer = await db('customers').where('phone_number', phone).first();
       if (!customer) {
-        let whatsappNumber = phone.split('@')[0];
-        if (contact && contact.number) {
-          whatsappNumber = contact.number;
-        }
+        const info = await resolveCustomerInfo(phone, contact);
         await db('customers').insert({
           phone_number: phone,
-          name: contact.pushname || contact.name || 'Customer',
-          whatsapp_number: whatsappNumber,
+          name: info.name,
+          whatsapp_number: info.whatsappNumber,
           status: 'NORMAL',
           unread_count: 0,
           last_message_at: timestamp
         });
       } else {
-        await db('customers').where('phone_number', phone).update({
+        const updates = {
           last_message_at: timestamp,
           updated_at: new Date()
-        });
+        };
+        if (!customer.whatsapp_number || customer.name === 'Customer') {
+          const info = await resolveCustomerInfo(phone, contact);
+          if (!customer.whatsapp_number && info.whatsappNumber) {
+            updates.whatsapp_number = info.whatsappNumber;
+          }
+          if (customer.name === 'Customer' && info.name !== 'Customer') {
+            updates.name = info.name;
+          }
+        }
+        await db('customers').where('phone_number', phone).update(updates);
       }
 
       // Stream updated customer stats to UI
@@ -683,9 +774,20 @@ const resetBot = async () => {
       clientId: config.whatsappSessionName
     }),
     authTimeoutMs: 90000,
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+    },
     puppeteer: {
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-zygote'
+      ]
     }
   });
 
@@ -710,25 +812,39 @@ const resetBot = async () => {
  */
 const populateMissingWhatsappNumbers = async () => {
   try {
-    const missing = await db('customers').whereNull('whatsapp_number');
+    const missing = await db('customers')
+      .whereNull('whatsapp_number')
+      .orWhere('name', 'Customer');
+      
     if (missing.length === 0) return;
 
-    logger.info(`Found ${missing.length} customers with missing whatsapp_number. Populating...`);
+    logger.info(`Found ${missing.length} customers with missing info. Syncing details...`);
     for (const cust of missing) {
       try {
-        const contact = await client.getContactById(cust.phone_number);
-        if (contact && contact.number) {
+        const info = await resolveCustomerInfo(cust.phone_number);
+        const updates = {};
+        if (!cust.whatsapp_number && info.whatsappNumber) {
+          updates.whatsapp_number = info.whatsappNumber;
+        }
+        if (cust.name === 'Customer' && info.name !== 'Customer') {
+          updates.name = info.name;
+        }
+        if (Object.keys(updates).length > 0) {
           await db('customers')
             .where('phone_number', cust.phone_number)
-            .update({ whatsapp_number: contact.number });
+            .update(updates);
+            
+          // Stream updated customer stats to UI
+          const updatedCustomer = await db('customers').where('phone_number', cust.phone_number).first();
+          emitEvent('customer_updated', updatedCustomer);
         }
       } catch (e) {
-        logger.warn(`Failed to fetch contact number for ${cust.phone_number}: ${e.message}`);
+        logger.warn(`Failed to sync details for ${cust.phone_number}: ${e.message}`);
       }
     }
-    logger.info('Finished populating missing whatsapp numbers.');
+    logger.info('Finished syncing missing customer details.');
   } catch (err) {
-    logger.error('Error populating missing whatsapp numbers:', err);
+    logger.error('Error populating missing customer details:', err);
   }
 };
 
