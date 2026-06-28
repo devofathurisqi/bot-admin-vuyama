@@ -78,7 +78,7 @@ const pendingOutgoingMessages = new PendingMessagesTracker();
 
 
 // Initialize WhatsApp client
-const client = new Client({
+let client = new Client({
   authStrategy: new LocalAuth({
     clientId: config.whatsappSessionName
   }),
@@ -225,6 +225,9 @@ const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) 
     await logToDb('error', errMsg);
   }
 };
+
+// Setup event handlers function
+const setupEventHandlers = () => {
 
 // QR Code handler
 client.on('qr', (qr) => {
@@ -584,6 +587,8 @@ client.on('auth_failure', (msg) => {
   setBotStatus('disconnected');
 });
 
+};
+
 // Initialize bot
 const startBot = async () => {
   try {
@@ -608,6 +613,9 @@ const startBot = async () => {
     // Set status to scanning while initializing
     setBotStatus('disconnected');
 
+    // Setup event handlers
+    setupEventHandlers();
+
     // Start WhatsApp client
     await client.initialize();
     logger.info('WhatsApp client initialized successfully.');
@@ -615,6 +623,62 @@ const startBot = async () => {
   } catch (error) {
     logger.error('Failed to start bot:', error);
     process.exit(1);
+  }
+};
+
+/**
+ * Destroys current WhatsApp client session, deletes auth/cache files,
+ * instantiates a new Client instance, and re-initializes connection.
+ */
+const resetBot = async () => {
+  logger.info('Resetting WhatsApp bot session...');
+  await logToDb('info', 'Mereset sesi WhatsApp bot...');
+  
+  try {
+    if (client) {
+      await client.destroy();
+    }
+  } catch (err) {
+    logger.error('Error destroying client during reset:', err);
+  }
+
+  try {
+    const authDir = path.join(__dirname, '../.wwebjs_auth');
+    const cacheDir = path.join(__dirname, '../.wwebjs_cache');
+    if (fs.existsSync(authDir)) {
+      fs.rmSync(authDir, { recursive: true, force: true });
+    }
+    if (fs.existsSync(cacheDir)) {
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+    }
+    logger.info('Deleted .wwebjs_auth and .wwebjs_cache directories successfully.');
+  } catch (err) {
+    logger.error('Error deleting auth directories during reset:', err);
+  }
+
+  client = new Client({
+    authStrategy: new LocalAuth({
+      clientId: config.whatsappSessionName
+    }),
+    authTimeoutMs: 90000,
+    puppeteer: {
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    }
+  });
+
+  setupEventHandlers();
+  setBotStatus('disconnected');
+
+  await client.initialize();
+  logger.info('WhatsApp client re-initialized successfully.');
+  await logToDb('info', 'WhatsApp client berhasil di-inisialisasi ulang.');
+
+  try {
+    const { initQueueWorker } = require('./services/queueWorker');
+    initQueueWorker(client);
+  } catch (err) {
+    logger.error('Failed to update queue worker reference after reset:', err);
   }
 };
 
@@ -653,8 +717,11 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 module.exports = {
-  client,
+  get client() {
+    return client;
+  },
   startBot,
+  resetBot,
   pendingOutgoingMessages,
   asyncGenerateAndSendPdf
 };

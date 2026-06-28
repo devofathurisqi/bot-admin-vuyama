@@ -434,6 +434,28 @@ window.App = () => {
     }
   };
 
+  // Reset WhatsApp session
+  const handleResetSession = async () => {
+    if (!confirm('Apakah Anda yakin ingin mereset sesi WhatsApp bot dan meminta QR Code baru? Nomor WhatsApp yang saat ini terhubung akan diputus.')) {
+      return;
+    }
+    
+    try {
+      showToast('Sedang mereset sesi WhatsApp bot...', 'info');
+      const res = await fetch('/api/whatsapp/reset', {
+        method: 'POST'
+      });
+      const d = await res.json();
+      if (d.success) {
+        showToast('Sesi berhasil direset. Silakan tunggu QR Code baru muncul.', 'success');
+      } else {
+        showToast(`Gagal mereset sesi: ${d.error || 'Terjadi kesalahan'}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`, 'error');
+    }
+  };
+
   // In-line settings editor
   const handleSaveSetting = async () => {
     if (!editingSetting) return;
@@ -1021,7 +1043,7 @@ window.App = () => {
             {/* Footer */}
             <div className="p-4 border-t border-darkbg-border flex items-center justify-between bg-gray-50 dark:bg-gray-800/20">
               <div className="flex items-center space-x-2.5">
-                <div className={`w-2.5 h-2.5 rounded-full ${botStatus.status === 'connected' ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' : botStatus.status === 'scanning' ? 'bg-amber-500 shadow-lg shadow-amber-500/20' : 'bg-rose-500 shadow-lg shadow-rose-500/20'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${botStatus.status === 'connected' ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' : (botStatus.status === 'scanning' || botStatus.status === 'authenticated') ? 'bg-amber-500 shadow-lg shadow-amber-500/20' : 'bg-rose-500 shadow-lg shadow-rose-500/20'}`} />
                 <span className="text-xs font-semibold text-slate-500 dark:text-gray-400 capitalize">Bot: {botStatus.status}</span>
               </div>
               <button onClick={toggleDarkMode} className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-250">
@@ -1081,7 +1103,7 @@ window.App = () => {
         {/* SIDEBAR FOOTER */}
         <div className="p-4 border-t border-darkbg-border flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
-            <div className={`w-2.5 h-2.5 rounded-full ${botStatus.status === 'connected' ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' : botStatus.status === 'scanning' ? 'bg-amber-500 shadow-lg shadow-amber-500/20' : 'bg-rose-500 shadow-lg shadow-rose-500/20'}`} />
+            <div className={`w-2.5 h-2.5 rounded-full ${botStatus.status === 'connected' ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20' : (botStatus.status === 'scanning' || botStatus.status === 'authenticated') ? 'bg-amber-500 shadow-lg shadow-amber-500/20' : 'bg-rose-500 shadow-lg shadow-rose-500/20'}`} />
             <span className="text-xs font-semibold text-slate-500 dark:text-gray-400 capitalize">Bot: {botStatus.status}</span>
           </div>
 
@@ -1130,6 +1152,7 @@ window.App = () => {
             botStatus={botStatus}
             logs={logs}
             fetchLogs={fetchLogs}
+            handleResetSession={handleResetSession}
           />
           <ProductsTab
             activeTab={activeTab}

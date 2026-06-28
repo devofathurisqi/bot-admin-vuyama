@@ -207,6 +207,21 @@ app.get('/api/whatsapp/status', (req, res) => {
   res.json(getBotStatus());
 });
 
+app.post('/api/whatsapp/reset', async (req, res) => {
+  try {
+    const { resetBot } = require('./bot');
+    
+    // Trigger reset process asynchronously to prevent HTTP timeout
+    resetBot().catch(err => {
+      logger.error('Failed to reset WhatsApp bot:', err);
+    });
+
+    res.json({ success: true, message: 'WhatsApp connection reset initiated.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 // 3. Products CRUD
 app.get('/api/products', async (req, res) => {

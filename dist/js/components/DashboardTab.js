@@ -6,7 +6,8 @@ window.DashboardTab = ({
   products,
   botStatus,
   logs,
-  fetchLogs
+  fetchLogs,
+  handleResetSession
 }) => {
   if (activeTab !== 'dashboard') return null;
 
@@ -114,7 +115,7 @@ window.DashboardTab = ({
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b border-darkbg-border pb-3">
               <h3 className="font-extrabold text-base text-gray-800 dark:text-white">WhatsApp Bot Status</h3>
-              <div className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${botStatus.status === 'connected' ? 'bg-emerald-500/10 text-emerald-500' : botStatus.status === 'scanning' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}`}>
+              <div className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${botStatus.status === 'connected' ? 'bg-emerald-500/10 text-emerald-500' : (botStatus.status === 'scanning' || botStatus.status === 'authenticated') ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}`}>
                 {botStatus.status}
               </div>
             </div>
@@ -133,6 +134,16 @@ window.DashboardTab = ({
                 <h4 className="font-extrabold text-sm text-emerald-500 uppercase tracking-wider">Bot Aktif & Siap CS</h4>
                 <p className="text-[10px] font-medium text-gray-400 text-center max-w-xs leading-relaxed">Bot dan manusia menggunakan 1 nomor yang sama. Bot membalas otomatis dan admin membalas live chat.</p>
               </div>
+            ) : botStatus.status === 'authenticated' ? (
+              <div className="flex flex-col items-center justify-center p-6 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-3.5">
+                <div className="w-16 h-16 rounded-full bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/20 animate-pulse">
+                  <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89" />
+                  </svg>
+                </div>
+                <h4 className="font-extrabold text-sm text-amber-500 uppercase tracking-wider">Menghubungkan Sesi...</h4>
+                <p className="text-[10px] font-medium text-gray-400 text-center max-w-xs leading-relaxed">Sesi terautentikasi! Sedang menyinkronkan data chat dan kontak dari handphone Anda. Mohon tunggu sebentar.</p>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-6 bg-rose-500/5 border border-rose-500/10 rounded-xl space-y-3.5">
                 <div className="w-16 h-16 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
@@ -144,8 +155,19 @@ window.DashboardTab = ({
             )}
           </div>
 
-          <div className="mt-6 border-t border-darkbg-border pt-4 text-center">
-            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">Powered by whatsapp-web.js</span>
+          <div className="mt-6 border-t border-darkbg-border pt-4 flex flex-col space-y-3">
+            <button
+              onClick={handleResetSession}
+              className="w-full py-2.5 px-4 rounded-xl text-[10px] font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-455 bg-rose-500/5 hover:bg-rose-500/10 active:scale-95 transition-all duration-150 flex items-center justify-center space-x-2 border border-rose-500/20"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>Reset & Reconnect Sesi</span>
+            </button>
+            <div className="text-center">
+              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none">Powered by whatsapp-web.js</span>
+            </div>
           </div>
         </div>
 
