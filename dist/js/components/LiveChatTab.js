@@ -22,6 +22,8 @@ window.LiveChatTab = ({
   chatMessages,
   chatSearch,
   setChatSearch,
+  chatStatusFilter,
+  setChatStatusFilter,
   typedMessage,
   setTypedMessage,
   handleSendMessage,
@@ -138,7 +140,7 @@ window.LiveChatTab = ({
       
       {/* ==================== LEFT COLUMN: CONTACTS LIST ==================== */}
       <div className={`w-full md:w-80 border-r border-darkbg-border flex flex-col shrink-0 overflow-hidden ${activeChat ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-darkbg-border space-y-3.5 bg-gray-50 dark:bg-gray-800/20">
+        <div className="p-4 border-b border-darkbg-border space-y-3 bg-gray-50 dark:bg-gray-800/20">
           <h3 className="font-extrabold text-base text-gray-800 dark:text-white">WhatsApp Chats</h3>
           <div className="relative">
             <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500"><Icons.Search /></span>
@@ -149,6 +151,20 @@ window.LiveChatTab = ({
               onChange={(e) => setChatSearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border text-xs focus:outline-none focus:border-brand-500 transition text-gray-800 dark:text-white"
             />
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] text-gray-500 font-extrabold uppercase shrink-0">Filter Status:</span>
+            <select
+              value={chatStatusFilter}
+              onChange={(e) => setChatStatusFilter(e.target.value)}
+              className="flex-1 px-2.5 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-darkbg-border font-semibold text-[10px] focus:outline-none transition text-gray-800 dark:text-white"
+            >
+              <option value="ALL">Semua Chat</option>
+              <option value="WAITING_HUMAN">Waiting Human</option>
+              <option value="NORMAL">Normal (AI Active)</option>
+              <option value="ORDER_PENDING">Order Pending</option>
+              <option value="ORDER_CONFIRMED">Order Confirmed</option>
+            </select>
           </div>
         </div>
 
@@ -169,11 +185,11 @@ window.LiveChatTab = ({
 
               <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name || c.phone_number.split('@')[0]}</h4>
+                  <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name || (c.whatsapp_number ? `+${c.whatsapp_number}` : c.phone_number.split('@')[0])}</h4>
                   <span className="text-[9px] text-gray-500 font-semibold">{new Date(c.last_message_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
 
-                <p className="text-[10px] text-gray-500 truncate">{c.phone_number.split('@')[0]}</p>
+                <p className="text-[10px] text-gray-500 truncate">{c.whatsapp_number ? `+${c.whatsapp_number}` : c.phone_number.split('@')[0]}</p>
 
                 <div className="flex flex-wrap items-center gap-1.5">
                   {c.is_pinned && (
@@ -219,8 +235,16 @@ window.LiveChatTab = ({
                   ←
                 </button>
                 <div className="min-w-0">
-                  <h3 className="font-extrabold text-sm truncate">{customers.find(c => c.phone_number === activeChat)?.name || activeChat}</h3>
-                  <p className="text-[10px] text-gray-500 font-semibold truncate">{activeChat}</p>
+                  {(() => {
+                    const activeCust = customers.find(c => c.phone_number === activeChat);
+                    const cleanPhone = activeCust?.whatsapp_number ? `+${activeCust.whatsapp_number}` : activeChat.split('@')[0];
+                    return (
+                      <React.Fragment>
+                        <h3 className="font-extrabold text-sm truncate">{activeCust?.name || cleanPhone}</h3>
+                        <p className="text-[10px] text-gray-500 font-semibold truncate">{cleanPhone} {activeCust?.whatsapp_number ? `(${activeChat})` : ''}</p>
+                      </React.Fragment>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -346,8 +370,17 @@ window.LiveChatTab = ({
               <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center font-bold text-white text-xl shadow mx-auto">
                 {customers.find(c => c.phone_number === activeChat)?.name ? customers.find(c => c.phone_number === activeChat).name[0].toUpperCase() : 'W'}
               </div>
-              <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white truncate">{customers.find(c => c.phone_number === activeChat)?.name || 'WhatsApp Customer'}</h3>
-              <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 tracking-wider">CRM PROFILE</span>
+              {(() => {
+                const activeCust = customers.find(c => c.phone_number === activeChat);
+                const cleanPhone = activeCust?.whatsapp_number ? `+${activeCust.whatsapp_number}` : activeChat.split('@')[0];
+                return (
+                  <React.Fragment>
+                    <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white truncate">{activeCust?.name || cleanPhone}</h3>
+                    <p className="text-[10px] text-gray-500 font-semibold truncate">{cleanPhone}</p>
+                  </React.Fragment>
+                );
+              })()}
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 tracking-wider block mx-auto">CRM PROFILE</span>
             </div>
 
             {/* ASSIGNMENTS */}

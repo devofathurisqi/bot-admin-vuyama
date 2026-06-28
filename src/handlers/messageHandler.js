@@ -301,6 +301,25 @@ ${text}
   }
 };
 
+const isResellerQuery = (msgText) => {
+  if (!msgText) return false;
+  const normalized = msgText.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+  const patterns = [
+    /syarat.*reseller/i,
+    /cara.*reseller/i,
+    /gabung.*reseller/i,
+    /bagaimana.*reseller/i,
+    /syarat.*dropship/i,
+    /cara.*dropship/i,
+    /gabung.*dropship/i,
+    /syarat.*dropshipper/i,
+    /cara.*dropshipper/i
+  ];
+  const hasKeywords = (normalized.includes('reseller') || normalized.includes('dropship') || normalized.includes('dropshipper')) &&
+                      (normalized.includes('syarat') || normalized.includes('cara') || normalized.includes('gabung') || normalized.includes('daftar') || normalized.includes('registrasi') || normalized.includes('tanya'));
+  return patterns.some(p => p.test(normalized)) || hasKeywords;
+};
+
 /**
  * Main function to generate bot response
  */
@@ -315,6 +334,28 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       const startHour = startRow ? startRow.value : '08';
       const endHour = endRow ? endRow.value : '17';
       offHoursNotice = `*(Pesan Otomatis Di Luar Jam Kerja)*\nHalo Kak! Saat ini CS kami sedang di luar jam operasional (Senin - Sabtu, ${startHour}:00 - ${endHour}:00). Kakak tetap bisa bertanya atau mengisi format order, dan asisten AI kami (Vumin) akan membantu menjawab sementara ya kak... 😊 Kami akan memproses dan mem-follow up chat Kakak secara manual setelah jam operasional aktif kembali. Terima kasih atas pengertiannya Kak! 🙏\n\n`;
+    }
+
+    // A. Intercept reseller inquiry with instant hardcoded reply
+    if (isResellerQuery(userMessage)) {
+      await logToDb('info', `Deteksi pertanyaan syarat reseller untuk ${phoneNumber}. Membalas dengan jawaban hardcode secara instan.`);
+      
+      // Update memory asynchronously in the background so it doesn't block the reply
+      (async () => {
+        try {
+          const memory = require('../services/memory');
+          await memory.updateMemory(phoneNumber, userMessage);
+        } catch (e) {
+          logger.error('Failed to update memory in background reseller handler:', e);
+        }
+      })().catch(err => logger.error('Error in background reseller memory update:', err));
+
+      const resellerAnswer = `Halo Kak! Senang sekali Kakak tertarik dengan program dropship dari Vuyama 😊 Vumin akan bantu jelaskan ya.\n\nKami di Vuyama menyediakan layanan dropship manual, jadi Kakak bisa berjualan produk kami tanpa perlu stok barang sendiri. Keuntungannya banyak banget lho kak, nanti pengiriman akan atas nama toko dan nomor HP Kakak sendiri, lalu kami juga siap jadi gudang penyimpanan label brand Kakak kalau mau pakai brand sendiri. Ga ada minimal order harian juga, jadi fleksibel banget buat Kakak.\n\nKlo Kakak ingin pakai brand sendiri saat dropship, nanti labelnya dipesan dulu di Vuyama ya kak, biar kami bisa simpan di gudang dan pasang di setiap orderan Kakak.\n\nUntuk dropshipper baru yang belum pernah belanja minimal 10 pcs di awal, ada biaya tambahan jasa dropship Rp 3.000 per pc produk ya kak, itu di luar biaya pasang label Rp 1.000 per pc (klo pakai label). Nah, klo Kakak sudah jadi customer lama atau sudah pernah belanja total 10 pcs di awal, biaya dropship Rp 3.000 ini akan GRATIS, Kakak cukup bayar harga produknya aja ditambah biaya pasang label kalau pakai.\n\nKakak bisa langsung mulai jualan pakai katalog resmi Vuyama dulu lho. Ini link Google Drivenya ya, boleh banget diunduh, diedit, dan diposting ulang untuk promosi: https://drive.google.com/drive/folders/1RwtruDL86PYi3TVqILmxrZgZ_XGT1zPv\n\nKlo Kakak sudah siap order dropship, nanti Vumin bisa bantu berikan format ordernya ya. Ada lagi yang ingin ditanyakan kak? 😊`;
+
+      return {
+        intent: 'reseller_info',
+        response: offHoursNotice + resellerAnswer
+      };
     }
 
     // 2. Update/fetch memory

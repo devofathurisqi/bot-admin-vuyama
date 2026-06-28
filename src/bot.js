@@ -250,6 +250,11 @@ client.on('ready', () => {
   } catch (err) {
     logger.error('Failed to initialize queue worker on ready:', err);
   }
+
+  // Populate missing whatsapp numbers
+  populateMissingWhatsappNumbers().catch(err => {
+    logger.error('Failed to populate missing whatsapp numbers on ready:', err);
+  });
 });
 
 // Authenticated handler
@@ -273,6 +278,11 @@ client.on('message_create', async (msg) => {
     return;
   }
 
+  // Skip if empty message and no media, or if it is a reaction
+  if (msg.type === 'reaction' || (!msg.body && !msg.hasMedia)) {
+    return;
+  }
+
   try {
     const messageText = msg.body;
 
@@ -282,7 +292,8 @@ client.on('message_create', async (msg) => {
     if (msg.fromMe) {
       // Avoid duplicate logging if this message was sent programmatically (by bot or dashboard)
       const key = `${phoneNumber}:${messageText}`;
-      if (pendingOutgoingMessages.has(key)) {
+      const isWelcomeMessage = messageText && messageText.includes('Selamat bergabung di grup kami') && messageText.includes('Vuyama');
+      if (pendingOutgoingMessages.has(key) || isWelcomeMessage) {
         pendingOutgoingMessages.delete(key);
         return;
       }
@@ -290,14 +301,17 @@ client.on('message_create', async (msg) => {
       let customer = await db('customers').where('phone_number', phoneNumber).first();
       if (!customer) {
         let name = 'Customer';
+        let whatsappNumber = phoneNumber.split('@')[0];
         try {
           const contact = await client.getContactById(phoneNumber);
           name = contact.pushname || contact.name || 'Customer';
+          whatsappNumber = contact.number || whatsappNumber;
         } catch (e) {}
 
         await db('customers').insert({
           phone_number: phoneNumber,
           name,
+          whatsapp_number: whatsappNumber,
           status: 'NORMAL',
           unread_count: 0,
           last_message_at: new Date()
@@ -427,19 +441,22 @@ client.on('message_create', async (msg) => {
     let customer = await db('customers').where('phone_number', phoneNumber).first();
     if (!customer) {
       let name = 'Customer';
+      let whatsappNumber = phoneNumber.split('@')[0];
       try {
         const contact = await msg.getContact();
         name = contact.pushname || contact.name || 'Customer';
+        whatsappNumber = contact.number || whatsappNumber;
       } catch (e) {}
 
       await db('customers').insert({
         phone_number: phoneNumber,
         name,
+        whatsapp_number: whatsappNumber,
         status: 'NORMAL',
         unread_count: 1,
         last_message_at: new Date()
       });
-      customer = { phone_number: phoneNumber, name, status: 'NORMAL', unread_count: 1 };
+      customer = { phone_number: phoneNumber, name, whatsapp_number: whatsappNumber, status: 'NORMAL', unread_count: 1 };
     } else {
       // Update last message time and increment unread count
       await db('customers').where('phone_number', phoneNumber).update({
@@ -547,9 +564,14 @@ client.on('group_join', async (notification) => {
       // Check if customer exists in database, if not insert, otherwise update last_message_at
       const customer = await db('customers').where('phone_number', phone).first();
       if (!customer) {
+        let whatsappNumber = phone.split('@')[0];
+        if (contact && contact.number) {
+          whatsappNumber = contact.number;
+        }
         await db('customers').insert({
           phone_number: phone,
           name: contact.pushname || contact.name || 'Customer',
+          whatsapp_number: whatsappNumber,
           status: 'NORMAL',
           unread_count: 0,
           last_message_at: timestamp
@@ -679,6 +701,34 @@ const resetBot = async () => {
     initQueueWorker(client);
   } catch (err) {
     logger.error('Failed to update queue worker reference after reset:', err);
+  }
+};
+
+/**
+ * Automatically fetches contact details from WhatsApp for any customer records
+ * missing the clean whatsapp_number, keeping local registry in sync.
+ */
+const populateMissingWhatsappNumbers = async () => {
+  try {
+    const missing = await db('customers').whereNull('whatsapp_number');
+    if (missing.length === 0) return;
+
+    logger.info(`Found ${missing.length} customers with missing whatsapp_number. Populating...`);
+    for (const cust of missing) {
+      try {
+        const contact = await client.getContactById(cust.phone_number);
+        if (contact && contact.number) {
+          await db('customers')
+            .where('phone_number', cust.phone_number)
+            .update({ whatsapp_number: contact.number });
+        }
+      } catch (e) {
+        logger.warn(`Failed to fetch contact number for ${cust.phone_number}: ${e.message}`);
+      }
+    }
+    logger.info('Finished populating missing whatsapp numbers.');
+  } catch (err) {
+    logger.error('Error populating missing whatsapp numbers:', err);
   }
 };
 

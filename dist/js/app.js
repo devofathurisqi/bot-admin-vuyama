@@ -59,6 +59,7 @@ window.App = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const [typedMessage, setTypedMessage] = useState('');
   const [chatSearch, setChatSearch] = useState('');
+  const [chatStatusFilter, setChatStatusFilter] = useState('ALL');
 
   // Filter & Loaders
   const [productSearch, setProductSearch] = useState('');
@@ -973,7 +974,12 @@ window.App = () => {
 
   // Active Chats Filters
   const filteredCustomers = customers.filter(c => {
-    return c.phone_number.includes(chatSearch) || (c.name && c.name.toLowerCase().includes(chatSearch.toLowerCase()));
+    const matchesSearch = c.phone_number.includes(chatSearch) || 
+      (c.name && c.name.toLowerCase().includes(chatSearch.toLowerCase())) ||
+      (c.whatsapp_number && c.whatsapp_number.includes(chatSearch));
+      
+    const matchesStatus = chatStatusFilter === 'ALL' || c.status === chatStatusFilter;
+    return matchesSearch && matchesStatus;
   });
 
   return (
@@ -1193,6 +1199,8 @@ window.App = () => {
             chatMessages={chatMessages}
             chatSearch={chatSearch}
             setChatSearch={setChatSearch}
+            chatStatusFilter={chatStatusFilter}
+            setChatStatusFilter={setChatStatusFilter}
             typedMessage={typedMessage}
             setTypedMessage={setTypedMessage}
             handleSendMessage={handleSendMessage}

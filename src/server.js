@@ -1789,6 +1789,20 @@ const startServer = () => {
       logger.error('Failed to run schema update for stock_colors product_id:', e);
     }
 
+    // Ensure whatsapp_number column exists on customers table (automatic migration)
+    try {
+      const hasWhatsappNumber = await db.schema.hasColumn('customers', 'whatsapp_number');
+      if (!hasWhatsappNumber) {
+        logger.info('Adding whatsapp_number column to customers table...');
+        await db.schema.table('customers', table => {
+          table.string('whatsapp_number', 50).nullable();
+        });
+        logger.info('Successfully added whatsapp_number column to customers.');
+      }
+    } catch (e) {
+      logger.error('Failed to run schema update for customers whatsapp_number:', e);
+    }
+
     // Ensure chat_request_queue table exists (automatic migration)
     try {
       const hasQueueTable = await db.schema.hasTable('chat_request_queue');

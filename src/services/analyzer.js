@@ -20,7 +20,37 @@ const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
  * @param {Object} currentMemory - Current memory object { summary, conversation_state, extracted_intent }
  * @returns {Promise<Object>} - Analyzed context: { summary, extracted_intent, is_intent_clear, clarification_question, conversation_state }
  */
+const isSimpleMessage = (msgText) => {
+  if (!msgText) return true;
+  const clean = msgText.trim().toLowerCase();
+  if (clean.length < 5) return true;
+  
+  const simplePhrases = [
+    'halo', 'hai', 'siang', 'sore', 'pagi', 'malam', 'assalamualaikum',
+    'ok', 'oke', 'baik', 'ya', 'tidak', 'nggak', 'makasih', 'terima kasih',
+    'siap', 'sudah', 'belum', 'sip', 'minta nomor rekening', 'minta norek'
+  ];
+  
+  return simplePhrases.includes(clean);
+};
+
+/**
+ * Call Gemini API to analyze the conversation, update memory, extract intent,
+ * and check if the intent is clear.
+ * 
+ * @param {string} phoneNumber - Customer phone number
+ * @param {Array} activeHistory - Array of raw messages from the last 3 days
+ * @param {string} latestMessage - Customer's latest message
+ * @param {Object} currentMemory - Current memory object { summary, conversation_state, extracted_intent }
+ * @returns {Promise<Object>} - Analyzed context: { summary, extracted_intent, is_intent_clear, clarification_question, conversation_state }
+ */
 const analyzeConversation = async (phoneNumber, activeHistory, latestMessage, currentMemory = null) => {
+  // If it's a simple message, skip Gemini analysis to reduce response delay and token usage
+  if (isSimpleMessage(latestMessage)) {
+    logger.info(`Customer message "${latestMessage}" is simple/standard. Skipping analyzer Gemini API call.`);
+    return getFallbackAnalysis(latestMessage, currentMemory);
+  }
+
   if (!genAI) {
     logger.warn('Gemini client for analyzer is not initialized due to missing API key. Falling back to default analysis.');
     return getFallbackAnalysis(latestMessage, currentMemory);
