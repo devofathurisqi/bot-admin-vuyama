@@ -213,7 +213,7 @@ window.LiveChatTab = ({
 
               <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name && c.name !== 'Customer' ? c.name : formatPhoneNumber(c.whatsapp_number || c.phone_number)}</h4>
+                  <h4 className="font-bold text-xs truncate max-w-[120px]">{c.name || 'Customer'}</h4>
                   <span className="text-[9px] text-gray-500 font-semibold">{new Date(c.last_message_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
 
@@ -268,7 +268,7 @@ window.LiveChatTab = ({
                     const formatted = formatPhoneNumber(activeCust?.whatsapp_number || activeChat);
                     return (
                       <React.Fragment>
-                        <h3 className="font-extrabold text-sm truncate">{activeCust?.name && activeCust.name !== 'Customer' ? activeCust.name : formatted}</h3>
+                        <h3 className="font-extrabold text-sm truncate">{activeCust?.name || 'Customer'}</h3>
                         <p className="text-[10px] text-gray-500 font-semibold truncate">{formatted}</p>
                       </React.Fragment>
                     );
@@ -403,7 +403,7 @@ window.LiveChatTab = ({
                 const formatted = formatPhoneNumber(activeCust?.whatsapp_number || activeChat);
                 return (
                   <React.Fragment>
-                    <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white truncate">{activeCust?.name && activeCust.name !== 'Customer' ? activeCust.name : formatted}</h3>
+                    <h3 className="font-extrabold text-sm leading-tight text-gray-850 dark:text-white truncate">{activeCust?.name || 'Customer'}</h3>
                     <p className="text-[10px] text-gray-500 font-semibold truncate">{formatted}</p>
                   </React.Fragment>
                 );
