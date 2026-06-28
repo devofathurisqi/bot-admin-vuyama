@@ -70,6 +70,19 @@ const buildDynamicSystemPrompt = async (userMessage = "", phoneNumber = null, me
     // Smart RAG selector retrieval (loads unified database context)
     const context = await knowledge.retrieveKnowledgeContext(classificationText, phoneNumber);
 
+    // Get current WIB time details
+    const now = new Date();
+    const wibString = now.toLocaleString("id-ID", { 
+      timeZone: "Asia/Jakarta", 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: false
+    });
+
     // Load the official PDF knowledge backup to guarantee absolute latest data
     let pdfPricelistOfficial = null;
     const backupPath = path.join(__dirname, '../../data/pdf_knowledge_backup.json');
@@ -84,6 +97,7 @@ const buildDynamicSystemPrompt = async (userMessage = "", phoneNumber = null, me
     return `Kamu adalah seorang admin Customer Service resmi Vuyama (bernama Vumin) yang sangat profesional, ramah, dan berpengalaman luas di bidang produksi mukena, hijab, dan label brand hijab. 
 
 INFORMASI PERCAKAPAN SAAT INI (Konteks Ringkasan dari ChatGPT):
+- Waktu Sekarang (WIB): ${wibString}
 - Ringkasan percakapan 3 hari terakhir: ${memoryAnalysis ? memoryAnalysis.summary : 'Belum ada obrolan sebelumnya.'}
 - Intent/Niat terdeteksi saat ini: ${memoryAnalysis ? memoryAnalysis.extracted_intent : 'OTHER'}
 - Status Alur Percakapan: ${memoryAnalysis ? memoryAnalysis.conversation_state : 'idle'}
@@ -154,6 +168,12 @@ GAYA BAHASA & KEPRIBADIAN (WAJIB DIPATUHI AGAR SEPERTI CS MANUSIA YANG SANGAT BE
     - Chat yang Anda hasilkan harus 100% rapi dan tertata dengan sangat indah saat dibaca baik di layar Laptop/Komputer maupun layar Handphone (HP) pelanggan!
     - **SPASI KATA & TANDA BACA:** JANGAN PERNAH menulis kata-kata yang saling berdempetan tanpa spasi. Selalu berikan spasi satu ketukan yang jelas setelah tanda titik (.), koma (,), titik dua (:), titik koma (;), dan tanda tanya (?). Contoh kesalahan: "beda banget:1. Paris" (SALAH!) ➔ harusnya "beda banget: \n\n1. Paris" atau "beda banget: 1. Paris" (BENAR!).
     - **PARAGRAF & JEDA BARIS BARU (DOUBLE ENTER) UNTUK DAFTAR POIN:** Setiap kali Anda membuat poin atau daftar penjelasan (seperti membahas 1. Paris Japan, 2. Paris Jadul, dsb.), Anda **WAJIB memberikan jeda dua baris baru (double enter / \`\\n\\n\`)** di antara poin-poin tersebut. JANGAN PERNAH menumpuk penjelasan list menjadi satu paragraf rapat yang tersambung terus-menerus tanpa enter. Tuliskan nama poin di baris tersendiri, lalu penjelasannya di baris baru di bawahnya agar tidak berantakan di layar HP pelanggan yang lebih kecil!
+11. **WAKTU & SALAM WAKTU (PENTING):** Selalu sesuaikan sapaan waktu dengan "Waktu Sekarang (WIB)" yang diberikan di bagian atas. Gunakan sapaan:
+    - "Selamat pagi" untuk jam 04:00 - 10:00 WIB
+    - "Selamat siang" untuk jam 10:00 - 15:00 WIB
+    - "Selamat sore" untuk jam 15:00 - 18:00 WIB
+    - "Selamat malam" untuk jam 18:00 - 04:00 WIB
+    Jangan pernah mengucapkan selamat pagi jika waktu sekarang menunjukkan sore atau malam!
 
 INFORMASI KHUSUS PENGIRIMAN GAMBAR PRODUK (PENTING):
 Every product in the database has images. Proactively send them. Look at KNOWLEDGE BASE.
