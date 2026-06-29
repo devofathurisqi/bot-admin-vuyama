@@ -110,14 +110,14 @@ window.OrdersTab = ({
                 </div>
               </div>
 
-              <div className="space-y-1 bg-gray-50 dark:bg-gray-800/20 p-2.5 rounded-xl border border-gray-100/50 dark:border-darkbg-border/40">
+              <div className="space-y-1 bg-gray-55 dark:bg-gray-850/10 p-2.5 rounded-xl border border-gray-100/50 dark:border-darkbg-border/40">
                 <div className="flex items-center space-x-1.5 text-xs text-gray-850 dark:text-gray-200 font-extrabold">
                   <span className="text-sm">👤</span>
                   <span className="truncate" title={order.customer_name}>{order.customer_name}</span>
                 </div>
                 <div className="flex items-center space-x-1.5 text-[10px] text-gray-500 dark:text-gray-400 font-bold">
                   <span className="text-xs">📞</span>
-                  <span>{order.phone || order.phone_number}</span>
+                  <span>{window.formatPhoneNumber(order.phone || order.phone_number)}</span>
                 </div>
               </div>
             </div>

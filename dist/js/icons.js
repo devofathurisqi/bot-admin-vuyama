@@ -45,3 +45,32 @@ window.ImageWithSkeleton = ({ src, alt, className = "", containerClassName = "",
     </div>
   );
 };
+
+window.formatPhoneNumber = (phone) => {
+  if (!phone) return '';
+  
+  // Extract number from JID if present
+  let clean = phone.split('@')[0];
+  
+  // Keep only numbers
+  clean = clean.replace(/[^0-9]/g, '');
+  
+  // Format Indonesian numbers (starts with 62 or 0)
+  if (clean.startsWith('62')) {
+    const rest = clean.slice(2);
+    if (rest.length >= 9) {
+      return `+62 ${rest.slice(0, 3)}-${rest.slice(3, 7)}-${rest.slice(7)}`;
+    }
+    return `+62 ${rest}`;
+  } else if (clean.startsWith('0')) {
+    const rest = clean.slice(1);
+    if (rest.length >= 9) {
+      return `+62 ${rest.slice(0, 3)}-${rest.slice(3, 7)}-${rest.slice(7)}`;
+    }
+    return `+62 ${rest}`;
+  }
+  
+  // General formatting (including LID JIDs)
+  return clean.length > 5 ? `+${clean}` : clean;
+};
+

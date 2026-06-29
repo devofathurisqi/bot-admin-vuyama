@@ -22,7 +22,7 @@ window.ComplaintsTab = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-darkbg-border pb-3">
                 <div>
-                  <h3 className="font-extrabold text-sm text-gray-850 dark:text-gray-200">Phone: {comp.phone_number}</h3>
+                  <h3 className="font-extrabold text-sm text-gray-850 dark:text-gray-200">Phone: {window.formatPhoneNumber(comp.phone_number)}</h3>
                   <span className="text-[10px] text-gray-500 font-semibold">{new Date(comp.created_at).toLocaleString('id-ID')}</span>
                 </div>
                 <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${comp.status === 'OPEN' ? 'bg-rose-500/10 text-rose-500 animate-pulse' : 'bg-emerald-500/10 text-emerald-500'}`}>

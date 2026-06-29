@@ -36,7 +36,7 @@ window.BlockedTab = ({
           <tbody className="divide-y divide-darkbg-border/60">
             {blockedNumbers.map(item => (
               <tr key={item.phone_number} className="hover:bg-gray-800/10 text-gray-700 dark:text-gray-300">
-                <td className="p-4 font-bold">{item.phone_number}</td>
+                <td className="p-4 font-bold">{window.formatPhoneNumber(item.phone_number)}</td>
                 <td className="p-4 text-gray-400 font-medium">{item.reason || 'Manual Admin Block'}</td>
                 <td className="p-4 text-gray-500 font-semibold">{new Date(item.created_at).toLocaleString('id-ID')}</td>
                 <td className="p-4 text-right">
