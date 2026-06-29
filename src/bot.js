@@ -95,7 +95,11 @@ let client = new Client({
       '--disable-dev-shm-usage',
       '--disable-gpu',
       '--no-first-run',
-      '--no-zygote'
+      '--no-zygote',
+      '--disable-extensions',
+      '--disable-default-apps',
+      '--disable-accelerated-2d-canvas',
+      '--js-flags="--max-old-space-size=512"'
     ]
   }
 });
@@ -117,13 +121,6 @@ const logToDb = async (level, message) => {
  */
 const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) => {
   try {
-    if (!client.pupBrowser) {
-      const errNoPup = `[PDF CS Vuyama] Gagal: Browser Puppeteer tidak aktif pada client.`;
-      logger.warn(errNoPup);
-      await logToDb('warn', errNoPup);
-      return;
-    }
-
     const docGen = require('./services/documentGenerator');
     let pdfPath = null;
     let logMsg = '';
@@ -155,7 +152,7 @@ const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) 
       logger.info(logMsg);
       await logToDb('info', logMsg);
 
-      pdfPath = await docGen.generateComparisonPdf(client.pupBrowser, slug, comparisonText);
+      pdfPath = await docGen.generateComparisonPdf(slug, comparisonText);
     } 
     else if (type === 'invoice') {
       const oId = options.orderId;
@@ -172,7 +169,7 @@ const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) 
       logger.info(logMsg);
       await logToDb('info', logMsg);
 
-      pdfPath = await docGen.generateInvoicePdf(client.pupBrowser, order.id);
+      pdfPath = await docGen.generateInvoicePdf(order.id);
     } 
     else if (type === 'welcome_guide') {
       const level = options.resellerLevel || 'Silver';
@@ -180,7 +177,7 @@ const asyncGenerateAndSendPdf = async (client, phoneNumber, type, options = {}) 
       logger.info(logMsg);
       await logToDb('info', logMsg);
 
-      pdfPath = await docGen.generateWelcomeGuidePdf(client.pupBrowser, phoneNumber, level);
+      pdfPath = await docGen.generateWelcomeGuidePdf(phoneNumber, level);
     }
 
     if (pdfPath && fs.existsSync(pdfPath)) {
@@ -601,84 +598,147 @@ client.on('message_create', async (msg) => {
 // Handle group join reachout
 client.on('group_join', async (notification) => {
   try {
-    const recipients = await notification.getRecipients();
-    for (const contact of recipients) {
-      const name = contact.pushname || contact.name || 'Kak';
-      const phone = contact.id._serialized;
-      
-      const welcomeMessage = `Halo ${name}! Selamat bergabung di grup kami. 😊\n\nKami ingin menginfokan agar selalu berhati-hati terhadap penipuan yang mengatasnamakan admin Vuyama. Admin tidak pernah menghubungi Anda secara pribadi terlebih dahulu untuk meminta data pribadi, password, atau transaksi di luar sistem resmi.\n\nTetap waspada ya!`;
+    logger.info('[Auto Reachout] group_join event triggered');
+    
+    // Get list of participant IDs who joined
+    let recipientIds = [];
+    if (Array.isArray(notification.recipientIds)) {
+      recipientIds = notification.recipientIds;
+    } else {
+      try {
+        const recipients = await notification.getRecipients();
+        if (Array.isArray(recipients)) {
+          recipientIds = recipients.map(c => (c.id && c.id._serialized) || c.id || c);
+        }
+      } catch (e) {
+        logger.error('[Auto Reachout] Failed to fetch recipients using getRecipients:', e);
+      }
+    }
 
-      // Track outgoing message to prevent triggering WAITING_HUMAN for this contact
-      const trackerKey = `${phone}:${welcomeMessage}`;
-      if (pendingOutgoingMessages) {
-        pendingOutgoingMessages.add(trackerKey);
+    if (!recipientIds || recipientIds.length === 0) {
+      logger.warn('[Auto Reachout] No recipient IDs found in group_join notification.');
+      return;
+    }
+
+    for (const recipientId of recipientIds) {
+      let rawId = null;
+      if (recipientId && typeof recipientId === 'object') {
+        rawId = recipientId._serialized || recipientId.id;
+      } else {
+        rawId = recipientId;
       }
 
-      try {
-        await client.sendMessage(phone, welcomeMessage);
-      } catch (sendErr) {
-        logger.error(`[Auto Reachout] Failed to send reachout to new member ${phone}:`, sendErr);
-        if (pendingOutgoingMessages) {
-          pendingOutgoingMessages.delete(trackerKey);
-        }
+      // Validate JID (should be a private contact, not group or status)
+      if (!rawId || typeof rawId !== 'string' || rawId.includes('@g.us') || rawId.includes('@broadcast')) {
         continue;
       }
 
-      // Record to CRM Database Conversations
-      const timestamp = new Date();
-      await db('conversations').insert({
-        phone_number: phone,
-        message: welcomeMessage,
-        sender: 'agent',
-        message_type: 'text',
-        status: 'sent',
-        timestamp
-      });
-
-      // Stream to dashboard Live Chat in real-time
-      emitEvent('incoming_message', {
-        phone_number: phone,
-        message: welcomeMessage,
-        sender: 'agent',
-        message_type: 'text',
-        status: 'sent',
-        timestamp
-      });
-
-      // Check if customer exists in database, if not insert, otherwise update last_message_at
-      const customer = await db('customers').where('phone_number', phone).first();
-      if (!customer) {
-        const info = await resolveCustomerInfo(phone, contact);
-        await db('customers').insert({
-          phone_number: phone,
-          name: info.name,
-          whatsapp_number: info.whatsappNumber,
-          status: 'NORMAL',
-          unread_count: 0,
-          last_message_at: timestamp
-        });
-      } else {
-        const updates = {
-          last_message_at: timestamp,
-          updated_at: new Date()
-        };
-        if (!customer.whatsapp_number || customer.name === 'Customer') {
-          const info = await resolveCustomerInfo(phone, contact);
-          if (!customer.whatsapp_number && info.whatsappNumber) {
-            updates.whatsapp_number = info.whatsappNumber;
+      try {
+        let name = 'Kak';
+        let contact = null;
+        
+        try {
+          contact = await client.getContactById(rawId);
+          if (contact) {
+            name = contact.pushname || contact.name || 'Kak';
           }
-          if (customer.name === 'Customer' && info.name !== 'Customer') {
-            updates.name = info.name;
-          }
+        } catch (contactErr) {
+          logger.warn(`[Auto Reachout] Failed to get contact details for ${rawId}: ${contactErr.message}`);
         }
-        await db('customers').where('phone_number', phone).update(updates);
+
+        // Avoid greeting ourselves or invalid names
+        if (name === 'Customer' || !name || name.trim() === '') {
+          name = 'Kak';
+        }
+
+        const phone = rawId; // e.g. "628xxx@c.us"
+        
+        const welcomeMessage = `Halo ${name}! Selamat bergabung di grup kami. 😊\n\nKami ingin menginfokan agar selalu berhati-hati terhadap penipuan yang mengatasnamakan admin Vuyama. Admin tidak pernah menghubungi Anda secara pribadi terlebih dahulu untuk meminta data pribadi, password, atau transaksi di luar sistem resmi.\n\nTetap waspada ya!`;
+
+        // Track outgoing message to prevent triggering WAITING_HUMAN for this contact
+        const trackerKey = `${phone}:${welcomeMessage}`;
+        if (pendingOutgoingMessages) {
+          pendingOutgoingMessages.add(trackerKey);
+        }
+
+        try {
+          await client.sendMessage(phone, welcomeMessage);
+        } catch (sendErr) {
+          logger.error(`[Auto Reachout] Failed to send reachout message to ${phone}:`, sendErr);
+          if (pendingOutgoingMessages) {
+            pendingOutgoingMessages.delete(trackerKey);
+          }
+          continue;
+        }
+
+        // Record to CRM Database Conversations
+        const timestamp = new Date();
+        try {
+          await db('conversations').insert({
+            phone_number: phone,
+            message: welcomeMessage,
+            sender: 'agent',
+            message_type: 'text',
+            status: 'sent',
+            timestamp
+          });
+
+          // Stream to dashboard Live Chat in real-time
+          emitEvent('incoming_message', {
+            phone_number: phone,
+            message: welcomeMessage,
+            sender: 'agent',
+            message_type: 'text',
+            status: 'sent',
+            timestamp
+          });
+
+          // Check if customer exists in database, if not insert, otherwise update last_message_at
+          const customer = await db('customers').where('phone_number', phone).first();
+          if (!customer) {
+            const info = await resolveCustomerInfo(phone, contact);
+            await db('customers').insert({
+              phone_number: phone,
+              name: info.name && info.name !== 'Customer' ? info.name : name,
+              whatsapp_number: info.whatsappNumber || phone.split('@')[0],
+              status: 'NORMAL',
+              unread_count: 0,
+              last_message_at: timestamp
+            });
+          } else {
+            const updates = {
+              last_message_at: timestamp,
+              updated_at: new Date()
+            };
+            if (!customer.whatsapp_number || customer.name === 'Customer') {
+              const info = await resolveCustomerInfo(phone, contact);
+              if (!customer.whatsapp_number && info.whatsappNumber) {
+                updates.whatsapp_number = info.whatsappNumber;
+              }
+              if (customer.name === 'Customer' && info.name && info.name !== 'Customer') {
+                updates.name = info.name;
+              } else if (customer.name === 'Customer' && name !== 'Kak') {
+                updates.name = name;
+              }
+            }
+            await db('customers').where('phone_number', phone).update(updates);
+          }
+
+          // Stream updated customer stats to UI
+          const updatedCustomer = await db('customers').where('phone_number', phone).first();
+          emitEvent('customer_updated', updatedCustomer);
+        } catch (dbErr) {
+          logger.error(`[Auto Reachout] CRM logging failed for ${phone}:`, dbErr);
+        }
+
+        logger.info(`[Auto Reachout] Successfully sent welcome and anti-scam alert to new group member: ${name} (${phone})`);
+        
+        // Anti-spam delay between individual reachouts if multiple users join
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+      } catch (innerErr) {
+        logger.error(`[Auto Reachout] Error processing individual reachout for ${rawId}:`, innerErr);
       }
-
-      // Stream updated customer stats to UI
-      const updatedCustomer = await db('customers').where('phone_number', phone).first();
-      emitEvent('customer_updated', updatedCustomer);
-
-      logger.info(`[Auto Reachout] Successfully sent welcome and anti-scam alert to new group member: ${name} (${phone})`);
     }
   } catch (err) {
     logger.error('Error in group_join auto reachout handler:', err);
@@ -733,6 +793,9 @@ const startBot = async () => {
     await client.initialize();
     logger.info('WhatsApp client initialized successfully.');
     await logToDb('info', 'WhatsApp client initialized.');
+
+    // Start Connection Heartbeat Monitor
+    startConnectionHeartbeat();
   } catch (error) {
     logger.error('Failed to start bot:', error);
     process.exit(1);
@@ -743,9 +806,17 @@ const startBot = async () => {
  * Destroys current WhatsApp client session, deletes auth/cache files,
  * instantiates a new Client instance, and re-initializes connection.
  */
-const resetBot = async () => {
-  logger.info('Resetting WhatsApp bot session...');
-  await logToDb('info', 'Mereset sesi WhatsApp bot...');
+let isResetting = false;
+
+const resetBot = async (forceDeleteAuth = false) => {
+  if (isResetting) {
+    logger.warn('Reset WhatsApp bot is already in progress, skipping.');
+    return;
+  }
+  isResetting = true;
+
+  logger.info(`Resetting WhatsApp bot session... (Force delete auth: ${forceDeleteAuth})`);
+  await logToDb('info', `Mereset sesi WhatsApp bot... (Hapus sesi: ${forceDeleteAuth})`);
   
   try {
     if (client) {
@@ -755,18 +826,26 @@ const resetBot = async () => {
     logger.error('Error destroying client during reset:', err);
   }
 
-  try {
-    const authDir = path.join(__dirname, '../.wwebjs_auth');
-    const cacheDir = path.join(__dirname, '../.wwebjs_cache');
-    if (fs.existsSync(authDir)) {
-      fs.rmSync(authDir, { recursive: true, force: true });
+  if (forceDeleteAuth) {
+    try {
+      const authDir = path.join(__dirname, '../.wwebjs_auth');
+      if (fs.existsSync(authDir)) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+      }
+      logger.info('Deleted .wwebjs_auth directory successfully.');
+    } catch (err) {
+      logger.error('Error deleting auth directory during reset:', err);
     }
+  }
+
+  try {
+    const cacheDir = path.join(__dirname, '../.wwebjs_cache');
     if (fs.existsSync(cacheDir)) {
       fs.rmSync(cacheDir, { recursive: true, force: true });
     }
-    logger.info('Deleted .wwebjs_auth and .wwebjs_cache directories successfully.');
+    logger.info('Deleted .wwebjs_cache directory successfully.');
   } catch (err) {
-    logger.error('Error deleting auth directories during reset:', err);
+    logger.error('Error deleting cache directory during reset:', err);
   }
 
   client = new Client({
@@ -786,7 +865,11 @@ const resetBot = async () => {
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--no-first-run',
-        '--no-zygote'
+        '--no-zygote',
+        '--disable-extensions',
+        '--disable-default-apps',
+        '--disable-accelerated-2d-canvas',
+        '--js-flags="--max-old-space-size=512"'
       ]
     }
   });
@@ -794,16 +877,81 @@ const resetBot = async () => {
   setupEventHandlers();
   setBotStatus('disconnected');
 
-  await client.initialize();
-  logger.info('WhatsApp client re-initialized successfully.');
-  await logToDb('info', 'WhatsApp client berhasil di-inisialisasi ulang.');
-
   try {
-    const { initQueueWorker } = require('./services/queueWorker');
-    initQueueWorker(client);
+    await client.initialize();
+    logger.info('WhatsApp client re-initialized successfully.');
+    await logToDb('info', 'WhatsApp client berhasil di-inisialisasi ulang.');
+    
+    // Initialize queue worker reference after reset
+    try {
+      const { initQueueWorker } = require('./services/queueWorker');
+      initQueueWorker(client);
+    } catch (err) {
+      logger.error('Failed to update queue worker reference after reset:', err);
+    }
   } catch (err) {
-    logger.error('Failed to update queue worker reference after reset:', err);
+    logger.error('Failed to initialize client during reset:', err);
+  } finally {
+    isResetting = false;
   }
+};
+
+let heartbeatInterval = null;
+
+/**
+ * Periodically monitor connection health of the WhatsApp Web client.
+ * Restarts the connection programmatically if zombie/unresponsive states are detected.
+ */
+const startConnectionHeartbeat = () => {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  
+  heartbeatInterval = setInterval(async () => {
+    try {
+      const { getBotStatus } = require('./bot_state');
+      const currentStatus = getBotStatus().status;
+      
+      // Only monitor if the bot is supposed to be connected
+      if (currentStatus !== 'connected') {
+        return;
+      }
+      
+      logger.info('[Heartbeat] Checking WhatsApp connection health...');
+      let isHealthy = false;
+      
+      if (client && client.pupPage) {
+        // 1. Check if the Puppeteer page is responsive
+        const pageResponsive = await Promise.race([
+          client.pupPage.evaluate(() => 1).then(() => true),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Page unresponsive')), 8000))
+        ]).catch(() => false);
+        
+        if (pageResponsive) {
+          // 2. Check client connection state with timeout
+          const connectionState = await Promise.race([
+            client.getState().then(state => state),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('getState timeout')), 10000))
+          ]).catch(() => null);
+          
+          logger.info(`[Heartbeat] WhatsApp client state: ${connectionState}`);
+          if (connectionState === 'CONNECTED') {
+            isHealthy = true;
+          }
+        } else {
+          logger.warn('[Heartbeat] Puppeteer page is not responding.');
+        }
+      } else {
+        logger.warn('[Heartbeat] Puppeteer client or page is undefined.');
+      }
+      
+      if (!isHealthy) {
+        logger.warn('[Heartbeat] WhatsApp client is unhealthy or zombie connection detected! Restarting...');
+        await logToDb('warn', '[Heartbeat] Koneksi WhatsApp terdeteksi zombie/tidak merespons. Melakukan restart koneksi...');
+        await resetBot(false);
+      }
+    } catch (err) {
+      logger.error('[Heartbeat] Error in connection heartbeat check:', err);
+    }
+  }, 1000 * 60 * 5); // check every 5 minutes
 };
 
 /**

@@ -1231,6 +1231,9 @@ window.App = () => {
             handleUpdateOrderStatus={handleUpdateOrderStatus}
             handleDeleteOrder={handleDeleteOrder}
             handleOpenEditOrderModal={handleOpenEditOrderModal}
+            setActiveTab={setActiveTab}
+            setActiveChat={setActiveChat}
+            loadChatMessages={loadChatMessages}
           />
           <ComplaintsTab
             activeTab={activeTab}

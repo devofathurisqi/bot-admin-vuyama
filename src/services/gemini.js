@@ -110,8 +110,68 @@ const healthCheck = async () => {
   }
 };
 
+const callGeminiJson = async (prompt, imageBuffer = null, imageMime = null) => {
+  let lastError = null;
+
+  for (const modelName of FALLBACK_MODELS) {
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 0) {
+          const delay = Math.pow(2, attempt) * 400; // 800ms, 1600ms
+          await new Promise(resolve => setTimeout(resolve, delay));
+          logger.info(`Retrying Gemini JSON call with model ${modelName} (Attempt ${attempt}/${maxRetries})...`);
+        }
+
+        const activeModel = genAI.getGenerativeModel({ 
+          model: modelName,
+          generationConfig: { responseMimeType: "application/json" }
+        });
+        
+        let contents;
+        if (imageBuffer && imageMime) {
+          const base64Data = Buffer.isBuffer(imageBuffer) ? imageBuffer.toString("base64") : imageBuffer;
+          contents = [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: imageMime
+              }
+            },
+            {
+              text: prompt
+            }
+          ];
+        } else {
+          contents = [prompt];
+        }
+
+        const result = await activeModel.generateContent(contents);
+        const response = await result.response;
+        const text = response.text();
+
+        if (text) {
+          return JSON.parse(text);
+        }
+      } catch (error) {
+        lastError = error;
+        logger.warn(`Gemini JSON call failed with model ${modelName} on attempt ${attempt}: ${error.message}`);
+
+        // If it's an authorization/API key invalidation error, do not retry
+        if (error.message && (error.message.includes('API key not valid') || error.message.includes('400'))) {
+          break;
+        }
+      }
+    }
+  }
+
+  logger.error(`All Gemini JSON models failed. Last error: ${lastError ? lastError.message : 'Unknown'}`);
+  throw lastError || new Error('All Gemini API JSON models failed');
+};
+
 module.exports = {
   callGemini,
+  callGeminiJson,
   healthCheck,
   MODEL_NAME
 };

@@ -10,7 +10,10 @@ window.OrdersTab = ({
   handleUpdateOrderTotal,
   handleUpdateOrderStatus,
   handleDeleteOrder,
-  handleOpenEditOrderModal
+  handleOpenEditOrderModal,
+  setActiveTab,
+  setActiveChat,
+  loadChatMessages
 }) => {
   if (activeTab !== 'orders') return null;
 
@@ -71,7 +74,18 @@ window.OrdersTab = ({
       {/* ORDER GRID */}
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredOrders.map(order => (
-          <div key={order.id} className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition text-gray-850 dark:text-gray-200">
+          <div
+            key={order.id}
+            onDoubleClick={() => {
+              if (order.phone_number) {
+                setActiveChat(order.phone_number);
+                loadChatMessages(order.phone_number);
+                setActiveTab('customers');
+              }
+            }}
+            className="p-5 rounded-2xl bg-white dark:bg-darkbg-card border border-gray-100 dark:border-darkbg-border shadow-sm flex flex-col justify-between space-y-4 hover:shadow-md transition text-gray-850 dark:text-gray-200 cursor-pointer select-none"
+            title="Double-click to open Live Chat with customer"
+          >
             
             {/* ORDER META */}
             <div className="space-y-2">
@@ -83,7 +97,10 @@ window.OrdersTab = ({
                   </span>
                   {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
                     <button 
-                      onClick={() => handleOpenEditOrderModal(order)} 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditOrderModal(order);
+                      }} 
                       className="p-1 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-white transition"
                       title="Edit Order"
                     >
@@ -93,8 +110,16 @@ window.OrdersTab = ({
                 </div>
               </div>
 
-              <h3 className="font-extrabold text-sm">{order.customer_name}</h3>
-              <span className="text-[10px] text-gray-500 font-semibold">{order.phone}</span>
+              <div className="space-y-1 bg-gray-50 dark:bg-gray-800/20 p-2.5 rounded-xl border border-gray-100/50 dark:border-darkbg-border/40">
+                <div className="flex items-center space-x-1.5 text-xs text-gray-850 dark:text-gray-200 font-extrabold">
+                  <span className="text-sm">👤</span>
+                  <span className="truncate" title={order.customer_name}>{order.customer_name}</span>
+                </div>
+                <div className="flex items-center space-x-1.5 text-[10px] text-gray-500 dark:text-gray-400 font-bold">
+                  <span className="text-xs">📞</span>
+                  <span>{order.phone || order.phone_number}</span>
+                </div>
+              </div>
             </div>
 
             {/* SPECS AND PURCHASE */}

@@ -1,17 +1,17 @@
 const fs = require('fs');
 const path = require('path');
+const puppeteer = require('puppeteer');
 const gemini = require('./gemini');
 const logger = require('../utils/logger');
 const db = require('../utils/db');
 
 /**
  * Generate a PDF document using Puppeteer and cache it on disk
- * @param {object} browser - Puppeteer browser instance
  * @param {string} slug - Unique identifier for caching
  * @param {string} htmlContent - Raw HTML code to render
  * @returns {Promise<string>} - Absolute path to generated PDF
  */
-const renderHtmlToPdf = async (browser, slug, htmlContent) => {
+const renderHtmlToPdf = async (slug, htmlContent) => {
   const filename = `${slug}.pdf`;
   const outputPath = path.join(__dirname, '../../data/pdf', filename);
 
@@ -23,38 +23,51 @@ const renderHtmlToPdf = async (browser, slug, htmlContent) => {
 
   // If already generated, return the path (caching)
   if (fs.existsSync(outputPath)) {
-    logger.info(`[PDF CS Vuyama] Retreiving cached document from ${outputPath}`);
+    logger.info(`[PDF CS Vuyama] Retrieving cached document from ${outputPath}`);
     return outputPath;
   }
 
-  if (!browser) {
-    throw new Error('Puppeteer browser instance is not active');
-  }
+  logger.info(`[PDF CS Vuyama] Launching isolated Puppeteer instance to render PDF for ${slug}...`);
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote'
+    ]
+  });
 
-  const page = await browser.newPage();
   try {
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-    
-    // Font loading guard: wait for web fonts to load before printing PDF
-    await page.evaluateHandle(() => document.fonts.ready);
-    
-    await page.pdf({
-      path: outputPath,
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '20mm', bottom: '20mm', left: '20mm', right: '20mm' }
-    });
-    logger.info(`[PDF CS Vuyama] Generated and cached PDF: ${outputPath}`);
-    return outputPath;
+    const page = await browser.newPage();
+    try {
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+      
+      // Font loading guard: wait for web fonts to load before printing PDF
+      await page.evaluateHandle(() => document.fonts.ready);
+      
+      await page.pdf({
+        path: outputPath,
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '20mm', bottom: '20mm', left: '20mm', right: '20mm' }
+      });
+      logger.info(`[PDF CS Vuyama] Generated and cached PDF: ${outputPath}`);
+      return outputPath;
+    } finally {
+      await page.close();
+    }
   } finally {
-    await page.close();
+    await browser.close();
   }
 };
 
 /**
  * Generate a beautiful product comparison sheet PDF using Gemini HTML layout
  */
-const generateComparisonPdf = async (browser, slug, comparisonData) => {
+const generateComparisonPdf = async (slug, comparisonData) => {
   const prompt = `You are a master document writer and premium graphic designer for Vuyama (premium brand of hijab and brand labels). 
 Vuyama is famous for its hyper-minimalist, pristine, and elegant aesthetic: a simple centered logo "V" on a solid white background, neat lines, and high-end typography.
 
@@ -89,13 +102,13 @@ HTML & CSS Styling Rules (Strict):
   if (cleanHtml.endsWith('```')) cleanHtml = cleanHtml.replace(/```$/, '');
   cleanHtml = cleanHtml.trim();
 
-  return await renderHtmlToPdf(browser, `perbandingan_${slug}`, cleanHtml);
+  return await renderHtmlToPdf(`perbandingan_${slug}`, cleanHtml);
 };
 
 /**
  * Generate a premium order invoice summary PDF
  */
-const generateInvoicePdf = async (browser, orderId) => {
+const generateInvoicePdf = async (orderId) => {
   // Force delete cached file if it exists to ensure regeneration with latest edits
   const filename = `invoice_${orderId}.pdf`;
   const outputPath = path.join(__dirname, '../../data/pdf', filename);
@@ -382,13 +395,13 @@ const generateInvoicePdf = async (browser, orderId) => {
 </html>
   `;
 
-  return await renderHtmlToPdf(browser, `invoice_${orderId}`, htmlContent);
+  return await renderHtmlToPdf(`invoice_${orderId}`, htmlContent);
 };
 
 /**
  * Generate a reseller guide PDF dynamically using Excel RAG and customer profile
  */
-const generateWelcomeGuidePdf = async (browser, phoneNumber, resellerLevel) => {
+const generateWelcomeGuidePdf = async (phoneNumber, resellerLevel) => {
   const programRows = await db('reseller_program').whereILike('level', `%${resellerLevel}%`).first();
   const benefitsText = programRows ? programRows.benefits : 'Fasilitas dan katalog dropship lengkap.';
   const minOrderText = programRows ? programRows.min_order : 'Sesuai ketentuan level.';
@@ -431,7 +444,7 @@ Style Rules:
   cleanHtml = cleanHtml.trim();
 
   const slug = `welcome_${phoneNumber.split('@')[0]}_${resellerLevel.toLowerCase().replace(/\s+/g, '_')}`;
-  return await renderHtmlToPdf(browser, slug, cleanHtml);
+  return await renderHtmlToPdf(slug, cleanHtml);
 };
 
 module.exports = {

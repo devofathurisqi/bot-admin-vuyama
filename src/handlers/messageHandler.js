@@ -341,6 +341,153 @@ const isResellerQuery = (msgText) => {
 };
 
 /**
+ * Check if the message is a simple standard message to skip Gemini API calls
+ */
+const isSimpleMessage = (msgText) => {
+  if (!msgText) return true;
+  const clean = msgText.trim().toLowerCase();
+  if (clean.length < 5) return true;
+  
+  const simplePhrases = [
+    'halo', 'hai', 'siang', 'sore', 'pagi', 'malam', 'assalamualaikum',
+    'ok', 'oke', 'baik', 'ya', 'tidak', 'nggak', 'makasih', 'terima kasih',
+    'siap', 'sudah', 'belum', 'sip', 'minta nomor rekening', 'minta norek'
+  ];
+  
+  return simplePhrases.includes(clean);
+};
+
+/**
+ * Fallback static analysis if Gemini API fails or is bypassed for simple messages
+ */
+const getFallbackAnalysis = (latestMessage, currentMemory) => {
+  const normalized = latestMessage.trim().toLowerCase();
+  
+  let intent = 'OTHER';
+  let isClear = true;
+  let requiresTakeover = false;
+  let clarification = null;
+  let state = currentMemory ? currentMemory.conversation_state : 'idle';
+  let reply = 'Boleh kak, ada yang bisa kami bantu? 😊';
+
+  if (/^(halo|hai|siang|sore|pagi|malam|assalamu|p\b)/i.test(normalized)) {
+    intent = 'GREETING';
+    state = 'greeting';
+    reply = 'Halo Kak! Selamat datang di Vuyama. Ada yang bisa Vumin bantu hari ini? 😊';
+  } else if (/komplain|kecewa|salah kirim|jelek|lambat/i.test(normalized)) {
+    intent = 'COMPLAINT';
+    state = 'complaint_escalation';
+    requiresTakeover = true;
+    reply = '';
+  } else if (/resi|lacak|sampai mana|belum sampai/i.test(normalized)) {
+    intent = 'SHIPPING_INFO';
+    requiresTakeover = true;
+    reply = '';
+  } else if (/cara order|order|pesan|format/i.test(normalized)) {
+    intent = 'ORDER_INTENT';
+    state = 'order_drafting';
+    reply = 'Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\nQuantity :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :';
+  } else if (normalized === 'iya' || normalized === 'yang itu' || normalized === 'jadi gimana') {
+    intent = 'OTHER';
+    isClear = false;
+    reply = 'Bisa dibantu diperjelas maksudnya kak? Biar Vumin tidak salah memberikan informasi... 😊';
+  } else if (/^(ok|oke|baik|siap|sip|sudah|belum)/i.test(normalized)) {
+    intent = 'OTHER';
+    reply = 'Baik Kak, terima kasih. Ada lagi yang bisa Vumin bantu? 😊';
+  }
+
+  return {
+    summary: currentMemory ? currentMemory.summary : 'Percakapan sedang berlangsung.',
+    extracted_intent: intent,
+    is_intent_clear: isClear,
+    requires_human_takeover: requiresTakeover,
+    clarification_question: isClear ? null : reply,
+    conversation_state: state,
+    reply_message: reply
+  };
+};
+
+/**
+ * Save memory details back to Knex Postgres database
+ */
+const saveMemory = async (phoneNumber, summary, intent, state) => {
+  try {
+    const memoryPayload = {
+      summary: summary || 'Percakapan sedang berlangsung.',
+      extracted_intent: intent || 'OTHER',
+      conversation_state: state || 'idle',
+      last_summarized_at: new Date(),
+      updated_at: new Date()
+    };
+    
+    const currentMemory = await db('conversation_memories').where('phone_number', phoneNumber).first();
+    if (currentMemory) {
+      await db('conversation_memories')
+        .where('phone_number', phoneNumber)
+        .update(memoryPayload);
+    } else {
+      await db('conversation_memories').insert({
+        phone_number: phoneNumber,
+        ...memoryPayload
+      });
+    }
+  } catch (error) {
+    logger.error(`Error saving conversation memory for ${phoneNumber}:`, error);
+  }
+};
+
+/**
+ * Compile the unified prompt combining system instructions, history, memory and latest input
+ */
+const buildUnifiedPrompt = (systemPrompt, currentMemory, activeHistory, latestMessage) => {
+  return `${systemPrompt}
+
+==================================================
+TUGAS ANALISIS & GENERATOR RESPONS TERPADU:
+==================================================
+Sebagai Vumin (AI CS Vuyama), tugasmu adalah menganalisis pesan terbaru pelanggan dalam konteks riwayat obrolan 3 hari terakhir dan memori saat ini, lalu menghasilkan jawaban yang sesuai.
+
+Memori Saat Ini:
+- Ringkasan Terakhir: ${currentMemory && currentMemory.summary ? currentMemory.summary : 'Belum ada ringkasan.'}
+- Status Terakhir: ${currentMemory && currentMemory.conversation_state ? currentMemory.conversation_state : 'idle'}
+- Niat Terakhir: ${currentMemory && currentMemory.extracted_intent ? currentMemory.extracted_intent : 'None'}
+
+Riwayat Obrolan 3 Hari Terakhir:
+${activeHistory.map(h => `${h.sender === 'customer' ? 'Customer' : h.sender === 'agent' ? 'Admin' : 'Bot'}: ${h.message}`).join('\n')}
+
+Pesan Terbaru Pelanggan: "${latestMessage}"
+
+ATURAN KEJELASAN NIAT (INTENT CLARITY):
+- Setel "is_intent_clear" menjadi false jika:
+  * Pelanggan mengirimkan kata yang sangat ambigu seperti "iya", "yang itu", "jadi gimana?", "terus?", "mau donk", "ooh gitu" tanpa menjelaskan produk/fitur/tawaran mana yang mereka maksud.
+  * Pelanggan menanyakan ketersediaan warna/ukuran tanpa menyebutkan produk spesifik yang dimaksud (misalnya: "warnanya ready?", "ada ukuran apa aja?" tanpa menyebut jenis mukena atau hijabnya).
+- Setel "is_intent_clear" menjadi true jika:
+  * Niat pelanggan sudah jelas, atau merupakan sapaan, atau pertanyaan FAQ yang bisa langsung dijawab secara lengkap.
+
+ATURAN SERAH TERIMA MANUSIA (HUMAN TAKEOVER):
+- Setel "requires_human_takeover" menjadi true jika:
+  * Pelanggan menanyakan status pengiriman, nomor resi, pelacakan paket (contoh: "resi berapa?", "lacak paket dong", "kok paket belum sampai?").
+  * Pelanggan meminta berbicara dengan admin manusia, orang asli, atau CS manual (contoh: "mau chat dengan admin asli", "hubungkan ke manusia").
+  * Pelanggan menanyakan informasi yang tidak tercantum di database (misalnya menanyakan sisa stok label pribadi mereka di gudang).
+
+ATURAN PEMBUATAN JAWABAN (REPLY MESSAGE):
+1. Jika "is_intent_clear" bernilai false, susun pertanyaan klarifikasi yang ramah dan hangat di "reply_message" (gunakan gaya bahasa Vumin yang ramah dan sopan, sertakan emoji). Contoh: "Maksud Kakak produk Paris Japan atau Paris Jadul? 😊".
+2. Jika "requires_human_takeover" bernilai true, setel "reply_message" menjadi kosong "" atau pesan serah terima singkat yang sopan.
+3. Jika niat jelas dan tidak butuh takeover, hasilkan jawaban CS terbaik di "reply_message" sesuai dengan panduan identitas Vumin, diskon grosir, detail katalog produk, tag-tag PDF ([COMPARISON_SHEET], [INVOICE_SHEET], [WELCOME_GUIDE: Level]) dan gambar ([SEND_IMAGE: filepath]) jika relevan.
+4. JANGAN PERNAH menyertakan prefiks "Admin:" atau "Vumin:" di awal "reply_message".
+
+Kamu WAJIB mengembalikan output dalam format JSON mentah dengan struktur kunci berikut:
+{
+  "summary": "String ringkasan percakapan terbaru (maksimal 3-4 kalimat)",
+  "extracted_intent": "GREETING | PRODUCT_INQUIRY | ORDER_INTENT | ORDER_FORMAT | DROPSHIP_INFO | LABEL_INFO | SHIPPING_INFO | COMPLAINT | OTHER",
+  "is_intent_clear": true/false,
+  "requires_human_takeover": true/false,
+  "conversation_state": "greeting | product_discussion | reseller_inquiry | order_drafting | complaint_escalation | idle",
+  "reply_message": "String teks balasan untuk dikirim ke WhatsApp pelanggan"
+}`;
+};
+
+/**
  * Main function to generate bot response
  */
 const generateResponse = async (phoneNumber, userMessage, customerState, imageBuffer = null, imageMime = null) => {
@@ -360,13 +507,14 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
     if (isResellerQuery(userMessage)) {
       await logToDb('info', `Deteksi pertanyaan syarat reseller untuk ${phoneNumber}. Membalas dengan jawaban hardcode secara instan.`);
       
-      // Update memory asynchronously in the background so it doesn't block the reply
+      // Update memory in background
       (async () => {
         try {
-          const memory = require('../services/memory');
-          await memory.updateMemory(phoneNumber, userMessage);
+          const currentMemory = await db('conversation_memories').where('phone_number', phoneNumber).first();
+          const summary = currentMemory ? currentMemory.summary : 'Customer menanyakan informasi reseller/dropship.';
+          await saveMemory(phoneNumber, summary, 'reseller_info', 'reseller_inquiry');
         } catch (e) {
-          logger.error('Failed to update memory in background reseller handler:', e);
+          logger.error('Failed to update background reseller memory:', e);
         }
       })().catch(err => logger.error('Error in background reseller memory update:', err));
 
@@ -378,13 +526,8 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       };
     }
 
-    // 2. Update/fetch memory
-    logger.info(`Updating 3-day time-based memory for customer ${phoneNumber}`);
-    const memoryAnalysis = await memory.updateMemory(phoneNumber, userMessage);
-
-    // 3. COMPLAINT DETECTION FLOW (Keyword + intent)
-    const isComplaint = isComplaintMessage(userMessage) || memoryAnalysis.extracted_intent === 'COMPLAINT';
-    if (isComplaint) {
+    // B. COMPLAINT DETECTION FLOW (Keyword-based fast-track)
+    if (isComplaintMessage(userMessage)) {
       await logToDb('warn', `Deteksi otomatis Komplain dari ${phoneNumber}: "${userMessage.substring(0, 40)}..."`);
       
       const existingBlock = await db('blocked_numbers').where('phone_number', phoneNumber).first();
@@ -407,6 +550,9 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
+
+      // Update memory in background
+      await saveMemory(phoneNumber, 'Customer mengajukan komplain pelayanan/barang.', 'COMPLAINT', 'complaint_escalation');
       
       return {
         intent: 'complaint',
@@ -414,11 +560,8 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       };
     }
 
-    // 4. ORDER CONFIRMATION FLOW (Format order filled)
-    const isFilledFormat = isFilledOrderFormat(userMessage) || 
-      (memoryAnalysis.extracted_intent === 'ORDER_FORMAT' && 
-       ['nama', 'alamat', 'pesanan'].every(k => userMessage.toLowerCase().includes(k)));
-       
+    // C. ORDER CONFIRMATION FLOW (Format order filled)
+    const isFilledFormat = isFilledOrderFormat(userMessage);
     if (isFilledFormat) {
       await logToDb('info', `Customer ${phoneNumber} mengirimkan format order. Menjalankan AI parser...`);
       const parsed = await parseOrderFormatWithGemini(userMessage);
@@ -515,53 +658,62 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
       emitEvent('customer_updated', updatedCustomer);
 
+      // Update memory in background
+      await saveMemory(phoneNumber, 'Customer telah mengisi format order.', 'ORDER_FORMAT', 'order_drafting');
+
       return {
         intent: 'order_filled',
         response: offHoursNotice + `Terima kasih Kak! 😊 Format ordernya sudah kami terima dan berhasil dicatat dengan status PENDING. Admin kami akan segera mengecek pesanan Kakak untuk menghitung ongkirnya. Mohon tunggu sebentar ya... 🙏`
       };
     }
 
-    const isOrderIntent = memoryAnalysis && memoryAnalysis.extracted_intent === 'ORDER_INTENT' && memoryAnalysis.is_intent_clear === true;
-    if (isOrderIntent) {
-      await logToDb('info', `Deteksi keinginan order dari ${phoneNumber}. Mengirimkan format order...`);
+    // D. Normal AI chat flow (Unified single calling structure)
+    logger.info(`Processing message with Unified AI router for customer ${phoneNumber}`);
+
+    // Fetch memory
+    const currentMemory = await db('conversation_memories').where('phone_number', phoneNumber).first();
+
+    let analysis;
+    
+    // Check if simple message
+    if (isSimpleMessage(userMessage)) {
+      logger.info(`Customer message "${userMessage}" is simple. Bypassing Gemini API for analysis.`);
+      analysis = getFallbackAnalysis(userMessage, currentMemory);
+    } else {
+      // 1. Fetch conversations from the last 3 days
+      const activeHistory = await history.getConversationsWithinDays(phoneNumber, 3);
+
+      // 2. Build prompts
+      const systemPrompt = await buildDynamicSystemPrompt(userMessage, phoneNumber, currentMemory);
       
-      const customer = await db('customers').where('phone_number', phoneNumber).first();
-      const customerName = customer ? customer.name : 'Customer Vuyama';
+      let activeSystemPrompt = systemPrompt;
+      if (imageBuffer && imageMime) {
+        activeSystemPrompt += `\n\n[SISTEM AESTHETICS - ANALISIS GAMBAR]: Pelanggan melampirkan sebuah gambar. Gambar tersebut mungkin berupa bukti transfer pembayaran, swatch/pilihan warna kain, logo brand, atau sampel produk. Harap analisis gambar tersebut dengan cerdas dan hubungkan dengan data katalog Vuyama di atas. Jawab pertanyaan mereka dengan mengaitkan temuan dari gambar tersebut.`;
+      }
 
-      const [orderIdObj] = await db('orders').insert({
-        phone_number: phoneNumber,
-        customer_name: customerName,
-        pesanan_raw: 'Format Order Terkirim (Menunggu Pengisian)',
-        status: 'PENDING',
-        total: 0
-      }).returning('id');
-      const orderId = orderIdObj ? orderIdObj.id : null;
+      const prompt = buildUnifiedPrompt(activeSystemPrompt, currentMemory, activeHistory, userMessage);
 
-      await db('customers').where('phone_number', phoneNumber).update({
-        status: 'ORDER_PENDING',
-        updated_at: new Date()
-      });
-
-      emitEvent('new_order', {
-        id: orderId,
-        phone_number: phoneNumber,
-        customer_name: customerName,
-        pesanan_raw: 'Format Order Terkirim (Menunggu Pengisian)',
-        status: 'PENDING'
-      });
-
-      const updatedCustomer = await db('customers').where('phone_number', phoneNumber).first();
-      emitEvent('customer_updated', updatedCustomer);
-
-      return {
-        intent: 'order_intent',
-        response: offHoursNotice + `Silahkan diisi format order VUYAMA\n\nNama :\nAlamat Lengkap :\nNo HP :\nPesanan :\nQuantity :\n\napabila ingin membuat label atau sudah ada label, silahkan diisi :\n\nNama Brand :\nUkuran Label :\nBentuk :\nWarna Tinta :\nWarna Label :\nFont :`
+      // 3. Call Unified Gemini (JSON mode)
+      logger.info(`Calling Unified Gemini JSON endpoint for ${phoneNumber}...`);
+      const apiResult = await gemini.callGeminiJson(prompt, imageBuffer, imageMime);
+      
+      analysis = {
+        summary: apiResult.summary || '',
+        extracted_intent: apiResult.extracted_intent || 'OTHER',
+        is_intent_clear: apiResult.is_intent_clear !== false,
+        requires_human_takeover: apiResult.requires_human_takeover === true,
+        clarification_question: apiResult.is_intent_clear === false ? apiResult.clarification_question : null,
+        conversation_state: apiResult.conversation_state || 'idle',
+        reply_message: apiResult.reply_message || ''
       };
     }
 
-    // Takeover check: if the query requires human takeover (missing data/features), transition status to WAITING_HUMAN and keep bot silent
-    if (memoryAnalysis && memoryAnalysis.requires_human_takeover === true) {
-      await logToDb('info', `Takeover required for ${phoneNumber} due to missing data/feature in request. Status set to WAITING_HUMAN.`);
+    // Update memory database
+    await saveMemory(phoneNumber, analysis.summary, analysis.extracted_intent, analysis.conversation_state);
+
+    // Handoff to human takeover check
+    if (analysis.requires_human_takeover) {
+      await logToDb('info', `Takeover required for ${phoneNumber}. Status set to WAITING_HUMAN.`);
       await db('customers').where('phone_number', phoneNumber).update({
         status: 'WAITING_HUMAN',
         updated_at: new Date()
@@ -574,31 +726,11 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       };
     }
 
-    // Short-circuit: if intent is not clear (but doesn't require immediate takeover), reply with clarification question to ask back
-    if (memoryAnalysis && memoryAnalysis.is_intent_clear === false && memoryAnalysis.clarification_question) {
-      await logToDb('info', `Customer intent unclear for ${phoneNumber}. Replying with clarification question to ask back.`);
-      return {
-        intent: 'clarification',
-        response: offHoursNotice + memoryAnalysis.clarification_question
-      };
-    }
-
-    // 5. Normal AI chat flow
-    const systemPrompt = await buildDynamicSystemPrompt(userMessage, phoneNumber, memoryAnalysis);
-    
-    // Add instruction to system prompt if image is supplied
-    let activePrompt = systemPrompt;
-    if (imageBuffer && imageMime) {
-      activePrompt += `\n\n[SISTEM AESTHETICS - ANALISIS GAMBAR]: Pelanggan melampirkan sebuah gambar. Gambar tersebut mungkin berupa bukti transfer pembayaran, swatch/pilihan warna kain, logo brand, atau sampel produk. Harap analisis gambar tersebut dengan cerdas dan hubungkan dengan data katalog Vuyama di atas. Jawab pertanyaan mereka dengan mengaitkan temuan dari gambar tersebut.`;
-    }
-
-    const prompt = `${activePrompt}\n\nCustomer: ${userMessage}\n\nAdmin (jangan mulai dengan 'Admin:'):`;
-
-    logger.info(`Calling Gemini AI for customer ${phoneNumber}`);
-    const response = await gemini.callGemini(prompt, imageBuffer, imageMime);
-
-    let cleanedResponse = response.trim();
+    let cleanedResponse = analysis.reply_message ? analysis.reply_message.trim() : '';
     if (cleanedResponse.startsWith('Admin:')) {
+      cleanedResponse = cleanedResponse.substring(6).trim();
+    }
+    if (cleanedResponse.startsWith('Vumin:')) {
       cleanedResponse = cleanedResponse.substring(6).trim();
     }
 
@@ -621,8 +753,13 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
       };
     }
 
+    // If intent is unclear but clarification question is set
+    if (!analysis.is_intent_clear && analysis.clarification_question) {
+      cleanedResponse = analysis.clarification_question;
+    }
+
     return {
-      intent: 'ai_reply',
+      intent: analysis.is_intent_clear ? 'ai_reply' : 'clarification',
       response: offHoursNotice + (cleanedResponse || 'Boleh kak, ada yang bisa dibantu? 😊')
     };
   } catch (error) {

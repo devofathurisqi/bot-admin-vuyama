@@ -212,7 +212,7 @@ app.post('/api/whatsapp/reset', async (req, res) => {
     const { resetBot } = require('./bot');
     
     // Trigger reset process asynchronously to prevent HTTP timeout
-    resetBot().catch(err => {
+    resetBot(true).catch(err => {
       logger.error('Failed to reset WhatsApp bot:', err);
     });
 
