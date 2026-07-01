@@ -312,7 +312,9 @@ const processSingleRequest = async (request) => {
       try {
         const chat = await whatsappClient.getChatById(phoneNumber);
         await chat.sendStateTyping();
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // Dynamic typing speed: approx 20ms per character, min 1.5s, max 4.5s to look human
+        const typingDelay = Math.min(4500, Math.max(1500, replyText.length * 20));
+        await new Promise(resolve => setTimeout(resolve, typingDelay));
       } catch (e) {}
 
       sentMsg = await whatsappClient.sendMessage(phoneNumber, replyText);

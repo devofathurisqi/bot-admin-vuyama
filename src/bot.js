@@ -85,7 +85,7 @@ let client = new Client({
   authTimeoutMs: 90000,
   webVersionCache: {
     type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
   },
   puppeteer: {
     headless: true,
@@ -595,7 +595,8 @@ client.on('message_create', async (msg) => {
   }
 });
 
-// Handle group join reachout
+// Handle group join reachout (DISABLED to prevent WhatsApp number suspension/ban)
+/*
 client.on('group_join', async (notification) => {
   try {
     logger.info('[Auto Reachout] group_join event triggered');
@@ -744,6 +745,7 @@ client.on('group_join', async (notification) => {
     logger.error('Error in group_join auto reachout handler:', err);
   }
 });
+*/
 
 // Handle connection issues
 client.on('disconnected', (reason) => {
@@ -855,7 +857,7 @@ const resetBot = async (forceDeleteAuth = false) => {
     authTimeoutMs: 90000,
     webVersionCache: {
       type: 'remote',
-      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html'
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html'
     },
     puppeteer: {
       headless: true,

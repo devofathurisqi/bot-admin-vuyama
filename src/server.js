@@ -720,8 +720,10 @@ app.post('/api/whatsapp/broadcast', uploadGalleryFile.single('file'), async (req
           });
 
           successCount++;
-          // Delay to prevent getting blocked by WhatsApp
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Randomized delay between 15 and 35 seconds to mimic human pacing and prevent getting blocked by WhatsApp
+          const randomDelay = Math.floor(Math.random() * (35000 - 15000 + 1)) + 15000;
+          logger.info(`[Broadcast] Waiting for ${randomDelay / 1000}s before sending next message...`);
+          await new Promise(resolve => setTimeout(resolve, randomDelay));
         } catch (sendErr) {
           logger.error(`Failed to send broadcast to ${target}:`, sendErr);
           failCount++;
