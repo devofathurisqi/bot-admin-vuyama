@@ -520,7 +520,16 @@ const generateResponse = async (phoneNumber, userMessage, customerState, imageBu
         }
       })().catch(err => logger.error('Error in background reseller memory update:', err));
 
-      const resellerAnswer = `Halo Kak! Senang sekali Kakak tertarik dengan program dropship dari Vuyama 😊 Vumin akan bantu jelaskan ya.\n\nKami di Vuyama menyediakan layanan dropship manual, jadi Kakak bisa berjualan produk kami tanpa perlu stok barang sendiri. Keuntungannya banyak banget lho kak, nanti pengiriman akan atas nama toko dan nomor HP Kakak sendiri, lalu kami juga siap jadi gudang penyimpanan label brand Kakak kalau mau pakai brand sendiri. Ga ada minimal order harian juga, jadi fleksibel banget buat Kakak.\n\nKlo Kakak ingin pakai brand sendiri saat dropship, nanti labelnya dipesan dulu di Vuyama ya kak, biar kami bisa simpan di gudang dan pasang di setiap orderan Kakak.\n\nUntuk dropshipper baru yang belum pernah belanja minimal 10 pcs di awal, ada biaya tambahan jasa dropship Rp 3.000 per pc produk ya kak, itu di luar biaya pasang label Rp 1.000 per pc (klo pakai label). Nah, klo Kakak sudah jadi customer lama atau sudah pernah belanja total 10 pcs di awal, biaya dropship Rp 3.000 ini akan GRATIS, Kakak cukup bayar harga produknya aja ditambah biaya pasang label kalau pakai.\n\nKakak bisa langsung mulai jualan pakai katalog resmi Vuyama dulu lho. Ini link Google Drivenya ya, boleh banget diunduh, diedit, dan diposting ulang untuk promosi: https://drive.google.com/drive/folders/1RwtruDL86PYi3TVqILmxrZgZ_XGT1zPv\n\nKlo Kakak sudah siap order dropship, nanti Vumin bisa bantu berikan format ordernya ya. Ada lagi yang ingin ditanyakan kak? 😊`;
+      const resellerAnswer = `Wah, senang banget Kakak tertarik buat join jadi bagian dari keluarga reseller Vuyama! 😍✨
+
+Caranya gampang banget lho, Kak. Untuk jadi reseller, Kakak cukup melakukan **pembelian pertama minimal 10 pcs** saja. Asyiknya lagi, Kakak boleh banget campur-campur model dan warnanya, jadi nggak harus satu jenis produk!
+
+Nanti kalau sudah jadi reseller, Kakak bakal dapet banyak fasilitas keren:
+✅ **Konten Marketing Gratis:** Kakak bakal dapet akses ke foto dan video produk kualitas HD (tanpa watermark), jadi tinggal posting aja di sosmed. 📸
+✅ **Grup Eksklusif:** Masuk ke grup WhatsApp untuk info stok terupdate dan edukasi jualan.
+✅ **Bisa Dropship:** Kakak bisa jualan tanpa stok barang, nanti kami yang packing dan kirim langsung ke customer atas nama toko Kakak. 📦
+
+Ada beberapa level reseller juga nih Kak, semakin banyak ordernya, potongan harganya makin mantap. Gimana Kak, mau aku kirimin link katalog produknya dulu buat pilih-pilih 10 pcs pertamanya? 😊🙏`;
 
       return {
         intent: 'reseller_info',
